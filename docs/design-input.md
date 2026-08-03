@@ -1,7 +1,10 @@
 ---
 created: 2026-08-03
-status: draft
+status: reference
 ---
+
+> **Note**: 本ドキュメントの未決事項は設計セッション（2026-08-03）で解決済み。
+> 現行の設計は [design.md](design.md) と [verification-plan.md](verification-plan.md) を参照。
 
 # vidprep — 設計インプット（調査セッションのまとめ）
 

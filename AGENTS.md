@@ -49,7 +49,8 @@ Before submitting a PR:
 ## Important Reminders
 
 - All code, published docs, commits, and PRs must be written in English.
-  Design notes (`docs/design-input.md`, `docs/research/`) stay in Japanese
+  Design notes (`docs/design-input.md`, `docs/design.md`,
+  `docs/verification-plan.md`, `docs/research/`) stay in Japanese
 - Do what has been asked; nothing more, nothing less
 - NEVER create files unless absolutely necessary
 - ALWAYS prefer editing an existing file to creating a new one

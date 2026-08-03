@@ -27,6 +27,10 @@ coverage.xml
 # Docs
 site/
 
+# Verification fixtures — golden samples and derived assets are local-only
+# (recorded content must not be published; see docs/verification-plan.md §2)
+fixtures/
+
 # IDE
 .vscode/
 .idea/
