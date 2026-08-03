@@ -25,9 +25,13 @@ Recent commit style:
 
 ## Branch Guard
 
-**Never commit directly to `main`.** If the current branch is `main`, abort
-immediately and tell the user to create a feature branch first. The pre-commit
-hook also enforces this, but check early to avoid wasted work.
+Committing directly to `main` is allowed for small, self-contained changes —
+docs touch-ups, config tweaks, single-file fixes. Nothing blocks it.
+
+For anything larger — a new feature, a refactor spanning several files, or a
+change that warrants review — create a feature branch first and go through a
+PR. When the current branch is `main` and the diff looks like one of those,
+say so and offer to move the work onto a branch before committing.
 
 ## Step 1: Analyze Changes
 
