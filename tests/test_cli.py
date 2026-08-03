@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
+from vidprep import _ffmpeg
 from vidprep import project as project_module
-from vidprep.errors import EXIT_OK, EXIT_USAGE, EXIT_VALIDATION
+from vidprep.errors import (
+    EXIT_EXECUTION,
+    EXIT_OK,
+    EXIT_USAGE,
+    EXIT_VALIDATION,
+    FfmpegError,
+)
 
 SUBCOMMANDS = (
     "init",
@@ -60,8 +68,10 @@ class TestInterface:
         result = run_cli(name, "--help")
 
         assert result.exit_code == EXIT_OK
-        for flag in ("--project", "-p", "--json", "--dry-run"):
+        for flag in ("--json", "--dry-run"):
             assert flag in result.stdout
+        # "-p" alone would also match inside "--project"
+        assert re.search(r"--project\s+-p\b", result.stdout)
 
     def test_unknown_option_is_a_usage_error(self, run_cli):
         result = run_cli("detect", "--nope")
@@ -132,6 +142,32 @@ class TestInit:
 
         assert result.exit_code == EXIT_USAGE
 
+    def test_target_that_is_a_file_is_a_usage_error(
+        self, run_cli, tmp_path, source_video
+    ):
+        target = tmp_path / "work"
+        target.write_text("a file, not a directory")
+
+        result = run_cli("init", str(target), "--source", str(source_video))
+
+        assert result.exit_code == EXIT_USAGE
+        assert "not an empty directory" in result.stderr
+
+    def test_ffprobe_failure_exits_with_the_execution_code(
+        self, run_cli, tmp_path, source_video, monkeypatch
+    ):
+        def _fail(source):
+            msg = "ffprobe exited with 1: Invalid data found when processing input"
+            raise FfmpegError(msg)
+
+        monkeypatch.setattr(_ffmpeg, "probe", _fail)
+
+        result = run_cli("init", str(tmp_path / "work"), "--source", str(source_video))
+
+        assert result.exit_code == EXIT_EXECUTION
+        assert "Invalid data found" in result.stderr
+        assert not (tmp_path / "work").exists()
+
 
 class TestPendingStages:
     """Stages that are not built yet still guard the project they run in."""
@@ -192,6 +228,14 @@ class TestVerificationFailures:
 
         assert result.exit_code == EXIT_VALIDATION
         assert "sha256 mismatch" in result.stderr
+
+    def test_undecodable_artifact_stops_the_stage(self, run_cli, project_dir):
+        (project_dir / "cuts.json").write_bytes(b'{"version":"1","cuts":[],"n":"\xe3"}')
+
+        result = run_cli("render", "-p", str(project_dir))
+
+        assert result.exit_code == EXIT_VALIDATION
+        assert "cuts.json" in result.stderr
 
     def test_replaced_source_reports_json_when_asked(
         self, run_cli, project_dir, source_video

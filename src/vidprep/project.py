@@ -141,9 +141,9 @@ def _load_model[ModelT: BaseModel](
     """
     context = None if duration is None else {"duration": duration}
     try:
-        return model.model_validate_json(
-            path.read_text(encoding="utf-8"), context=context
-        )
+        # Bytes, not text: pydantic reports undecodable input as invalid JSON
+        # rather than letting a UnicodeDecodeError escape as a crash.
+        return model.model_validate_json(path.read_bytes(), context=context)
     except ValidationError as exc:  # also raised for malformed JSON
         msg = f"{path.name}: {describe_validation_error(exc)}"
         raise SchemaInvalidError(msg) from exc
@@ -174,8 +174,8 @@ def init_project(
         msg = f"source material not found: {source}"
         raise UsageError(msg)
     directory = directory.expanduser().resolve()
-    if directory.exists() and any(directory.iterdir()):
-        msg = f"{directory} already exists and is not empty"
+    if directory.exists() and (not directory.is_dir() or any(directory.iterdir())):
+        msg = f"{directory} already exists and is not an empty directory"
         raise UsageError(msg)
 
     probed = _ffmpeg.probe(source)

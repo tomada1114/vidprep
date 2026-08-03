@@ -91,7 +91,8 @@ def _run(options: CommonOptions, action: Callable[[], Output]) -> None:
         output = action()
     except VidprepError as exc:
         if options.json_output:
-            typer.echo(json.dumps({"error": exc.code, "detail": str(exc)}))
+            payload = {"error": exc.code, "detail": str(exc)}
+            typer.echo(json.dumps(payload, ensure_ascii=False))
         else:
             typer.echo(f"✖ {exc}", err=True)
         raise typer.Exit(exc.exit_code) from exc

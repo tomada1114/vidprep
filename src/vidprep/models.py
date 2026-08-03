@@ -16,6 +16,7 @@ Without the context the duration bound is simply not checked.
 from __future__ import annotations
 
 import itertools
+from collections import Counter
 from typing import Annotated, Literal, Self
 
 from pydantic import (
@@ -92,7 +93,7 @@ def _check_unique_ids(ids: list[str], label: str) -> None:
     Raises:
         ValueError: If any identifier appears more than once.
     """
-    duplicates = sorted({value for value in ids if ids.count(value) > 1})
+    duplicates = sorted(value for value, count in Counter(ids).items() if count > 1)
     if duplicates:
         msg = f"duplicate {label} ids: {', '.join(duplicates)}"
         raise ValueError(msg)
@@ -271,10 +272,14 @@ class Telops(_Strict):
 
 
 class Styles(_Strict):
-    """``styles.json`` — ASS style presets keyed by preset name."""
+    """``styles.json`` — ASS style presets keyed by preset name.
+
+    Preset values stay loosely typed: ASS mixes strings (``fontname``),
+    integers (``fontsize``, ``alignment``) and floats (``outline``, ``shadow``).
+    """
 
     version: Literal["1"] = "1"
-    presets: dict[str, dict[str, str | int]] = Field(default_factory=dict)
+    presets: dict[str, dict[str, str | int | float]] = Field(default_factory=dict)
 
 
 class Loudnorm(_Strict):

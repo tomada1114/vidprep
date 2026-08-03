@@ -169,6 +169,21 @@ class TestDesignSamples:
     def test_profile_defaults_match_the_design_table(self):
         assert Profile().model_dump(mode="json") == PROFILE_SAMPLE
 
+    def test_style_presets_accept_the_float_valued_ass_fields(self):
+        payload = {
+            "version": "1",
+            "presets": {
+                "emphasis": {
+                    "fontname": "Hiragino Sans W6",
+                    "fontsize": 64,
+                    "outline": 2.5,
+                    "shadow": 0.0,
+                }
+            },
+        }
+
+        assert Styles.model_validate(payload).presets["emphasis"]["outline"] == 2.5
+
     def test_unknown_key_is_rejected(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             Cuts.model_validate({"version": "1", "cuts": [], "oops": 1})

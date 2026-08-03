@@ -70,7 +70,7 @@ class TestInit:
         target.mkdir()
         (target / "keepme.txt").write_text("existing work")
 
-        with pytest.raises(UsageError, match="not empty"):
+        with pytest.raises(UsageError, match="not an empty directory"):
             project.init_project(target, source_video)
 
     def test_plan_lists_the_command_and_the_writes(self, tmp_path, source_video):
@@ -264,7 +264,7 @@ class TestSubprocessIsolation:
     def test_no_module_but_the_wrapper_imports_subprocess(self):
         offenders = [
             path.name
-            for path in sorted(SRC_ROOT.glob("*.py"))
+            for path in sorted(SRC_ROOT.rglob("*.py"))
             if path.name != "_ffmpeg.py" and "subprocess" in path.read_text()
         ]
 

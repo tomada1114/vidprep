@@ -24,9 +24,8 @@ class TestPackageMetadata:
             "__version__",
         }
 
-    def test_every_export_is_importable(self):
-        for name in __all__:
-            assert getattr(vidprep, name) is not None
+    def test_every_export_is_reachable_on_the_package(self):
+        assert [name for name in __all__ if not hasattr(vidprep, name)] == []
 
     def test_version_matches_installed_metadata(self):
         assert __version__ == version("vidprep")
