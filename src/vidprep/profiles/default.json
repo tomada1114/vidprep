@@ -1,0 +1,34 @@
+{
+  "version": "1",
+  "audio": {
+    "denoise": "deepfilternet",
+    "highpass_hz": 80,
+    "loudnorm": {
+      "i": -14.0,
+      "tp": -1.0,
+      "lra": 11.0
+    }
+  },
+  "silence": {
+    "threshold": "4%",
+    "min_duration": 0.6,
+    "pad_pre": 0.3,
+    "pad_post": 0.3,
+    "min_cut_duration": 0.4
+  },
+  "filler": {
+    "enable_weak": false,
+    "require_adjacent_silence": 0.2
+  },
+  "render": {
+    "crf": 18,
+    "preset": "slow",
+    "boundary_fade": 0.01
+  },
+  "subtitle": {
+    "max_chars_per_line": 20,
+    "max_lines": 2,
+    "min_display": 0.8,
+    "max_cps": 8.0
+  }
+}
