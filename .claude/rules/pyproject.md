@@ -16,10 +16,9 @@ paths:
 
 `exclude-newer` is a supply-chain cooldown: `uv lock` and `uv sync` ignore any
 package version published after the given timestamp, so a dependency cannot be
-resolved until it has survived in the wild for a while. This complements the
-Dependabot `cooldown.default-days` setting in `.github/dependabot.yml`, which
-delays *update PRs* by the same idea — together they keep both fresh installs
-and automated upgrades off packages published in the last few days.
+resolved until it has survived in the wild for a while. Dependencies are
+updated by hand in this repo, so this cutoff is the only thing keeping freshly
+published packages out of the lockfile.
 
 Bump cadence: whenever dependencies are updated, move the `exclude-newer`
 timestamp forward to roughly "today minus 14 days"; do this at least monthly

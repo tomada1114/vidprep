@@ -14,8 +14,7 @@ above). This repo additionally ships Claude Code configuration:
   and plain force-pushes (PreToolUse)
 - `.claude/hooks/stop_check.py` — runs ruff (lint + format check) and mypy
   before a turn ends when Python files changed (Stop)
-- `.claude/skills/` — `create-pr`, `smart-commit`, and `merge-dependabot`
-  workflow skills
+- `.claude/skills/` — `create-pr` and `smart-commit` workflow skills
 - `.claude/settings.json` — shared permission allowlist for local build,
   lint, and test commands; personal preferences (model, output style, extra
   permissions) belong in `.claude/settings.local.json`, never here
