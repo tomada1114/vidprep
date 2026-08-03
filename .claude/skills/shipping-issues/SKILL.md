@@ -1,13 +1,13 @@
 ---
 name: shipping-issues
-description: vidprep のオープン Issue を依存関係・優先度から選定して実装し、PR 作成 → CI 緑 → マージまで進める（このリポジトリ専用の運用ルール込み。vidprep 内ではグローバル同名スキルより本スキルを優先）。並列可能な Issue は worktree で並列実行、人手作業が絡む Issue は単独実行して人手ステップ手前で停止する。引数なし = 1 バッチ（1 Issue または 1 並列セット）、"all" = 着手可能な Issue が尽きるまで、番号指定 = その Issue のみ。Use when Issue を進めて、Issue 消化、次のイシューやって、チケット消化、残ってる Issue をやって、実装してマージまで、ship issues, work through the issues.
+description: vidprep のオープン Issue を依存関係・優先度から選定して実装し、PR 作成 → CI 緑 → マージまで進める（このリポジトリ専用の運用ルール込み。vidprep 内ではグローバル同名スキルより本スキルを優先）。並列可能な Issue は worktree で並列実行、人手作業が絡む Issue は単独実行して人手ステップ手前で停止する。引数なし = 1 バッチ（1 Issue または 1 並列セット）、"all" = 最大 3 バッチまで連続処理（続きは再実行）、番号指定 = その Issue のみ。Use when Issue を進めて、Issue 消化、次のイシューやって、チケット消化、残ってる Issue をやって、実装してマージまで、ship issues, work through the issues.
 ---
 
 # shipping-issues（vidprep）
 
 メインコンテキストはオーケストレータに徹する: 選定・委譲・CI 監視・マージ判断・報告のみを行い、実装はサブエージェントに委譲する。サブエージェントからは要約（結論・変更点・AC 充足状況・未解決事項）だけ受け取り、生ログや全文 diff をメインに戻させない。
 
-引数: なし = 1 バッチ / `all` = ready な Issue が尽きるまでバッチを繰り返す / 番号（`#5` 等）= その Issue のみ。
+引数: なし = 1 バッチ / `all` = バッチを繰り返す（**1 回の呼び出しで最大 3 バッチ**）/ 番号（`#5` 等）= その Issue のみ。スキルの状態はすべて GitHub 側（closed Issue / PR / main）にあるため、上限で区切って新しいセッションから再実行しても失われるものはない。
 
 ## Phase 0: 状況把握
 
@@ -70,7 +70,7 @@ PR まで作成すること。手順は .claude/skills/create-pr/SKILL.md に従
 2. 失敗したら修正サブエージェント（**sonnet**）に委譲: 同一ブランチで、失敗ジョブ名とログの要点（`gh run view --log-failed` から抽出した該当行のみ）を貼って修正 → push させる。2 回連続で失敗したら **opus** に切り替える。計 3 回失敗したら停止して状況を報告する
 3. 緑になったら `gh pr merge <PR番号> --squash --delete-branch`
 4. worktree を使った場合は `git worktree remove ../vidprep-issue-<N>`、main を pull
-5. `all` のときは Phase 0 に戻る（マージで closed になった Issue が新しい ready を解放する）
+5. `all` のときは Phase 0 に戻る（マージで closed になった Issue が新しい ready を解放する）。ただし 3 バッチ処理したら打ち切り、結果を報告して「続きは新しいセッションで `/shipping-issues all`」と案内して終了する（コンテキスト温存のため。並列セットは 1 バッチと数える）
 
 ## 報告
 
