@@ -1,6 +1,7 @@
 # vidprep
 
-A short description of what this library does.
+A CLI pipeline that prepares recorded talks for YouTube: silence cutting,
+Japanese transcription, subtitle generation and Filmora handoff.
 
 ## Installation
 
@@ -18,11 +19,8 @@ A short description of what this library does.
 
 ## Quick Example
 
-```python
-from vidprep import add
-
-result = add(1, 2)
-print(result)  # 3
+```bash
+vidprep init ./work/talk01 --source ~/Movies/VID_20260507_144024.mp4
 ```
 
 ## Next Steps

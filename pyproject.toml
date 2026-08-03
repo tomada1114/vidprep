@@ -21,6 +21,14 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
+dependencies = [
+    "click>=8.1",
+    "pydantic>=2.11",
+    "typer>=0.15",
+]
+
+[project.scripts]
+vidprep = "vidprep.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/tomada1114/vidprep"

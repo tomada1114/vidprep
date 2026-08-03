@@ -29,7 +29,12 @@ in the `justfile`. Run a single test with
 src/vidprep/
 ├── __init__.py   # Public API — export everything users need here
 ├── py.typed      # PEP 561 marker for typed package
-└── core.py       # Placeholder module — replace and re-export via __init__.py
+├── cli.py        # typer app: one thin subcommand per pipeline stage
+├── errors.py     # Exception hierarchy and the 0/1/2/3 exit codes
+├── models.py     # pydantic schemas for the intermediate JSON (design.md §3)
+├── project.py    # Project directory: init, load, verify, stage records
+├── _ffmpeg.py    # The only module allowed to spawn subprocesses
+└── profiles/     # Packaged templates (default.json) copied by `vidprep init`
 ```
 
 - Keep the public API surface small — export via `__init__.py.__all__`
