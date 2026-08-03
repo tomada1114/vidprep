@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 SAMPLE_DURATION = 298.92
 SAMPLE_VIDEO = VideoStream(codec="h264", width=1920, height=1080, fps="25/1")
 SAMPLE_AUDIO = AudioStream(codec="aac", sample_rate=44100, channels=2)
@@ -61,7 +63,18 @@ class CliResult:
 def run_cli(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> Callable[..., CliResult]:
-    """Run the console entry point exactly as the installed script would."""
+    """Run the console entry point exactly as the installed script would.
+
+    Rich colours help output whenever it thinks the terminal supports it —
+    which is the case on CI — and the escape sequences it injects land in the
+    middle of option names. Colour is switched off and stripped so assertions
+    see the same text everywhere.
+    """
+    for forcing in ("FORCE_COLOR", "CLICOLOR_FORCE"):
+        monkeypatch.delenv(forcing, raising=False)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("TERM", "dumb")
+    monkeypatch.setenv("COLUMNS", "200")
 
     def _run(*args: str) -> CliResult:
         monkeypatch.setattr(sys, "argv", ["vidprep", *args])
@@ -71,6 +84,10 @@ def run_cli(
         except SystemExit as exc:
             exit_code = 0 if exc.code is None else int(exc.code)
         captured = capsys.readouterr()
-        return CliResult(exit_code, captured.out, captured.err)
+        return CliResult(
+            exit_code,
+            ANSI_ESCAPE.sub("", captured.out),
+            ANSI_ESCAPE.sub("", captured.err),
+        )
 
     return _run
