@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep doctor`: checks ffmpeg (including libass), ffprobe, auto-editor,
+  the ASR backends (whisper.cpp / mlx-whisper), DeepFilterNet and the SudachiPy
+  dictionary, prints the report as JSON with `--json`, and exits `3` when a
+  required dependency is missing
 - pydantic v2 schemas for the intermediate JSON files (manifest, transcript,
   cuts, telops, styles, profile) enforcing identifier shapes, interval bounds
   and the "approved cuts never overlap" invariant
