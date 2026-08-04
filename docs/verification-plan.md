@@ -74,7 +74,7 @@ afplay audio/processed.wav         # 試聴
 ## 5. 機能別検証: B. 文字起こし（transcribe）
 
 **完了条件（機械）**
-- 人手リファレンス比 **CER ≤ 15%**（暫定値。Step 1 ベンチの実測で確定値に更新し、本書を書き換える）
+- 人手リファレンス比 **CER ≤ 8%**（確定値。Step 1 実測ベンチ（§12.2）で採用した whisper.cpp large-v3-turbo + VAD の実測 CER は 4.94%。実行間のばらつきと、リファレンスが large-v3-turbo のドラフトを叩き台に作成されたことによる turbo 有利バイアス（§12.2 参照）を見込んで約 3pt のマージンを取った値を確定条件とする。旧暫定値 15% から更新）
 - ハルシネーション 0 件: VAD 発話区間の外側で開始するセグメントが **0 件**（`report/vad.json` と突き合わせ）。既知の幻覚フレーズ（「ご視聴ありがとうございました」等のリスト照合）の非発話区間での出現 **0 件**
 - transcript.json がスキーマ検証を通る。segments の時刻が単調・非負・素材尺以内
 
@@ -248,14 +248,14 @@ open -a "Wondershare Filmora Mac" # 実機取り込み → チェックリスト
 
 1. 対象: ゴールデンサンプルの `audio/processed.wav` 相当（ベンチ時点では ffmpeg 手動実行で loudnorm まで済ませた音声。audio-fix 実装前でも実施可能にするため）
 2. 人手リファレンスを作成（§3.2。最初のモデル出力を叩き台に）
-3. マトリクスを実測:
+3. マトリクスを実測（2026-08-04、`fixtures/bench/matrix.md` / `bench.json`）:
 
 | モデル × バックエンド | CER | 実行時間（倍率） | ハルシ件数 | ピーク RSS |
 |---|---|---|---|---|
-| whisper.cpp large-v3 | | | | |
-| whisper.cpp large-v3-turbo | | | | |
-| mlx-whisper large-v3-turbo | | | | |
-| kotoba-whisper v2.0（変換可否を確認の上） | | | | |
+| whisper.cpp large-v3 | 70.81%（非代表値。下記注記参照） | 0.37x | 4 | 3.8 GiB |
+| whisper.cpp large-v3-turbo | 5.76% | 0.33x | 6 | 3.3 GiB |
+| mlx-whisper large-v3-turbo | 7.32% | 0.16x | 3 | 1.6 GiB |
+| kotoba-whisper v2.0 | unavailable（理由: `~/.cache/whisper.cpp` に `ggml-kotoba-whisper-v2.0.bin` が無く、ggml 変換手段が未提供のため。`whisper.cpp/models/convert-h5-to-ggml.py` は OpenAI 形式の checkpoint を前提としており kotoba-whisper（transformers 形式のみ配布）には使えない） |
 
    - 実行時間は `/usr/bin/time -l`（wall + peak RSS）。各 2 回走らせ 2 回目を採用（モデルロードのキャッシュ差を除外）
    - ハルシ件数: VAD なし素の実行で無音区間に生成されたセグメント数。**加えて VAD あり/なしを最良モデルで比較**し、VAD 前段必須の判断を実測で裏取りする
@@ -264,11 +264,26 @@ open -a "Wondershare Filmora Mac" # 実機取り込み → チェックリスト
    - VAD 比較は whisper.cpp の `--vad`（Silero の ggml をモデルディレクトリに置くか `--vad-model` で指定）で行い、VAD なし行と 2 行で出力する
    - 実行できない候補（ggml へ未変換の kotoba-whisper v2.0 など）は行を落とさず `unavailable (reason: ...)` として表に残す
    - `--reference` なしでも実行でき、その transcript が §3.2 の人手リファレンスの叩き台になる（CER 列は空欄のまま）
-4. 判定基準: **CER 最小を基本とし、CER 差が 1pt 以内なら実行時間の短い方**を採用（ハーネスが同じ規則で採用案と根拠を出力する。最終判断は実測値を目視した上で tomada が行う）
-5. 決定をもって design.md §1 の判断 1 と本書 §5 の CER 暫定値（15%）を確定値に更新する
+
+   **large-v3 の異常値について**: whisper.cpp large-v3（VAD なし）の transcript は終盤で同一文の repetition loop に陥り（`transcript.txt` が 2082 bytes と他候補の半分程度）、70.81% という CER は文字起こし精度としては非代表値。無音区間などで誘発される既知の whisper repetition 失敗モードであり、下記 VAD 比較の追加計測で解消することを確認した。
+
+   VAD あり/なし比較（最良モデル + 異常値確認のための large-v3 追加計測）:
+
+   | モデル × バックエンド | CER | 実行時間（倍率） | ハルシ件数 | ピーク RSS |
+   |---|---|---|---|---|
+   | whisper.cpp large-v3-turbo（VAD なし） | 5.76% | 0.33x | 6 | 3.3 GiB |
+   | whisper.cpp large-v3-turbo（VAD あり） | 4.94% | 0.18x | 0 | 4.2 GiB |
+   | whisper.cpp large-v3（VAD あり、追加計測） | 5.58% | 0.39x | 0 | 3.8 GiB |
+
+   large-v3 を VAD ありで再計測すると repetition loop は解消し（transcript は他候補と同程度のサイズ、ハルシ 0 件）、クリーンな CER 5.58% が得られた。ただし large-v3-turbo（VAD あり）の 4.94% を上回るため、採用判定は変わらない。
+
+4. 判定基準（tomada 承認、2026-08-04 更新）: **実行時間を問わず CER が最小の候補を採用する**（精度を速度より優先）。CER 差が四捨五入で小数第 2 位まで一致する場合のみ実行時間の短い方を採用する。ハーネスの自動出力は「CER 差 1pt 以内なら実行時間の短い方」という旧ルールに基づく参考情報であり、本判定では上書きする（ハーネス改修は別途）。#7 で VAD がデフォルト必須と定義されるため、判定は VAD ありの数値同士で行う: whisper.cpp large-v3-turbo（VAD あり、CER 4.94%）が whisper.cpp large-v3（VAD あり、CER 5.58%）を下回り最小。mlx-whisper large-v3-turbo（CER 7.32%、VAD 未計測）はいずれにせよ非採用
+5. **決定**: **whisper.cpp large-v3-turbo + VAD（Silero）を採用**。design.md §1 の判断 1 と本書 §5 の CER 完了条件（15% 暫定 → 8% 確定）を更新済み
+
+   **注記（リファレンスのバイアス）**: リファレンスは large-v3-turbo ドラフトを人手修正して作成したため、turbo に有利な方向のバイアスがありうる（tomada 了承済み）。
 
 ### 12.3 Step 1 の完了条件
 
-- [ ] 環境チェックリスト全項目が緑
-- [ ] ベンチ表が全欄埋まり、採用モデルと根拠が design.md に追記されている
-- [ ] 人手リファレンス 2 ファイル（§3.2）が fixtures/expected/ に存在する
+- [x] 環境チェックリスト全項目が緑
+- [x] ベンチ表が全欄埋まり、採用モデルと根拠が design.md に追記されている
+- [x] 人手リファレンス 2 ファイル（§3.2）が fixtures/expected/ に存在する

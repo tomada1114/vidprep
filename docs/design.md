@@ -13,7 +13,7 @@ design-input.md の未決事項 7 件と、本設計セッションで追加し�
 
 | # | 論点 | 決定 | 理由 |
 |---|---|---|---|
-| 1 | ASR モデル | **実測ベンチで決定**（Step 1）。候補: whisper.cpp large-v3 / large-v3-turbo、mlx-whisper large-v3-turbo、kotoba-whisper v2.0 | 公開ベンチが相互矛盾。ベンチ手順は verification-plan.md §12 に定義。決定後この表を更新する |
+| 1 | ASR モデル | **whisper.cpp large-v3-turbo（VAD あり、Silero）に確定**（Step 1 実測ベンチ、2026-08-04） | ゴールデンサンプル実測（verification-plan.md §12.2）。VAD あり同士の比較で CER が最小（large-v3-turbo 4.94% vs large-v3 5.58%）。採用ルールは実行時間を問わず CER 最小を採用（tomada 承認、CER 差が四捨五入 2 桁で同値の場合のみ実行時間で決める）。VAD ありでハルシネーションが 6→0 件に消え（large-v3 側も無音区間での repetition loop が解消）、実行時間も 0.18x とむしろ最速。ピーク RSS 4.2GB。mlx-whisper large-v3-turbo（CER 7.32%、VAD 未計測）・kotoba-whisper v2.0（ggml 変換不可）は不採用。詳細は verification-plan.md §12.2 |
 | 2 | smart cut | **v1 は全再エンコード**（CRF 18 / preset slow）。`Renderer` プロトコルで差し替え可能にする | 劣化は 1 世代のみで Filmora 取り込みでは再劣化しない（実機確認済み）。検証体系を先に固める |
 | 3 | フィラー検出 | 辞書 2 段階（strong / weak）+ セグメント境界依存の候補化。§5.4 参照 | 文中フィラーの切り出しは単語タイムスタンプに依存し日本語で非信頼のため v1 で扱わない |
 | 4 | 誤変換辞書 | **スキーマ互換の独立辞書**。iobsidian `fix-transcriptions` と同一スキーマを `yomi` フィールドで拡張し、初期エントリは同辞書からコピー | 用途が違う（iobsidian は LLM の文脈参照、vidprep は読みベース決定的置換）。リポジトリ間結合を避ける |
