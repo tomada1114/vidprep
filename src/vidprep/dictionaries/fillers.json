@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "note": "Filler words cut detection proposes candidates for (design.md §5.4). strong entries are used by default; weak entries only when profile.json sets filler.enable_weak to true, because they are also ordinary words. A project may add its own entries in <project>/dictionaries/fillers.json.",
+  "strong": ["えー", "えーと", "えっと", "あのー", "そのー", "うーん"],
+  "weak": ["まあ", "なんか", "こう"]
+}

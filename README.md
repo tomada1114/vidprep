@@ -2,7 +2,7 @@
 
 YouTube 動画編集の下処理（無音カット・文字起こし・字幕生成）を半自動化する CLI。
 
-実装中です。現在は中間 JSON のスキーマ、プロジェクト作業ディレクトリ、CLI 骨格（`init` / `doctor`）、音声前処理（`audio-fix`）、文字起こし（`transcribe`）、辞書校正（`correct`）が動きます。
+実装中です。現在は中間 JSON のスキーマ、プロジェクト作業ディレクトリ、CLI 骨格（`init` / `doctor`）、音声前処理（`audio-fix`）、文字起こし（`transcribe`）、辞書校正（`correct`）、カット候補検出（`detect`）が動きます。
 
 ```bash
 vidprep doctor          # 外部依存（ffmpeg / auto-editor / ASR ほか）を検査する
@@ -11,8 +11,9 @@ vidprep audio-fix --stats   # ノイズ抑制 → highpass 80Hz → loudnorm 2 �
 vidprep transcribe          # Silero VAD → ASR → transcript.json（原尺タイムスタンプ）
 vidprep correct --dry-run   # 誤変換辞書の置換 diff を確認する（書き換えなし）
 vidprep correct --apply-patch patch.json   # LLM 校正パッチを検証してから適用する
+vidprep detect              # 無音 + フィラーのカット候補 → cuts.json（再実行で status 保持）
 ```
 
-残りの処理段（`detect` / `render` / `report`）はサブコマンドとして登録済みですが中身は未実装です。設計は `docs/design.md`、検証計画は `docs/verification-plan.md`、調査根拠は `docs/research/feasibility-report.md` を参照してください。
+残りの処理段（`render` / `report`）はサブコマンドとして登録済みですが中身は未実装です。設計は `docs/design.md`、検証計画は `docs/verification-plan.md`、調査根拠は `docs/research/feasibility-report.md` を参照してください。
 
 [uv-template](https://github.com/tomada1114/uv-template) をベースに構築しています。

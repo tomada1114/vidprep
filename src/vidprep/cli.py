@@ -17,6 +17,7 @@ import typer
 
 from . import audio as audio_module
 from . import correct as correct_module
+from . import detect as detect_module
 from . import doctor as doctor_module
 from . import project as project_module
 from . import transcribe as transcribe_module
@@ -67,7 +68,6 @@ YesOption = Annotated[
 
 #: Subcommand name -> stage key in the manifest, for stages not built yet.
 PENDING_STAGES = {
-    "detect": "detect",
     "render": "render",
     "report": "report",
 }
@@ -290,6 +290,31 @@ def transcribe(
 
 
 @app.command()
+def detect(
+    project: ProjectOption = None,
+    json_output: JsonOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Detect silence and filler words as cut candidates.
+
+    Re-running is the point: the parameters in profile.json are meant to be
+    tuned and detection repeated, so a candidate somebody already approved,
+    rejected or wrote by hand keeps its verdict (design.md §3.4).
+    """
+    options = CommonOptions(project, json_output, dry_run)
+
+    def action() -> Output:
+        loaded, stale = _prepare(detect_module.STAGE, options)
+        if options.dry_run:
+            plan = detect_module.plan(loaded)
+            return Output(plan, [*stale, *_plan_lines(plan)])
+        result = detect_module.run_detect(loaded)
+        return Output(result.to_dict(), [*stale, *result.lines()])
+
+    _run(options, action)
+
+
+@app.command()
 def correct(
     apply_patch: PatchOption = None,
     yes: YesOption = False,
@@ -331,7 +356,6 @@ def correct(
     _run(options, action)
 
 
-_pending_command("detect", "Detect silence and filler words as cut candidates.")
 _pending_command("render", "Apply approved cuts and write the output video.")
 _pending_command("report", "Regenerate statistics, waveforms and the cut digest.")
 

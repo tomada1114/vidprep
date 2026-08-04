@@ -28,7 +28,7 @@ SUBCOMMANDS = (
     "report",
 )
 #: The stages that are still skeletons.
-PENDING_SUBCOMMANDS = ("detect", "render", "report")
+PENDING_SUBCOMMANDS = ("render", "report")
 OVERLAPPING_CUTS = {
     "version": "1",
     "cuts": [
@@ -181,7 +181,7 @@ class TestPendingStages:
         assert "not implemented yet" in result.stderr
 
     def test_outside_a_project_the_directory_is_reported(self, run_cli, tmp_path):
-        result = run_cli("detect", "-p", str(tmp_path))
+        result = run_cli("render", "-p", str(tmp_path))
 
         assert result.exit_code == EXIT_USAGE
         assert "is not a vidprep project" in result.stderr
@@ -193,7 +193,7 @@ class TestPendingStages:
         changed.audio.highpass_hz = 120
         project_module.write_json(project_dir / "profile.json", changed)
 
-        result = run_cli("detect", "-p", str(project_dir))
+        result = run_cli("render", "-p", str(project_dir))
 
         assert "may be stale" in result.stdout
         assert result.exit_code == EXIT_USAGE  # only because the stage is a skeleton

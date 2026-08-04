@@ -299,6 +299,15 @@ LLM 校正そのもの（プロンプト・文脈判断）は Claude Code スキ
   - weak（`enable_weak: true` のときのみ候補化）: まあ、なんか、こう
 - 出力は §3.4 のマージ規則で既存 cuts.json に統合する
 
+実装時に確定した詳細（auto-editor 29.3.1 実測）:
+
+- 無音検出の入力は `audio/processed.wav`（detect は audio-fix の下流）。`--margin 0s` を明示し、パディングは vidprep 側で行う。auto-editor の margin に任せると「検出器出力との差分」でパディングを機械確認できなくなるため
+- `min_duration` に相当する CLI オプションは auto-editor 29.3.1 に存在しないため、変換層で「gap 長 < min_duration の無音は検出しない」として適用する
+- **発話衝突（1 カットあたり ≤ 0.2 秒）は transcript セグメント区間そのものではなく「transcript ∩ VAD 発話区間」で測る**。whisper.cpp の VAD 併用時、セグメントの end が次の発話区間の末尾まで伸びることがある（ゴールデン実測: 1 セグメントが 55 秒の無音をまたいだ）。生の区間で測ると 30 カット中 15 件が閾値超過となり、実際には発話を消していないカットで detect が止まる
+- 区間が無音カットをまたぐ transcript セグメントは**削除せず警告**する（#7 の二重防御の結論）。transcript は transcribe の所有物であり、detect は書き換えない
+- 条件 (b) は「セグメント内部に VAD 境界があるとき」のみ候補化する。境界がなければフィラーの終端を推測できないため note のみに留める（precision 優先）
+- フィラー候補は同じ実行で検出した無音カットとの重なりを引いてから出力する。両方を approved にしても「approved 同士は重ならない」不変条件が破れないようにするため
+
 ### 5.5 render
 
 ```python

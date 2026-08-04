@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep detect`: converts the `auto-editor --export v3` timeline into padded
+  silence cuts (`approved`), proposes filler-word cuts from the transcript and
+  the speech regions behind it (`proposed`), and merges the result into any
+  existing `cuts.json` so an approved, rejected or hand-written cut keeps its
+  verdict and its note across runs — identifiers are never reused. A v3 export
+  in a shape vidprep does not recognise fails with exit `2` instead of being
+  guessed at, and a run whose silence cut would remove more than 0.2s of
+  speech fails with exit `3` and writes nothing
+- the filler dictionary (`vidprep/dictionaries/fillers.json`, shipped with the
+  package): six strong words used by default and three weak ones used only
+  when `profile.json` sets `filler.enable_weak`. A project may add its own in
+  `<project>/dictionaries/fillers.json`
 - `vidprep transcribe`: runs Silero voice activity detection in front of the
   recogniser — whisper.cpp or mlx-whisper, chosen by the new `asr` section of
   `profile.json` — and writes `transcript.json` in original-timeline seconds
