@@ -22,8 +22,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "budoux>=0.7",
     "click>=8.1",
     "pydantic>=2.11",
+    "pysubs2>=1.8",
+    "sudachipy>=0.6.10",
     "typer>=0.15",
 ]
 
@@ -38,15 +41,28 @@ Issues = "https://github.com/tomada1114/vidprep/issues"
 Changelog = "https://github.com/tomada1114/vidprep/blob/main/CHANGELOG.md"
 
 [dependency-groups]
-dev = ["mypy>=2.1.0", "pre-commit>=4.6.0", "pytest>=8.0", "pytest-cov>=7.1.0", "ruff>=0.11"]
+dev = [
+    "jiwer>=4.0",
+    "mypy>=2.1.0",
+    "pre-commit>=4.6.0",
+    "pytest>=8.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.11",
+    # SudachiPy ships no dictionary; `doctor` reports which one is installed,
+    # so the flavour stays a deliberate choice rather than a runtime pin.
+    "sudachidict-core>=20250825",
+]
 docs = ["mkdocs-material>=9.7.6", "mkdocstrings[python]>=1.0.4"]
+# Benchmark-only ASR backend (verification-plan.md §12.2). Apple Silicon only,
+# so it never resolves into the dev or docs environments CI installs.
+asr = ["mlx-whisper>=0.4; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 
 # --------------------------------------------------------------------------- #
 #  uv
 # --------------------------------------------------------------------------- #
 
 [tool.uv]
-exclude-newer = "2026-06-18T00:00:00Z"
+exclude-newer = "2026-07-20T00:00:00Z"
 
 # --------------------------------------------------------------------------- #
 #  Build
@@ -129,6 +145,7 @@ convention = "google"
 "tests/**" = [
     "S101",    # assert is fine in tests
     "ARG001",  # unused arguments (fixtures)
+    "ARG002",  # unused arguments (fixtures requested by a test method)
     "PLR2004", # magic numbers in tests
     "T20",     # print in tests
     "D1",      # missing docstrings — test names are self-documenting
@@ -164,6 +181,11 @@ enable_error_code = ["ignore-without-code", "redundant-cast", "truthy-bool"]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_untyped_calls = false
+
+# SudachiPy ships no py.typed marker and has no stubs on typeshed.
+[[tool.mypy.overrides]]
+module = "sudachipy.*"
+ignore_missing_imports = true
 
 # --------------------------------------------------------------------------- #
 #  pytest
