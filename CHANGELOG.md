@@ -101,3 +101,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same cut boundaries
 - 実現可能性調査レポートと設計インプットを `docs/` に追加（設計フェーズ、実装なし）
 - [uv-template](https://github.com/tomada1114/uv-template) ベースのプロジェクト雛形
+- `vidprep render --preview`: reads `telops.json` and `styles.json`, writes
+  the telop track to `out/telops.ass` and burns it into `out/preview.mp4` with
+  libass. A telop naming a `segment_id` is shown for exactly as long as that
+  segment's subtitle — both go through the one `Timeline` mapping — while a
+  `start` in original-timeline seconds plus a `duration` is mapped the same
+  way. Style presets ship with the package and a project `styles.json`
+  overrides them field by field, so a stated `fontsize` keeps the packaged
+  `fontname`; weight is asked for by family name (`Hiragino Sans W6`) because
+  `Bold: 1` was measured to do nothing through CoreText on macOS. A telop
+  naming a segment or a preset that is not there stops the run with exit `3`
+  before anything is encoded, a telop whose segment a cut removed is reported
+  rather than drawn, and `out/output.mp4` is only ever read

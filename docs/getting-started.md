@@ -42,9 +42,9 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 
 !!! note
 
-    Every stage is implemented. What is not built yet lives behind flags of
-    `render`: `--preview` (burnt-in captions) and `--verify-asr` (comparing a
-    re-transcription of the output against the cut plan).
+    Every stage is implemented. What is not built yet lives behind one flag of
+    `render`: `--verify-asr` (comparing a re-transcription of the output
+    against the cut plan).
 
 ## Transcribing
 
@@ -87,6 +87,7 @@ video and the subtitles from the same cut plan, so the two cannot drift apart.
 ```bash
 vidprep render              # out/output.mp4 + out/subtitles.srt
 vidprep render --no-wrap    # and out/subtitles.nowrap.srt, without line breaks
+vidprep render --preview    # and out/telops.ass + out/preview.mp4
 vidprep render --dry-run    # the ffmpeg command it would run, filters included
 ```
 
@@ -106,6 +107,22 @@ Subtitles are broken at BudouX phrase boundaries into at most `max_lines`
 lines of `max_chars_per_line` full-width characters. Nothing is truncated:
 text that does not fit, entries shown for less than `min_display` and entries
 read faster than `max_cps` are reported in the result rather than changed.
+
+## Telops
+
+`--preview` reads `telops.json`, dresses each caption with a preset from
+`styles.json`, writes the track to `out/telops.ass` and burns it into
+`out/preview.mp4` with libass. A telop that names a `segment_id` is shown for
+exactly as long as that segment's subtitle; one with a `start` in
+original-timeline seconds and a `duration` is put through the same cut
+mapping. Naming a segment or a preset that does not exist stops the run before
+anything is encoded, and `out/output.mp4` is only ever read.
+
+The presets ship with vidprep; a project `styles.json` overrides them field by
+field, so stating a `fontsize` keeps the packaged `fontname` — which is how
+weight is asked for at all. macOS renders libass through CoreText, where
+`Bold: 1` was measured to change nothing, so the presets name a weighted
+family such as `Hiragino Sans W6` instead (design.md §3.5).
 
 ## What's Next?
 
