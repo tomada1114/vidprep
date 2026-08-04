@@ -13,7 +13,8 @@ at, and a ``rejected`` one somebody has, both stay in the recording
 a second, quieter one.
 
 What is written: ``out/output.mp4``, ``out/subtitles.srt`` and, with
-``--no-wrap``, ``out/subtitles.nowrap.srt``.
+``--no-wrap``, ``out/subtitles.nowrap.srt``. ``--preview`` adds the telop track
+``out/telops.ass`` and ``out/preview.mp4``, the render with it burned in.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import _reencode, _subtitles
+from . import _ass, _preview, _reencode, _subtitles
 from . import audio as audio_module
 from . import doctor as doctor_module
 from . import project as project_module
@@ -34,13 +35,16 @@ from .models import Cuts, Transcript
 from .timeline import Timeline
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
+    from ._ass import TelopPlan
     from ._subtitles import Subtitles
-    from .models import Cut
+    from .models import Cut, StylePreset
     from .project import Project
+    from .timeline import SegmentWarning, TimedSegment
 
 __all__ = [
+    "Preview",
     "ReencodeRenderer",
     "RenderResult",
     "Renderer",
@@ -55,9 +59,45 @@ OUT_DIR = Path("out")
 VIDEO_NAME = OUT_DIR / "output.mp4"
 SUBTITLES_NAME = OUT_DIR / "subtitles.srt"
 NOWRAP_NAME = OUT_DIR / "subtitles.nowrap.srt"
+TELOPS_ASS_NAME = OUT_DIR / "telops.ass"
+PREVIEW_NAME = OUT_DIR / "preview.mp4"
 
 SECONDS_DECIMALS = 3
 LUFS_DECIMALS = 2
+
+
+@dataclass(frozen=True, slots=True)
+class Preview:
+    """What ``--preview`` drew, and which presets it drew it with."""
+
+    plan: TelopPlan
+    presets: tuple[str, ...]
+    styles_source: str
+    duration: float
+
+    def to_dict(self) -> dict[str, Any]:
+        """Render the telop and style sections of the ``--json`` document."""
+        telops = self.plan
+        return {
+            "telops": {
+                "total": len(telops.events) + telops.dropped_by_cut,
+                "by_segment_id": telops.by_segment_id,
+                "by_start_duration": telops.by_start_duration,
+                "dropped_by_cut": telops.dropped_by_cut,
+                "warnings": list(telops.warnings),
+            },
+            "styles": {"presets": list(self.presets), "source": self.styles_source},
+        }
+
+    def lines(self) -> list[str]:
+        """Render what was drawn for a human, warnings first."""
+        drawn = len(self.plan.events)
+        return [
+            *(f"⚠ {warning}" for warning in self.plan.warnings),
+            f"✔ {TELOPS_ASS_NAME} ({drawn} telops, "
+            f"{len(self.presets)} style presets from the {self.styles_source})",
+            f"✔ {PREVIEW_NAME} ({self.duration:.2f}s, telops burned in)",
+        ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,11 +112,13 @@ class Result:
     removed_duration: float
     subtitles: Subtitles
     outputs: tuple[str, ...]
+    preview: Preview | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Render the result as the JSON document ``--json`` prints."""
         produced = self.rendered
         subtitles = self.subtitles
+        preview = {} if self.preview is None else self.preview.to_dict()
         return {
             "renderer": produced.renderer,
             "cuts_applied": {
@@ -108,6 +150,7 @@ class Result:
                 "warn_line_overflow": subtitles.count("line_overflow"),
             },
             "outputs": list(self.outputs),
+            **preview,
         }
 
     def lines(self) -> list[str]:
@@ -124,6 +167,7 @@ class Result:
             f"{subtitles.count('min_display')} under min_display, "
             f"{subtitles.count('max_cps')} over max_cps, "
             f"{subtitles.count('line_overflow')} over max_chars_per_line)",
+            *([] if self.preview is None else self.preview.lines()),
         ]
 
 
@@ -225,16 +269,36 @@ def _job(loaded: Project, timeline: Timeline, audio: Path) -> _reencode.RenderJo
     )
 
 
-def _build_subtitles(loaded: Project, timeline: Timeline) -> Subtitles:
-    """Map the transcript onto the cut timeline and dress it as subtitles."""
+@dataclass(frozen=True, slots=True)
+class _Mapped:
+    """The transcript, and where the cut timeline put each of its segments.
+
+    Subtitles and telops are both built from this one mapping rather than from
+    two calls with the same arguments: a telop that follows a ``segment_id``
+    then shows for exactly as long as the subtitle of that segment (REQ-041).
+    """
+
+    transcript: Transcript
+    segments: tuple[TimedSegment, ...]
+    warnings: tuple[SegmentWarning, ...]
+
+
+def _map_transcript(loaded: Project, timeline: Timeline) -> _Mapped:
+    """Map every transcript segment onto the cut timeline (design.md §4)."""
     transcript = _load_transcript(loaded)
-    settings = loaded.profile.subtitle
     mapped, warnings = timeline.map_segments(
         [(segment.id, segment.start, segment.end) for segment in transcript.segments],
-        min_display=settings.min_display,
+        min_display=loaded.profile.subtitle.min_display,
     )
-    texts = {segment.id: segment.text for segment in transcript.segments}
-    return _subtitles.build(mapped, texts, warnings, settings)
+    return _Mapped(transcript, tuple(mapped), tuple(warnings))
+
+
+def _build_subtitles(loaded: Project, mapped: _Mapped) -> Subtitles:
+    """Dress the mapped segments as subtitles."""
+    texts = {segment.id: segment.text for segment in mapped.transcript.segments}
+    return _subtitles.build(
+        mapped.segments, texts, mapped.warnings, loaded.profile.subtitle
+    )
 
 
 def _write_subtitles(
@@ -253,7 +317,64 @@ def _write_subtitles(
     return [str(name) for name in written]
 
 
-def plan(loaded: Project, *, no_wrap: bool = False) -> dict[str, Any]:
+@dataclass(frozen=True, slots=True)
+class _Telops:
+    """The telops of ``telops.json``, placed and ready to be drawn."""
+
+    plan: TelopPlan
+    presets: Mapping[str, StylePreset]
+    source: str
+
+
+def _resolve_telops(loaded: Project, timeline: Timeline, mapped: _Mapped) -> _Telops:
+    """Place the telops on the cut timeline, before anything is encoded.
+
+    Raises:
+        UsageError: If this ffmpeg cannot draw subtitles, or the project has no
+            ``telops.json``.
+        SchemaInvalidError: If ``telops.json`` or ``styles.json`` is invalid.
+        TelopInvalidError: If a telop names a segment or a preset that is not
+            there.
+    """
+    _preview.require_libass()
+    telops = _ass.load_telops(loaded.root, loaded.manifest.source.duration)
+    styles, source = _ass.load_styles(loaded.root)
+    placement = _ass.Placement(
+        timeline=timeline,
+        mapped={segment.segment_id: segment for segment in mapped.segments},
+        known=frozenset(segment.id for segment in mapped.transcript.segments),
+        presets=styles.presets,
+    )
+    return _Telops(_ass.resolve(telops.telops, placement), styles.presets, source)
+
+
+def _write_preview(loaded: Project, telops: _Telops, frame_ms: float) -> Preview:
+    """Write the ASS track and burn it into the preview (REQ-010, REQ-011).
+
+    Raises:
+        InvariantViolationError: If the preview does not last as long as the
+            render it was drawn over.
+    """
+    video = loaded.manifest.source.video
+    path = loaded.root / TELOPS_ASS_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    project_module.atomic_write_text(
+        path,
+        _ass.document(telops.plan, telops.presets, f"{video.width}x{video.height}"),
+    )
+    duration = _preview.burn(
+        loaded.root / VIDEO_NAME,
+        path,
+        loaded.root / PREVIEW_NAME,
+        loaded.profile.render,
+        frame_ms,
+    )
+    return Preview(telops.plan, tuple(telops.presets), telops.source, duration)
+
+
+def plan(
+    loaded: Project, *, no_wrap: bool = False, preview: bool = False
+) -> dict[str, Any]:
     """Return what :func:`run_render` would run and write, without doing it.
 
     The upstream artifacts are checked here too, so a dry run refuses for the
@@ -263,38 +384,58 @@ def plan(loaded: Project, *, no_wrap: bool = False) -> dict[str, Any]:
     _transcript_path(loaded)
     timeline = _timeline(loaded, _load_cuts(loaded))
     renderer = _renderer(loaded)
+    commands = renderer.commands(_job(loaded, timeline, audio))
     writes = [str(loaded.root / VIDEO_NAME), str(loaded.root / SUBTITLES_NAME)]
     if no_wrap:
         writes.append(str(loaded.root / NOWRAP_NAME))
+    if preview:
+        _resolve_telops(loaded, timeline, _map_transcript(loaded, timeline))
+        commands += _preview.commands(
+            loaded.root / VIDEO_NAME,
+            loaded.root / TELOPS_ASS_NAME,
+            loaded.root / PREVIEW_NAME,
+            loaded.profile.render,
+        )
+        writes += [
+            str(loaded.root / TELOPS_ASS_NAME),
+            str(loaded.root / PREVIEW_NAME),
+        ]
     writes.append(str(loaded.root / project_module.MANIFEST_NAME))
     return {
         "action": "render",
         "project": str(loaded.root),
         "renderer": renderer.NAME,
-        "commands": renderer.commands(_job(loaded, timeline, audio)),
+        "commands": commands,
         "writes": writes,
     }
 
 
-def run_render(loaded: Project, *, no_wrap: bool = False) -> Result:
+def run_render(
+    loaded: Project, *, no_wrap: bool = False, preview: bool = False
+) -> Result:
     """Apply the approved cuts of *loaded* and write the video and subtitles.
 
     Everything that can fail cheaply fails first: the material is re-hashed,
-    the artifacts are parsed and checked, and the subtitles are built in memory
-    before a single frame is encoded (design.md §5.5).
+    the artifacts are parsed and checked, and the subtitles and telops are
+    built in memory before a single frame is encoded (design.md §5.5).
 
     Args:
         loaded: The project to render; its source material is only read.
         no_wrap: Also write the SRT without line breaking, to compare the
             breaks BudouX proposed against the unbroken text.
+        preview: Also write ``out/telops.ass`` and burn it into
+            ``out/preview.mp4``. ``out/output.mp4`` is only read for it.
 
     Returns:
         What was applied and what the output measures.
 
     Raises:
-        UsageError: If an upstream stage has not run yet.
+        UsageError: If an upstream stage has not run yet, or ``--preview`` was
+            asked for without ``telops.json`` or without libass.
         HashMismatchError: If the material was replaced since ``init``.
         SchemaInvalidError: If ``cuts.json`` or ``transcript.json`` is invalid.
+        TelopInvalidError: If a telop names a segment or a preset that is not
+            there.
         InvariantViolationError: If the output fails the length, synchronisation
             or loudness checks of verification-plan.md §8.
     """
@@ -305,11 +446,14 @@ def run_render(loaded: Project, *, no_wrap: bool = False) -> Result:
     audio = _audio_path(loaded)
     cuts = _load_cuts(loaded)
     timeline = _timeline(loaded, cuts)
-    subtitles = _build_subtitles(loaded, timeline)
+    mapped = _map_transcript(loaded, timeline)
+    subtitles = _build_subtitles(loaded, mapped)
+    telops = _resolve_telops(loaded, timeline, mapped) if preview else None
 
     # Through the protocol, not through the concrete class: a renderer that
     # cuts without re-encoding (design.md §8) drops in here unchanged.
-    renderer: Renderer = _renderer(loaded)
+    encoder = _renderer(loaded)
+    renderer: Renderer = encoder
     rendered = renderer.render(
         loaded.source_path,
         timeline.keeps,
@@ -318,6 +462,10 @@ def run_render(loaded: Project, *, no_wrap: bool = False) -> Result:
         loaded.root / VIDEO_NAME,
     )
     outputs = [str(VIDEO_NAME), *_write_subtitles(loaded, subtitles, no_wrap=no_wrap)]
+    drawn = None
+    if telops is not None:
+        drawn = _write_preview(loaded, telops, encoder.frame_ms)
+        outputs += [str(TELOPS_ASS_NAME), str(PREVIEW_NAME)]
 
     versions = {"ffmpeg": doctor_module.check_ffmpeg().get("version") or "unknown"}
     project_module.record_stage(loaded, STAGE, versions)
@@ -331,4 +479,5 @@ def run_render(loaded: Project, *, no_wrap: bool = False) -> Result:
         removed_duration=timeline.removed_duration,
         subtitles=subtitles,
         outputs=tuple(outputs),
+        preview=drawn,
     )

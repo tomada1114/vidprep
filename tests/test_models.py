@@ -196,7 +196,7 @@ class TestDesignSamples:
             },
         }
 
-        assert Styles.model_validate(payload).presets["emphasis"]["outline"] == 2.5
+        assert Styles.model_validate(payload).presets["emphasis"].outline == 2.5
 
     def test_unknown_key_is_rejected(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):

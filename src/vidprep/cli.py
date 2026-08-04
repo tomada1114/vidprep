@@ -70,6 +70,10 @@ NoWrapOption = Annotated[
     bool,
     typer.Option("--no-wrap", help="Also write the subtitles without line breaks."),
 ]
+PreviewOption = Annotated[
+    bool,
+    typer.Option("--preview", help="Also burn telops.json in as out/preview.mp4."),
+]
 CutsOption = Annotated[
     bool,
     typer.Option(
@@ -340,6 +344,7 @@ def correct(
 @app.command()
 def render(
     no_wrap: NoWrapOption = False,
+    preview: PreviewOption = False,
     project: ProjectOption = None,
     json_output: JsonOption = False,
     dry_run: DryRunOption = False,
@@ -348,16 +353,17 @@ def render(
 
     Only the cuts somebody approved are applied; a proposal nobody has judged
     stays in the recording (design.md §3.4). The subtitles are timed by the
-    same cut plan as the video, so the two cannot drift apart.
+    same cut plan as the video, so the two cannot drift apart — and so are the
+    telops `--preview` burns into `out/preview.mp4`.
     """
     options = CommonOptions(project, json_output, dry_run)
 
     def action() -> Output:
         loaded, stale = _prepare(render_module.STAGE, options)
         if options.dry_run:
-            plan = render_module.plan(loaded, no_wrap=no_wrap)
+            plan = render_module.plan(loaded, no_wrap=no_wrap, preview=preview)
             return Output(plan, [*stale, *_plan_lines(plan)])
-        result = render_module.run_render(loaded, no_wrap=no_wrap)
+        result = render_module.run_render(loaded, no_wrap=no_wrap, preview=preview)
         return Output(result.to_dict(), [*stale, *result.lines()])
 
     _run(options, action)

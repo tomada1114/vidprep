@@ -37,13 +37,31 @@ CUT_ID_PATTERN = r"^c\d{4}$"
 SHA256_PATTERN = r"^[0-9a-f]{64}$"
 FPS_PATTERN = r"^\d+/\d+$"
 
+#: ASS writes a colour as ``&HAABBGGRR``; the alpha byte may be left out.
+ASS_COLOUR_PATTERN = r"^&[Hh](?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+
+#: A style name is written into a comma-separated ASS field, and read back out
+#: of one, so it may hold neither a comma nor a line break.
+PRESET_NAME_PATTERN = r"^[^,\r\n]+$"
+
+#: The nine directions of the ASS numpad alignment (design.md §3.5).
+MIN_ALIGNMENT = 1
+MAX_ALIGNMENT = 9
+
 Seconds = Annotated[
     float,
     Field(ge=0.0),
     PlainSerializer(lambda value: round(value, SECONDS_DECIMALS), return_type=float),
 ]
+PositiveSeconds = Annotated[
+    float,
+    Field(gt=0.0),
+    PlainSerializer(lambda value: round(value, SECONDS_DECIMALS), return_type=float),
+]
 SegmentId = Annotated[str, Field(pattern=SEGMENT_ID_PATTERN)]
 CutId = Annotated[str, Field(pattern=CUT_ID_PATTERN)]
+AssColour = Annotated[str, Field(pattern=ASS_COLOUR_PATTERN)]
+PresetName = Annotated[str, Field(pattern=PRESET_NAME_PATTERN)]
 
 
 def to_ms(seconds: float) -> int:
@@ -289,12 +307,23 @@ class Telop(_Strict):
     style_preset: str = "default"
     segment_id: SegmentId | None = None
     start: Seconds | None = None
-    duration: Seconds | None = None
+    duration: PositiveSeconds | None = None
 
     @model_validator(mode="after")
-    def _validate_timing(self) -> Self:
+    def _validate_timing(self, info: ValidationInfo) -> Self:
         if self.segment_id is None and (self.start is None or self.duration is None):
             msg = f"telop {self.text!r}: needs segment_id, or both start and duration"
+            raise ValueError(msg)
+        duration = _context_duration(info)
+        if (
+            self.start is not None
+            and duration is not None
+            and to_ms(self.start) > to_ms(duration)
+        ):
+            msg = (
+                f"telop {self.text!r}: start ({self.start:.3f}) is past the "
+                f"source duration ({duration:.3f})"
+            )
             raise ValueError(msg)
         return self
 
@@ -306,15 +335,42 @@ class Telops(_Strict):
     telops: list[Telop] = Field(default_factory=list)
 
 
+class StylePreset(_Strict):
+    """One ASS style, named by the ``style_preset`` of a telop (design.md §3.5).
+
+    The field names are the ASS ones in snake case, and the defaults are the
+    ones a telop gets when a project's ``styles.json`` states only what differs.
+    ``bold`` exists but stays off in every packaged preset: macOS renders libass
+    through CoreText, where ``Bold: 1`` has been seen to do nothing, so weight
+    is asked for by family name (``Hiragino Sans W6``) instead.
+    """
+
+    fontname: str = "Hiragino Sans W6"
+    fontsize: int = Field(default=64, gt=0)
+    bold: bool = False
+    italic: bool = False
+    alignment: int = Field(default=8, ge=MIN_ALIGNMENT, le=MAX_ALIGNMENT)
+    primary_colour: AssColour = "&H00FFFFFF"
+    secondary_colour: AssColour = "&H000000FF"
+    outline_colour: AssColour = "&H00000000"
+    back_colour: AssColour = "&H00000000"
+    outline: float = Field(default=3.0, ge=0.0)
+    shadow: float = Field(default=0.0, ge=0.0)
+    spacing: float = Field(default=0.0, ge=0.0)
+    margin_l: int = Field(default=40, ge=0)
+    margin_r: int = Field(default=40, ge=0)
+    margin_v: int = Field(default=60, ge=0)
+
+
 class Styles(_Strict):
     """``styles.json`` — ASS style presets keyed by preset name.
 
-    Preset values stay loosely typed: ASS mixes strings (``fontname``),
-    integers (``fontsize``, ``alignment``) and floats (``outline``, ``shadow``).
+    A preset name becomes an ASS ``Style:`` field, which is comma-separated, so
+    a name carrying a comma or a line break would not survive the round trip.
     """
 
     version: Literal["1"] = "1"
-    presets: dict[str, dict[str, str | int | float]] = Field(default_factory=dict)
+    presets: dict[PresetName, StylePreset] = Field(default_factory=dict)
 
 
 class Loudnorm(_Strict):
