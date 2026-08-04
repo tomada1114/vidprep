@@ -42,8 +42,8 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 
 !!! note
 
-    `audio-fix`, `transcribe` and `correct` are implemented. The remaining
-    stages (`detect`, `render`, `report`) are registered but not implemented
+    `audio-fix`, `transcribe`, `correct` and `detect` are implemented. The
+    remaining stages (`render`, `report`) are registered but not implemented
     yet; they currently report that and exit `1`.
 
 ## Transcribing
@@ -60,6 +60,24 @@ vidprep transcribe --json   # segment count, speech duration, realtime factor
 Detection has no off switch: without it whisper invents sentences in the
 silences, and those come back as subtitles later. A transcript whose segments
 do not line up with the detected speech is refused rather than written.
+
+## Detecting cuts
+
+`detect` writes `cuts.json`: the silences auto-editor found, padded and
+proposed as `approved`, plus the filler words the transcript and the speech
+regions justify cutting, proposed as `proposed`.
+
+```bash
+vidprep detect              # silence + filler candidates
+vidprep detect --json       # counts and seconds per reason, and what merged
+```
+
+Run it as often as you like. Re-running after changing `profile.json` updates
+the intervals of the candidates you already judged and keeps their status and
+notes; only untouched proposals are withdrawn, and identifiers are never
+reused. No cut vidprep proposes may remove speech: each `silence` cut is
+checked against the transcript and the speech regions behind it, and the run
+is refused rather than written if one would.
 
 ## What's Next?
 

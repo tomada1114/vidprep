@@ -77,6 +77,17 @@ class AsrFailedError(ExecutionFailedError):
     code: ClassVar[str] = "asr_failed"
 
 
+class TimelineSchemaError(ExecutionFailedError):
+    """auto-editor exported a timeline in a shape vidprep does not know.
+
+    A conversion layer that guessed would move cut boundaries without saying
+    so, which is the one failure nobody would notice, so an unexpected
+    ``--export v3`` document stops the stage instead (design.md §5.4).
+    """
+
+    code: ClassVar[str] = "timeline_schema"
+
+
 class SchemaInvalidError(VidprepError):
     """A JSON artifact violated its schema or an invariant."""
 

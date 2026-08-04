@@ -124,6 +124,19 @@ uv run python scripts/cer.py ...   # 3 点測定
 
 **効果測定**: 候補数と削減見込み秒数の reason 別内訳。ゴールデンの期待値: 無音 132.8 秒（-40dB/0.5s 基準）に対しパディング適用後でどれだけ候補化されるか。
 
+**実測（2026-08-04、auto-editor 29.3.1 / 既定 profile）**
+
+| 項目 | 実測値 |
+|---|---|
+| 無音（`threshold=4%`、`--margin 0s`） | 検出 58 箇所 / うち `min_duration` 0.6s 以上 39 箇所 |
+| パディング後 | 30 カット・**118.65 秒**（原尺 298.92 秒の 39.7%）、9 箇所は `min_cut_duration` 未満で破棄 |
+| 発話衝突（transcript ∩ VAD） | 全 30 カットで **0.000 秒**（上限 0.2 秒） |
+| 再実行（pad 0.3 → 0.25） | 30 件マッチ・status/note 保持、手書き `manual` 1 件保持、新規 2 件は `c0101`/`c0102`（id 再利用なし） |
+| フィラー | 候補 **0 件**。ASR transcript に strong 辞書の語が 1 つも出現しない（`golden.reference-fillers.txt` の `[F]` は「そうですね」「はい」の 2 件で、strong 辞書の対象外） |
+
+- フィラーの precision / recall はゴールデン 1 本では測定材料がない（strong フィラー 0 件）。この話者の実際のフィラーは「そうですね」「はい」型で、パッケージ辞書ではなく `<project>/dictionaries/fillers.json` での追加が想定用途になる。目視 AC（#10 完了後）は素材追加後に再実施する
+- 「区間が無音カットをまたぐ transcript セグメント」は 35 件中 9 件（whisper.cpp の VAD 併用による end のずれ）。detect は警告のみで transcript を書き換えない
+
 **検証手順**
 ```
 vidprep detect
