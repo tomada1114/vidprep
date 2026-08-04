@@ -261,7 +261,7 @@ def _surface_patterns(
     """Return every ``misrecognized`` spelling, longest first.
 
     Sorting by length is what implements the "longest match wins" rule: a
-    spelling that contains a shorter one can no longer be pre-empted by it, so
+    spelling that contains a shorter one can no longer lose to it, so
     no replacement is ever built out of two overlapping entries. ``sorted`` is
     stable, so entries of equal length keep the order the dictionary lists.
     """
