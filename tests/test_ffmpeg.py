@@ -88,6 +88,39 @@ class TestDuration:
         assert command[-1] == "/tmp/processed.wav"  # noqa: S108
 
 
+class TestStreamDuration:
+    @pytest.fixture
+    def probe_stream(self, monkeypatch):
+        def _set(text: str) -> None:
+            monkeypatch.setattr(_ffmpeg, "run", lambda *_args, **_kwargs: text)
+
+        return _set
+
+    def test_reads_the_printed_seconds(self, probe_stream):
+        probe_stream("197.508000\n")
+
+        assert _ffmpeg.stream_duration(Path("output.mp4"), "v") == 197.508
+
+    def test_only_the_first_stream_of_the_kind_is_read(self, probe_stream):
+        probe_stream("197.508000\n197.520000\n")
+
+        assert _ffmpeg.stream_duration(Path("output.mp4"), "a") == 197.508
+
+    def test_a_stream_without_a_duration_is_reported(self, probe_stream):
+        probe_stream("N/A\n")
+
+        with pytest.raises(
+            ExecutionFailedError, match="could not read the v stream duration"
+        ):
+            _ffmpeg.stream_duration(Path("output.mp4"), "v")
+
+    def test_command_selects_the_stream_and_names_the_file(self):
+        command = _ffmpeg.stream_duration_command(Path("/tmp/output.mp4"), "a")  # noqa: S108
+
+        assert command[command.index("-select_streams") + 1] == "a"
+        assert command[-1] == "/tmp/output.mp4"  # noqa: S108
+
+
 class TestProbe:
     @pytest.fixture
     def probe_output(self, monkeypatch):

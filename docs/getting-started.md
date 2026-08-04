@@ -42,9 +42,9 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 
 !!! note
 
-    `audio-fix`, `transcribe`, `correct` and `detect` are implemented. The
-    remaining stages (`render`, `report`) are registered but not implemented
-    yet; they currently report that and exit `1`.
+    Every stage is implemented. What is not built yet lives behind flags of
+    `render`: `--preview` (burnt-in captions) and `--verify-asr` (comparing a
+    re-transcription of the output against the cut plan).
 
 ## Transcribing
 
@@ -78,6 +78,34 @@ notes; only untouched proposals are withdrawn, and identifiers are never
 reused. No cut vidprep proposes may remove speech: each `silence` cut is
 checked against the transcript and the speech regions behind it, and the run
 is refused rather than written if one would.
+
+## Rendering
+
+`render` applies the `approved` cuts and nothing else, and writes both the
+video and the subtitles from the same cut plan, so the two cannot drift apart.
+
+```bash
+vidprep render              # out/output.mp4 + out/subtitles.srt
+vidprep render --no-wrap    # and out/subtitles.nowrap.srt, without line breaks
+vidprep render --dry-run    # the ffmpeg command it would run, filters included
+```
+
+The video is re-encoded at the CRF and preset in `profile.json`, keeping the
+source resolution and frame rate; the audio comes from `audio/processed.wav`
+rather than from the container, with a 10ms fade in and out at every boundary.
+The fades do not overlap, so no boundary changes a length.
+
+!!! note
+
+    The output is measured before it replaces anything: its length must match
+    the cut list to within one frame, its two streams must agree to within
+    50ms, and its loudness must still be on target. A render that fails leaves
+    the previous `out/output.mp4` in place.
+
+Subtitles are broken at BudouX phrase boundaries into at most `max_lines`
+lines of `max_chars_per_line` full-width characters. Nothing is truncated:
+text that does not fit, entries shown for less than `min_display` and entries
+read faster than `max_cps` are reported in the result rather than changed.
 
 ## What's Next?
 

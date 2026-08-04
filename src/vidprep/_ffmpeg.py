@@ -135,6 +135,46 @@ def duration(path: Path) -> float:
         raise ExecutionFailedError(msg) from exc
 
 
+def stream_duration_command(path: Path, kind: str) -> list[str]:
+    """Return the ffprobe command that prints the length of one stream.
+
+    Args:
+        path: The container to inspect.
+        kind: An ffprobe stream specifier, such as ``v`` or ``a``.
+    """
+    return [
+        FFPROBE,
+        "-v",
+        "error",
+        "-select_streams",
+        kind,
+        "-show_entries",
+        "stream=duration",
+        "-of",
+        "csv=p=0",
+        str(path),
+    ]
+
+
+def stream_duration(path: Path, kind: str) -> float:
+    """Return the duration of the first *kind* stream of *path*, in seconds.
+
+    The container's own duration hides how far the streams inside it have
+    drifted apart, which is exactly what a render has to prove it did not do
+    (verification-plan.md §8).
+
+    Raises:
+        ExecutionFailedError: If ffprobe printed no duration for that stream.
+    """
+    output = run(stream_duration_command(path, kind)).strip()
+    first = output.splitlines()[0].strip() if output else ""
+    try:
+        return float(first)
+    except ValueError as exc:
+        msg = f"could not read the {kind} stream duration of {path}: {output!r}"
+        raise ExecutionFailedError(msg) from exc
+
+
 def probe_command(source: Path) -> list[str]:
     """Return the ffprobe command line used to inspect *source*."""
     return [
