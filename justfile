@@ -31,6 +31,16 @@ test:
 # Run all checks: format, lint, test
 check: fmt lint test
 
+# Run the whole pipeline over the golden sample and archive the result
+# (verification-plan.md §11). Local only: it needs the material, ffmpeg,
+# whisper.cpp and auto-editor, and costs two ASR passes plus a re-encode.
+golden *ARGS:
+    uv run python scripts/golden_run.py {{ARGS}}
+
+# Diff the two most recent golden runs (pass two directories to pick them)
+golden-diff *ARGS:
+    uv run python scripts/compare_stats.py {{ARGS}}
+
 # Serve documentation locally
 docs:
     uv run mkdocs serve
