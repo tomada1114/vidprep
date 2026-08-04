@@ -104,6 +104,31 @@ def test_timeline_exposes_normalized_cuts() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("cuts", "expected"),
+    [
+        pytest.param([], ((0.0, 60.0),), id="no-cuts"),
+        pytest.param([(10.0, 20.0)], ((0.0, 10.0), (20.0, 60.0)), id="one-cut"),
+        pytest.param([(0.0, 10.0)], ((10.0, 60.0),), id="touching-the-start"),
+        pytest.param([(50.0, 60.0)], ((0.0, 50.0),), id="touching-the-end"),
+        pytest.param([(0.0, 20.0), (40.0, 60.0)], ((20.0, 40.0),), id="both-ends"),
+        pytest.param(
+            [(10.0, 20.0), (20.0, 30.0)], ((0.0, 10.0), (30.0, 60.0)), id="adjacent"
+        ),
+    ],
+)
+def test_keeps_are_the_complement_of_the_cuts(
+    cuts: list[tuple[float, float]], expected: tuple[tuple[float, float], ...]
+) -> None:
+    assert Timeline(cuts=cuts, duration=60.0).keeps == expected
+
+
+def test_keeps_add_up_to_the_cut_duration(timeline: Timeline) -> None:
+    kept = sum(end - start for start, end in timeline.keeps)
+
+    assert kept == pytest.approx(timeline.cut_duration)
+
+
 # --------------------------------------------------------------------------- #
 #  REQ-002 / REQ-003 — the forward mapping
 # --------------------------------------------------------------------------- #

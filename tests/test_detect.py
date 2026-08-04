@@ -860,8 +860,14 @@ class TestCommandLine:
         result = run_cli("detect", "-p", str(project_dir))
         assert result.exit_code == EXIT_USAGE
 
-    def test_the_stage_is_no_longer_advertised_as_pending(self):
-        assert "detect" not in cli.PENDING_STAGES
+    def test_the_stage_is_registered_as_a_command(self):
+        registered = {
+            command.callback.__name__
+            for command in cli.app.registered_commands
+            if command.callback is not None
+        }
+
+        assert "detect" in registered
 
 
 class TestIntervalArithmetic:

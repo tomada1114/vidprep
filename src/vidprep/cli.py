@@ -20,12 +20,12 @@ from . import correct as correct_module
 from . import detect as detect_module
 from . import doctor as doctor_module
 from . import project as project_module
+from . import render as render_module
 from . import report as report_module
 from . import transcribe as transcribe_module
 from .errors import (
     EXIT_USAGE,
     EXIT_VALIDATION,
-    StageNotImplementedError,
     UsageError,
     VidprepError,
 )
@@ -66,17 +66,16 @@ YesOption = Annotated[
     bool,
     typer.Option("--yes", help="Apply the patch without asking for confirmation."),
 ]
+NoWrapOption = Annotated[
+    bool,
+    typer.Option("--no-wrap", help="Also write the subtitles without line breaks."),
+]
 CutsOption = Annotated[
     bool,
     typer.Option(
         "--cuts", help="List the cut candidates with their transcript context."
     ),
 ]
-
-#: Subcommand name -> stage key in the manifest, for stages not built yet.
-PENDING_STAGES = {
-    "render": "render",
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,30 +245,6 @@ def audio_fix(
     _run(options, action)
 
 
-def _pending_command(name: str, summary: str) -> None:
-    """Register a subcommand that validates the project but does no work yet."""
-    stage = PENDING_STAGES[name]
-
-    def command(
-        project: ProjectOption = None,
-        json_output: JsonOption = False,
-        dry_run: DryRunOption = False,
-    ) -> None:
-        options = CommonOptions(project, json_output, dry_run)
-
-        def action() -> Output:
-            _, warnings = _prepare(stage, options)
-            for warning in warnings:
-                _log(warning, options)
-            msg = f"{name} is not implemented yet"
-            raise StageNotImplementedError(msg)
-
-        _run(options, action)
-
-    command.__doc__ = summary
-    app.command(name=name)(command)
-
-
 @app.command()
 def transcribe(
     project: ProjectOption = None,
@@ -363,6 +338,32 @@ def correct(
 
 
 @app.command()
+def render(
+    no_wrap: NoWrapOption = False,
+    project: ProjectOption = None,
+    json_output: JsonOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Apply the approved cuts and write the output video and its subtitles.
+
+    Only the cuts somebody approved are applied; a proposal nobody has judged
+    stays in the recording (design.md §3.4). The subtitles are timed by the
+    same cut plan as the video, so the two cannot drift apart.
+    """
+    options = CommonOptions(project, json_output, dry_run)
+
+    def action() -> Output:
+        loaded, stale = _prepare(render_module.STAGE, options)
+        if options.dry_run:
+            plan = render_module.plan(loaded, no_wrap=no_wrap)
+            return Output(plan, [*stale, *_plan_lines(plan)])
+        result = render_module.run_render(loaded, no_wrap=no_wrap)
+        return Output(result.to_dict(), [*stale, *result.lines()])
+
+    _run(options, action)
+
+
+@app.command()
 def report(
     cuts: CutsOption = False,
     project: ProjectOption = None,
@@ -393,9 +394,6 @@ def report(
         return Output(result.to_dict(), [*stale, *result.lines()])
 
     _run(options, action)
-
-
-_pending_command("render", "Apply approved cuts and write the output video.")
 
 
 def _parameter_error_reporter(error: Exception) -> Callable[[], None] | None:

@@ -8,7 +8,6 @@ import re
 import pytest
 
 from vidprep import _ffmpeg
-from vidprep import project as project_module
 from vidprep.errors import (
     EXIT_EXECUTION,
     EXIT_OK,
@@ -27,8 +26,6 @@ SUBCOMMANDS = (
     "render",
     "report",
 )
-#: The stages that are still skeletons.
-PENDING_SUBCOMMANDS = ("render",)
 OVERLAPPING_CUTS = {
     "version": "1",
     "cuts": [
@@ -170,15 +167,8 @@ class TestInit:
         assert not (tmp_path / "work").exists()
 
 
-class TestPendingStages:
-    """Stages that are not built yet still guard the project they run in."""
-
-    @pytest.mark.parametrize("name", PENDING_SUBCOMMANDS)
-    def test_reports_that_it_is_not_implemented(self, run_cli, project_dir, name):
-        result = run_cli(name, "-p", str(project_dir))
-
-        assert result.exit_code == EXIT_USAGE
-        assert "not implemented yet" in result.stderr
+class TestProjectGuards:
+    """Every stage proves the project is intact before it does any work."""
 
     def test_outside_a_project_the_directory_is_reported(self, run_cli, tmp_path):
         result = run_cli("render", "-p", str(tmp_path))
@@ -186,17 +176,13 @@ class TestPendingStages:
         assert result.exit_code == EXIT_USAGE
         assert "is not a vidprep project" in result.stderr
 
-    def test_stale_upstream_stage_only_warns(self, run_cli, project_dir):
-        loaded = project_module.load_project(project_dir)
-        project_module.record_stage(loaded, "audio_fix")
-        changed = loaded.profile
-        changed.audio.highpass_hz = 120
-        project_module.write_json(project_dir / "profile.json", changed)
-
+    def test_an_upstream_stage_that_has_not_run_names_its_command(
+        self, run_cli, project_dir
+    ):
         result = run_cli("render", "-p", str(project_dir))
 
-        assert "may be stale" in result.stdout
-        assert result.exit_code == EXIT_USAGE  # only because the stage is a skeleton
+        assert result.exit_code == EXIT_USAGE
+        assert "run `vidprep audio-fix` first" in result.stderr
 
 
 class TestVerificationFailures:

@@ -149,6 +149,26 @@ class Timeline:
         return self._cuts
 
     @property
+    def keeps(self) -> tuple[tuple[float, float], ...]:
+        """The intervals the cuts leave behind, in order.
+
+        Rendering removes material by keeping everything else, and it reads the
+        keep list from here rather than deriving its own: the boundaries the
+        video is cut at are then the boundaries the subtitles were mapped
+        across, by construction. A cut touching the start or the end of the
+        material leaves no zero-length interval behind for ``trim`` to choke on.
+        """
+        kept: list[tuple[float, float]] = []
+        cursor = 0.0
+        for start, end in self._cuts:
+            if to_ms(cursor) < to_ms(start):
+                kept.append((cursor, start))
+            cursor = end
+        if to_ms(cursor) < to_ms(self.duration):
+            kept.append((cursor, self.duration))
+        return tuple(kept)
+
+    @property
     def removed_duration(self) -> float:
         """Total length removed by the cuts, in seconds."""
         return self._removed[-1]

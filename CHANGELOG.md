@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep render`: applies the `approved` cuts of `cuts.json` and writes
+  `out/output.mp4` (kept intervals joined with `trim`/`concat`, video
+  re-encoded at CRF 18 / preset slow with the source resolution and frame
+  rate, audio taken from `audio/processed.wav` with a length-preserving 10ms
+  fade at every boundary and encoded as AAC at 320 kbps) together with
+  `out/subtitles.srt`, timed by the same timeline as the video and broken into
+  lines at BudouX phrase boundaries. `--no-wrap` adds an unbroken
+  `out/subtitles.nowrap.srt` to compare the breaks against. Cuts are snapped
+  inwards onto the frame grid first, so the output length matches the cut list
+  to within a frame however many boundaries there are; the finished file is
+  then checked for length, audio/video synchronisation and loudness before it
+  replaces anything, and a result that fails leaves the previous render in
+  place. Entries dropped by a cut, shown for less than `min_display`, read
+  faster than `max_cps` or too wide for `max_chars_per_line` are reported
+  rather than silently fixed
+- `Timeline.keeps`: the intervals the cuts leave behind, so rendering and
+  subtitle mapping read the same interval table
+- `vidprep report`: writes `report/stats.json` (source and rendered length,
+  reduction ratio, cuts broken down by reason and status, loudness before and
+  after with a level-matched noise floor, and the subtitle warnings — dropped
+  by a cut, under `min_display`, over `max_cps`), draws a `showwavespic` still
+  per cut into `report/boundaries/<cut_id>.png` and stitches
+  `report/boundary_digest.mp4` from the source material: every cut plus two
+  seconds of context on each side, separated by half a second of silent black.
+  `--cuts` lists each candidate with the transcript it would delete and the
+  segments around it, as text or as JSON. Every input is optional — running
+  before `detect` or before `render` leaves those sections empty or `null` and
+  still exits `0` — and nothing outside `report/` is written, not even the
+  manifest
 - `vidprep detect`: converts the `auto-editor --export v3` timeline into padded
   silence cuts (`approved`), proposes filler-word cuts from the transcript and
   the speech regions behind it (`proposed`), and merges the result into any
@@ -72,15 +101,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same cut boundaries
 - 実現可能性調査レポートと設計インプットを `docs/` に追加（設計フェーズ、実装なし）
 - [uv-template](https://github.com/tomada1114/uv-template) ベースのプロジェクト雛形
-- `vidprep report`: writes `report/stats.json` (source and rendered length,
-  reduction ratio, cuts broken down by reason and status, loudness before and
-  after with a level-matched noise floor, and the subtitle warnings — dropped
-  by a cut, under `min_display`, over `max_cps`), draws a `showwavespic` still
-  per cut into `report/boundaries/<cut_id>.png` and stitches
-  `report/boundary_digest.mp4` from the source material: every cut plus two
-  seconds of context on each side, separated by half a second of silent black.
-  `--cuts` lists each candidate with the transcript it would delete and the
-  segments around it, as text or as JSON. Every input is optional — running
-  before `detect` or before `render` leaves those sections empty or `null` and
-  still exits `0` — and nothing outside `report/` is written, not even the
-  manifest
