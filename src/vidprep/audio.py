@@ -76,12 +76,6 @@ MEASURED_KEYS = {
 PLACEHOLDERS = {option: f"<{option}>" for option in MEASURED_KEYS}
 INTERVALS_PLACEHOLDER = "<silence intervals>"
 
-#: Banner and progress settings shared by every ffmpeg invocation. A command
-#: that writes a file is silenced down to errors, because the only part of its
-#: log vidprep ever shows is the tail of a failure.
-_QUIET = ("-nostdin", "-hide_banner", "-nostats")
-_WRITING = (*_QUIET, "-v", "error", "-y")
-
 _LOUDNORM_REPORT = re.compile(r'\{[^{}]*"input_i"[^{}]*\}')
 _SILENCE_EVENT = re.compile(r"silence_(start|end):\s*(-?\d+(?:\.\d+)?)")
 _RMS_LEVEL = re.compile(r"Overall.*?RMS level dB:\s*(\S+)", re.DOTALL)
@@ -134,32 +128,18 @@ class Chain:
         """Whether denoising runs as a separate process before ffmpeg."""
         return self.denoise == DEEPFILTERNET
 
-    def _loudnorm_filter(self, measured: Mapping[str, str] | None) -> str:
-        """Return the ``loudnorm`` filter for an analysis (``None``) or pass 2."""
-        targets = self.loudnorm
-        options = [
-            f"I={targets.i:g}",
-            f"TP={targets.tp:g}",
-            f"LRA={targets.lra:g}",
-        ]
-        if measured is not None:
-            options += [f"{option}={measured[option]}" for option in MEASURED_KEYS]
-            options.append("linear=true")
-        options.append("print_format=json")
-        return "loudnorm=" + ":".join(options)
-
     def filters(self, measured: Mapping[str, str] | None) -> str:
         """Return the whole chain: denoise (when in-band), high-pass, loudnorm."""
         stages = [] if self.uses_deepfilternet else [AFFTDN]
         stages.append(f"highpass=f={self.highpass_hz}")
-        stages.append(self._loudnorm_filter(measured))
+        stages.append(_loudnorm_filter(self.loudnorm, measured))
         return ",".join(stages)
 
     def extract_command(self, source: Path, target: Path) -> list[str]:
         """Return the command that decodes the source audio into a wav."""
         return [
             _ffmpeg.FFMPEG,
-            *_WRITING,
+            *_ffmpeg.WRITING,
             "-i",
             str(source),
             "-map",
@@ -184,7 +164,7 @@ class Chain:
 
     def measure_command(self, source: Path) -> list[str]:
         """Return the command that measures *source* as it is, chain excluded."""
-        return _analysis_command(source, self._loudnorm_filter(None))
+        return measurement_command(source, self.loudnorm)
 
     def render_command(
         self,
@@ -204,7 +184,7 @@ class Chain:
         length = seconds if isinstance(seconds, str) else f"{seconds:.6f}"
         return [
             _ffmpeg.FFMPEG,
-            *_WRITING,
+            *_ffmpeg.WRITING,
             "-i",
             str(source),
             "-map",
@@ -287,7 +267,7 @@ def _analysis_command(source: Path, filters: str) -> list[str]:
     """Return an ffmpeg command that decodes *source* only to measure it."""
     return [
         _ffmpeg.FFMPEG,
-        *_QUIET,
+        *_ffmpeg.QUIET,
         "-v",
         "info",
         "-i",
@@ -300,13 +280,37 @@ def _analysis_command(source: Path, filters: str) -> list[str]:
     ]
 
 
-def _silence_command(source: Path) -> list[str]:
+def _loudnorm_filter(targets: Loudnorm, measured: Mapping[str, str] | None) -> str:
+    """Return the ``loudnorm`` filter for an analysis (``None``) or pass 2."""
+    options = [
+        f"I={targets.i:g}",
+        f"TP={targets.tp:g}",
+        f"LRA={targets.lra:g}",
+    ]
+    if measured is not None:
+        options += [f"{option}={measured[option]}" for option in MEASURED_KEYS]
+        options.append("linear=true")
+    options.append("print_format=json")
+    return "loudnorm=" + ":".join(options)
+
+
+def measurement_command(source: Path, targets: Loudnorm) -> list[str]:
+    """Return the command that measures *source* against *targets*, unchanged.
+
+    The filter only reports: ``report`` uses it to state what the material, the
+    processed audio and the rendered output each measure, without applying the
+    chain to any of them.
+    """
+    return _analysis_command(source, _loudnorm_filter(targets, None))
+
+
+def silence_command(source: Path) -> list[str]:
     """Return the command that lists the silent stretches of *source*."""
     filters = f"silencedetect=noise={SILENCE_NOISE}:d={SILENCE_MIN_SECONDS:g}"
     return _analysis_command(source, filters)
 
 
-def _noise_floor_command(source: Path, expression: str) -> list[str]:
+def noise_floor_command(source: Path, expression: str) -> list[str]:
     """Return the command that measures the RMS level of *expression* only."""
     filters = (
         f"aselect='{expression}',asetpts=N/SR/TB,"
@@ -315,7 +319,7 @@ def _noise_floor_command(source: Path, expression: str) -> list[str]:
     return _analysis_command(source, filters)
 
 
-def _interval_expression(intervals: Sequence[tuple[float, float]]) -> str:
+def interval_expression(intervals: Sequence[tuple[float, float]]) -> str:
     """Return the ``aselect`` expression that keeps only *intervals*."""
     return "+".join(f"between(t,{start:.3f},{end:.3f})" for start, end in intervals)
 
@@ -406,16 +410,41 @@ def _rms_level(text: str) -> float | None:
     return level if math.isfinite(level) else None
 
 
-def _measure(
-    path: Path, chain: Chain, intervals: Sequence[tuple[float, float]]
+def detect_silence(path: Path, seconds: float) -> list[tuple[float, float]]:
+    """Return the silent stretches of *path*, in seconds.
+
+    Args:
+        path: The audio or video file to look at.
+        seconds: Its duration, used to close a stretch that runs to the end.
+
+    Returns:
+        The intervals quieter than :data:`SILENCE_NOISE` for at least
+        :data:`SILENCE_MIN_SECONDS`, in timeline order.
+    """
+    return _silence_intervals(_ffmpeg.run_analysis(silence_command(path)), seconds)
+
+
+def measure(
+    path: Path, targets: Loudnorm, intervals: Sequence[tuple[float, float]] = ()
 ) -> Measurement:
-    """Measure loudness and, when there is silence to look at, the noise floor."""
+    """Measure loudness and, when there is silence to look at, the noise floor.
+
+    Args:
+        path: The audio or video file to measure.
+        targets: The EBU R128 targets the loudnorm analysis is run against;
+            they do not change what is measured, only what it is compared with.
+        intervals: The silence the noise floor is read over. Without it the
+            floor is reported as unknown rather than guessed at.
+
+    Returns:
+        The four numbers this stage and ``report`` both quote.
+    """
     integrated, true_peak, lra = _loudness(
-        _loudnorm_report(_ffmpeg.run_analysis(chain.measure_command(path)))
+        _loudnorm_report(_ffmpeg.run_analysis(measurement_command(path, targets)))
     )
     floor = None
     if intervals:
-        command = _noise_floor_command(path, _interval_expression(intervals))
+        command = noise_floor_command(path, interval_expression(intervals))
         floor = _rms_level(_ffmpeg.run_analysis(command))
     return Measurement(integrated, true_peak, lra, floor)
 
@@ -429,8 +458,7 @@ def _compare(
         The two measurements and any warning about what could not be measured.
     """
     original, produced = sources
-    detected = _ffmpeg.run_analysis(_silence_command(original))
-    intervals = _silence_intervals(detected, seconds)
+    intervals = detect_silence(original, seconds)
     warnings = []
     if not intervals:
         warnings.append(
@@ -438,8 +466,8 @@ def _compare(
             "the noise floor could not be measured"
         )
     return (
-        _measure(original, chain, intervals),
-        _measure(produced, chain, intervals),
+        measure(original, chain.loudnorm, intervals),
+        measure(produced, chain.loudnorm, intervals),
         warnings,
     )
 
@@ -503,10 +531,10 @@ def plan(loaded: Project, *, with_stats: bool = False) -> dict[str, Any]:
         _ffmpeg.duration_command(rendered),
     ]
     if with_stats:
-        commands.append(_silence_command(extracted))
+        commands.append(silence_command(extracted))
         for path in (extracted, rendered):
             commands.append(chain.measure_command(path))
-            commands.append(_noise_floor_command(path, INTERVALS_PLACEHOLDER))
+            commands.append(noise_floor_command(path, INTERVALS_PLACEHOLDER))
     return {
         "action": "audio-fix",
         "project": str(loaded.root),

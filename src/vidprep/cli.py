@@ -20,6 +20,7 @@ from . import correct as correct_module
 from . import detect as detect_module
 from . import doctor as doctor_module
 from . import project as project_module
+from . import report as report_module
 from . import transcribe as transcribe_module
 from .errors import (
     EXIT_USAGE,
@@ -65,11 +66,16 @@ YesOption = Annotated[
     bool,
     typer.Option("--yes", help="Apply the patch without asking for confirmation."),
 ]
+CutsOption = Annotated[
+    bool,
+    typer.Option(
+        "--cuts", help="List the cut candidates with their transcript context."
+    ),
+]
 
 #: Subcommand name -> stage key in the manifest, for stages not built yet.
 PENDING_STAGES = {
     "render": "render",
-    "report": "report",
 }
 
 
@@ -356,8 +362,40 @@ def correct(
     _run(options, action)
 
 
+@app.command()
+def report(
+    cuts: CutsOption = False,
+    project: ProjectOption = None,
+    json_output: JsonOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Regenerate statistics, waveforms and the cut digest.
+
+    Every input is optional: run before `detect` and the cut sections are
+    empty, run before `render` and the output statistics are null, and the
+    command still exits 0. Nothing outside `report/` is written.
+
+    `--cuts` is the review listing instead — what each candidate would delete
+    and the transcript around it — and generates no media.
+    """
+    options = CommonOptions(project, json_output, dry_run)
+
+    def action() -> Output:
+        loaded, stale = _prepare(report_module.STAGE, options)
+        if cuts:
+            listing = report_module.run_review(loaded)
+            return Output(listing.to_dict(), [*stale, *listing.lines()])
+        if options.dry_run:
+            plan = report_module.plan(loaded)
+            warned = [f"⚠ {warning}" for warning in plan["warnings"]]
+            return Output(plan, [*stale, *warned, *_plan_lines(plan)])
+        result = report_module.run_report(loaded)
+        return Output(result.to_dict(), [*stale, *result.lines()])
+
+    _run(options, action)
+
+
 _pending_command("render", "Apply approved cuts and write the output video.")
-_pending_command("report", "Regenerate statistics, waveforms and the cut digest.")
 
 
 def _parameter_error_reporter(error: Exception) -> Callable[[], None] | None:
@@ -388,10 +426,10 @@ def main() -> None:
         typer.echo("Aborted.", err=True)
         raise SystemExit(EXIT_USAGE) from None
     except Exception as error:
-        report = _parameter_error_reporter(error)
-        if report is None:
+        reporter = _parameter_error_reporter(error)
+        if reporter is None:
             raise
         if str(error):  # empty for "no arguments", whose help is already shown
-            report()
+            reporter()
         raise SystemExit(EXIT_USAGE) from None
     raise SystemExit(result if isinstance(result, int) else 0)
