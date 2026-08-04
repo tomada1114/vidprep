@@ -179,12 +179,6 @@ class TestPendingStages:
         assert result.exit_code == EXIT_USAGE
         assert "not implemented yet" in result.stderr
 
-    def test_doctor_needs_no_project(self, run_cli, tmp_path):
-        result = run_cli("doctor", "-p", str(tmp_path))
-
-        assert result.exit_code == EXIT_USAGE
-        assert "doctor is not implemented yet" in result.stderr
-
     def test_outside_a_project_the_directory_is_reported(self, run_cli, tmp_path):
         result = run_cli("detect", "-p", str(tmp_path))
 

@@ -14,7 +14,21 @@ uv add vidprep
 
 ## Basic Usage
 
-Create a working directory for one video. The material is referenced by
+Start by checking the machine. `vidprep doctor` inspects the external tools the
+pipeline shells out to — ffmpeg (including whether it was built with libass),
+ffprobe, auto-editor, an ASR backend, DeepFilterNet and a SudachiPy dictionary —
+and tells you what to install for the ones that are missing.
+
+```bash
+vidprep doctor          # readable report
+vidprep doctor --json   # the same report as JSON on stdout
+```
+
+It exits `3` when a required dependency is missing, and `0` when only the
+optional DeepFilterNet is absent — `audio-fix` falls back to ffmpeg's `afftdn`
+in that case.
+
+Then create a working directory for one video. The material is referenced by
 absolute path and sha256 — it is never modified, and only copied into the
 project when you ask for it with `--copy-source`.
 
@@ -29,8 +43,8 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 !!! note
 
     The processing stages (`audio-fix`, `transcribe`, `correct`, `detect`,
-    `render`, `report`) and `doctor` are registered but not implemented yet;
-    they currently report that and exit `1`.
+    `render`, `report`) are registered but not implemented yet; they currently
+    report that and exit `1`.
 
 ## What's Next?
 

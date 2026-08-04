@@ -217,13 +217,29 @@ open -a "Wondershare Filmora Mac" # 実機取り込み → チェックリスト
 
 ### 12.1 環境構築チェックリスト
 
-- [ ] `brew install ffmpeg-full` 等で **libass 入り ffmpeg** を導入（`ffmpeg -filters | grep subtitles` で確認）
-- [ ] auto-editor 導入（`uv tool install auto-editor`）、`--export v3` の動作確認
-- [ ] whisper.cpp をビルド（Metal + CoreML 有効）+ 候補モデルの ggml を取得
-- [ ] `uv add mlx-whisper --group asr` 等で mlx-whisper 導入（比較用）
-- [ ] DeepFilterNet CLI 導入（失敗したら afftdn フォールバックで先へ進む）
-- [ ] jiwer を dev グループに追加
-- [ ] 完了判定: 将来の `vidprep doctor` が検査する項目がすべて手動で緑（doctor 実装前なので上記コマンドで代用）
+- [x] `brew install ffmpeg-full` 等で **libass 入り ffmpeg** を導入（`ffmpeg -filters | grep subtitles` で確認）
+- [x] auto-editor 導入（`uv tool install auto-editor`）、`--export v3` の動作確認
+- [x] whisper.cpp をビルド（Metal + CoreML 有効）+ 候補モデルの ggml を取得
+- [x] `uv add mlx-whisper --group asr` 等で mlx-whisper 導入（比較用）
+- [x] DeepFilterNet CLI 導入（失敗したら afftdn フォールバックで先へ進む）
+- [x] jiwer を dev グループに追加
+- [x] 完了判定: `vidprep doctor` が全項目 `ok`（exit 0）を返す
+
+### 12.1.1 構築記録（2026-08-03、Apple M2 / macOS 26）
+
+| 対象 | 版 | 導入手順 |
+|---|---|---|
+| ffmpeg / ffprobe | 7.1.1 | `brew install ffmpeg`（libass 入り。`ffmpeg -filters` に `subtitles` あり） |
+| auto-editor | 29.3.1 | `uv tool install auto-editor` |
+| whisper.cpp | 1.9.1 相当（master ビルド） | `brew install cmake` 後、`~/src/whisper.cpp` で CoreML エンコーダを生成し `cmake -B build -DWHISPER_COREML=1 -DGGML_METAL=1` → `~/.local/bin/whisper-cli` に symlink |
+| ggml モデル | large-v3 / large-v3-turbo | HuggingFace `ggerganov/whisper.cpp` から `~/.cache/whisper.cpp/` へ取得（`VIDPREP_WHISPER_MODEL_DIR` で変更可） |
+| mlx-whisper | 0.4.3 | `uv sync --all-groups`（`asr` グループ。Apple Silicon 限定のマーカーつき） |
+| DeepFilterNet | 0.5.6 | GitHub Releases の `deep-filter-0.5.6-aarch64-apple-darwin` を `~/.local/bin/deep-filter` に配置 |
+| SudachiPy 辞書 | core (20260428) | `sudachidict-core` を dev グループに追加 |
+| jiwer | 4.0.0 | dev グループに追加 |
+
+- CoreML エンコーダ（`ggml-large-v3-turbo-encoder.mlmodelc`）は ggml モデルと同じディレクトリに置く。`whisper-cli` の `system_info` に `COREML = 1` が出れば有効
+- auto-editor 29 系は `--export v3` の出力拡張子を `.v3` に書き換える（`-o out.json` としても `out.v3` になる）。#8 の変換層はこれを前提にする
 
 ### 12.2 ASR ベンチ手順
 

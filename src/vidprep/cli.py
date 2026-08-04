@@ -15,9 +15,11 @@ from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import typer
 
+from . import doctor as doctor_module
 from . import project as project_module
 from .errors import (
     EXIT_USAGE,
+    EXIT_VALIDATION,
     StageNotImplementedError,
     UsageError,
     VidprepError,
@@ -81,8 +83,12 @@ def _log(message: str, options: CommonOptions) -> None:
     typer.echo(message, err=options.json_output)
 
 
-def _run(options: CommonOptions, action: Callable[[], Output]) -> None:
+def _run(options: CommonOptions, action: Callable[[], Output]) -> Output:
     """Execute *action*, then report its result on the right stream.
+
+    Returns:
+        The output that was reported, for commands whose exit code depends on
+        what they found rather than on an exception.
 
     Raises:
         typer.Exit: With the exit code that matches the failure (design.md §6).
@@ -100,6 +106,7 @@ def _run(options: CommonOptions, action: Callable[[], Output]) -> None:
         _log(line, options)
     if options.json_output:
         typer.echo(json.dumps(output.result, ensure_ascii=False))
+    return output
 
 
 def _prepare(stage: str, options: CommonOptions) -> tuple[Project, list[str]]:
@@ -182,14 +189,22 @@ def doctor(
     json_output: JsonOption = False,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Check that the external tools vidprep needs are installed."""
+    """Check that the external tools vidprep needs are installed.
+
+    Raises:
+        typer.Exit: ``3`` when a required dependency is missing (design.md §6);
+            the report is printed first either way, because "what is broken" is
+            the answer the user asked for.
+    """
     options = CommonOptions(project, json_output, dry_run)
 
     def action() -> Output:
-        msg = "doctor is not implemented yet"
-        raise StageNotImplementedError(msg)
+        report = doctor_module.diagnose()
+        return Output(report.to_dict(), doctor_module.summary_lines(report))
 
-    _run(options, action)
+    output = _run(options, action)
+    if output.result["missing"]:
+        raise typer.Exit(EXIT_VALIDATION)
 
 
 def _pending_command(name: str, summary: str) -> None:
