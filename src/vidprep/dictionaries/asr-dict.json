@@ -28,6 +28,20 @@
       "confidence": "always"
     },
     {
+      "correct": "claude -c",
+      "misrecognized": ["クロード-C", "クロード-c", "クロードC"],
+      "yomi": "クロードシー",
+      "confidence": "always",
+      "note": "口頭で読み上げた起動オプション。オプション名を説明している『半角スペースにハイフンC』のような地の文は原文維持（LLM 校正の判断）"
+    },
+    {
+      "correct": "resume",
+      "misrecognized": ["リズーム"],
+      "yomi": "リズーム",
+      "confidence": "always",
+      "note": "resume コマンドの誤変換。実在の外来語である『リジューム』『レジューム』は収録せず LLM 校正に委ねる"
+    },
+    {
       "correct": "Cursor",
       "misrecognized": ["カーソル"],
       "yomi": "カーソル",

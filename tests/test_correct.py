@@ -180,6 +180,46 @@ class TestPackagedDictionary:
             _dictionary.load_dictionary(path)
 
 
+class TestDictatedCliTerms:
+    """The speaker reads commands out loud, so the ASR writes them as katakana.
+
+    Reproducible misrecognitions belong here; the ones that depend on the
+    sentence around them are left to the ``correct-transcript`` skill. Only the
+    surface stage is exercised (no reader), because that is the part the
+    dictionary decides on its own.
+    """
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            pytest.param(
+                "クロード-Cでいきなり最後のセッションに戻れます",
+                "claude -cでいきなり最後のセッションに戻れます",
+                id="claude-c",
+            ),
+            pytest.param(
+                "先ほどですとリズームを押して",
+                "先ほどですとresumeを押して",
+                id="resume",
+            ),
+        ],
+    )
+    def test_dictated_option_is_restored(self, text, expected):
+        corrected, _ = _dictionary.correct_text(text, _dictionary.load_dictionary())
+
+        assert corrected == expected
+
+    def test_context_dependent_misconversion_is_left_to_llm_correction(self):
+        # 「半額」 is an everyday word, so 「半角スペース」 cannot be restored
+        # without reading the sentence — that is the skill's call, not the
+        # dictionary's.
+        text = "クロード そして半額スペースに配分し"
+
+        corrected, _ = _dictionary.correct_text(text, _dictionary.load_dictionary())
+
+        assert corrected == text
+
+
 class TestSurfaceStage:
     """REQ-003: literal misrecognitions are replaced deterministically."""
 

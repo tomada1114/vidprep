@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The three Claude Code skills of design.md §7 —
+  `.claude/skills/correct-transcript`, `review-cuts` and `place-telops`. Each
+  one reads the intermediate JSON, writes exactly one artifact
+  (`patch.json`, the `status`/`note` of `cuts.json`, `telops.json`) and hands it
+  to the CLI to be verified: `vidprep correct --apply-patch`,
+  `vidprep report --json` and `vidprep render --preview`. A rejection is
+  answered by fixing the artifact — never by editing the transcript, the cut
+  intervals or the package. `correct-transcript` also carries what the golden
+  sample showed: the speaker dictates CLI commands and option names out loud,
+  so katakana renderings of them are restored from context
+- `dictionaries/asr-dict.json`: `resume` (「リズーム」) and `claude -c`
+  (「クロード-C」), the two dictated CLI terms the golden sample misrecognises
+  reproducibly. Context-dependent ones such as 「半額スペース」 stay out of the
+  dictionary and are left to LLM correction
 - `vidprep render --verify-asr`: transcribes the finished `out/output.mp4` a
   second time — with the backend, model and detector `transcript.json` records,
   so both passes make the same mistakes and cancel out — and compares it with
