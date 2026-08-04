@@ -118,9 +118,10 @@ is also the summary to report:
 `{"filler": {"count": 18, "sec": 12.64, "approved": 14, "proposed": 0,
 "rejected": 4}, …}`.
 
-If `report` cannot run in this project (it needs the earlier stages), any other
-stage command validates the file just as well — `vidprep report --cuts --json`
-alone already loads and validates `cuts.json`.
+`vidprep report --json` also regenerates the waveforms and the boundary digest,
+so it needs ffmpeg. Where that is not available, `vidprep report --cuts --json`
+alone already loads and validates `cuts.json` — every stage command validates
+the project's artifacts before it does anything.
 
 ## Step 5: When validation fails
 
