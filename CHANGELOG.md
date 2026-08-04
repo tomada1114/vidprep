@@ -72,3 +72,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same cut boundaries
 - 実現可能性調査レポートと設計インプットを `docs/` に追加（設計フェーズ、実装なし）
 - [uv-template](https://github.com/tomada1114/uv-template) ベースのプロジェクト雛形
+- `vidprep report`: writes `report/stats.json` (source and rendered length,
+  reduction ratio, cuts broken down by reason and status, loudness before and
+  after with a level-matched noise floor, and the subtitle warnings — dropped
+  by a cut, under `min_display`, over `max_cps`), draws a `showwavespic` still
+  per cut into `report/boundaries/<cut_id>.png` and stitches
+  `report/boundary_digest.mp4` from the source material: every cut plus two
+  seconds of context on each side, separated by half a second of silent black.
+  `--cuts` lists each candidate with the transcript it would delete and the
+  segments around it, as text or as JSON. Every input is optional — running
+  before `detect` or before `render` leaves those sections empty or `null` and
+  still exits `0` — and nothing outside `report/` is written, not even the
+  manifest

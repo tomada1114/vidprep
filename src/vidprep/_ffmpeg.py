@@ -27,6 +27,14 @@ STDERR_TAIL_CHARS = 2000
 #: only there to turn a hung subprocess into a reported failure.
 DEFAULT_TIMEOUT_SECONDS = 3600.0
 
+#: Banner and progress settings shared by every ffmpeg invocation.
+QUIET = ("-nostdin", "-hide_banner", "-nostats")
+
+#: A command that writes a file is silenced down to errors and overwrites what
+#: is in its way, because the only part of its log vidprep ever shows is the
+#: tail of a failure, and every such file is written inside a working directory.
+WRITING = (*QUIET, "-v", "error", "-y")
+
 
 @dataclass(frozen=True, slots=True)
 class ProbeResult:

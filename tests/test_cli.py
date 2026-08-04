@@ -28,7 +28,7 @@ SUBCOMMANDS = (
     "report",
 )
 #: The stages that are still skeletons.
-PENDING_SUBCOMMANDS = ("render", "report")
+PENDING_SUBCOMMANDS = ("render",)
 OVERLAPPING_CUTS = {
     "version": "1",
     "cuts": [
