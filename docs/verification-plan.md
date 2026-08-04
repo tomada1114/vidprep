@@ -284,6 +284,22 @@ just golden-diff   # scripts/compare_stats.py — 直近 2 回を diff（前回�
 
 **#24 修正後の記録（2026-08-04）**: `[3/6] correct` まで通過し、`[4/6] detect` で停止。transcribe は 46 発話区間 / 36 セグメント / 0.11x で成功し、s0022 は警告付きで区間先頭へ寄せられた（`222.390 → 223.270`、§5 の「区間外開始 0 件」は維持）。停止理由は #24 とは別件で、auto-editor 29.3.1 の `--export v3` が JSON として読めない出力を返すこと（`timeline_schema: Invalid JSON: expected value at line 1 column 3`）。変換層の更新が要る。
 
+**#30 修正後の記録（2026-08-04、`fixtures/runs/2026-08-04-03/`）**: **6 段すべて完走**（exit 0）。REQ-020（全段の通し実行）と REQ-021（stats.json / warnings.json のアーカイブ）が実測で埋まった。
+
+| 段 | 結果 | 所要 |
+|---|---|---|
+| audio-fix | -22.24 → -14.04 LUFS、TP -1.00 dBTP、deepfilternet、長さ差 0.0ms | 67.4s |
+| transcribe | 46 発話区間 / 154.0s of 298.9s（silero-v5） | 38.4s |
+| correct | 辞書で 8 セグメント更新 | 0.3s |
+| detect | silence 26 カット / 121.4s（approved、min_cut_duration 未満で 9 件棄却） | 0.3s |
+| render | `out/output.mp4` 178.36s（-120.6s）、長さ差 0.0ms、-14.03 LUFS | 64.4s |
+| report | `report/stats.json`、境界 PNG 26 枚、boundary_digest 235.76s（期待 235.018s） | 55.3s |
+
+- **再文字起こし照合（§8.1）は境界欠落フラグ 0 / 52 境界**（advisory）。グローバル CER は 7.99%（期待 1101 文字 / 再 ASR 1074 文字）で、#9 の 0.28% より高い。**間に `correct` が入ったため**で、辞書が原稿側だけを直す（「リズーム」→ `resume` 等）一方、再 ASR は同じ聞き違いを繰り返すぶん差分として残る。CER は判定に使わない参考値（REQ-007）であり、フラグは 0 件のまま
+- 警告は 2 件: transcribe の s0022 寄せ（#24 の既知挙動）と、detect の「19 セグメントが無音カットをまたぐ」（設計どおり削除せず警告）
+- 字幕警告は `max_cps` が s0011 の 1 件のみ（8.65 > 8.0）
+- `just golden-diff` は前回ラン（`2026-08-04-02`）が `report` に到達していないため比較できない。次回ランからこのランが基準になる
+
 ## 12. Step 1（次セッション）: 環境構築 + ASR 実測ベンチ
 
 ### 12.1 環境構築チェックリスト

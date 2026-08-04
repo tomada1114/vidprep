@@ -14,6 +14,13 @@ auto-editor: ``min_duration``, which its CLI has no option for, and the padding,
 which it could apply as ``--margin`` but must not — the padding has to be
 checkable against the detector's own output (REQ-004), so the margin is pinned
 to zero and vidprep does the shrinking.
+
+The document comes back over stdout, which is also where auto-editor draws its
+progress bar; ``--quiet`` silences its messages but not that bar, so the
+progress display is switched off explicitly. Left on, it prepends the analysis
+bar to the document whenever the analysis is slow enough to draw one — which
+depends on whether auto-editor's audio-level cache is warm, so the same command
+parses one run and fails the next (issue #30).
 """
 
 from __future__ import annotations
@@ -87,6 +94,8 @@ def command(audio: Path, silence: SilenceProfile) -> list[str]:
         "-",
         "--no-open",
         "--quiet",
+        "--progress",
+        "none",
     ]
 
 

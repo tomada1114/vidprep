@@ -307,6 +307,7 @@ LLM 校正そのもの（プロンプト・文脈判断）は Claude Code スキ
 
 - 無音検出の入力は `audio/processed.wav`（detect は audio-fix の下流）。`--margin 0s` を明示し、パディングは vidprep 側で行う。auto-editor の margin に任せると「検出器出力との差分」でパディングを機械確認できなくなるため
 - `min_duration` に相当する CLI オプションは auto-editor 29.3.1 に存在しないため、変換層で「gap 長 < min_duration の無音は検出しない」として適用する
+- **`--progress none` を明示する**。タイムラインは `-o -` で stdout から受け取るが、auto-editor は進捗バーも stdout に描くうえ `--quiet` ではバーが止まらない。音量解析が進捗バーを描く程度に遅いランでは `Analyzing audio volume | ... ETA ...` が JSON の前に混ざり、`timeline_schema`（exit 2）で停止する。バーが出るかは auto-editor の音量キャッシュ（`$TMPDIR/ae-29.3.1/`）が温まっているかで変わるため、同じコマンドが通ったり落ちたりする（#30 実測）。なお `-o <file>` は §12.1.1 のとおり拡張子を `.v3` に書き換えるので、stdout 経由をやめる選択肢は取らない
 - **発話衝突（1 カットあたり ≤ 0.2 秒）は transcript セグメント区間そのものではなく「transcript ∩ VAD 発話区間」で測る**。whisper.cpp の VAD 併用時、セグメントの end が次の発話区間の末尾まで伸びることがある（ゴールデン実測: 1 セグメントが 55 秒の無音をまたいだ）。生の区間で測ると 30 カット中 15 件が閾値超過となり、実際には発話を消していないカットで detect が止まる
 - 区間が無音カットをまたぐ transcript セグメントは**削除せず警告**する（#7 の二重防御の結論）。transcript は transcribe の所有物であり、detect は書き換えない
 - 条件 (b) は「セグメント内部に VAD 境界があるとき」のみ候補化する。境界がなければフィラーの終端を推測できないため note のみに留める（precision 優先）

@@ -165,3 +165,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whose length lies inside detected speech is moved, and the move is reported
   as a warning and counted as `anchored_starts` in `--json`; nothing is
   dropped, and a segment that covers no speech is still refused with exit `3`
+- `vidprep detect`: the auto-editor progress bar is switched off with
+  `--progress none`. The `--export v3` timeline is read from stdout, which is
+  also where auto-editor draws that bar, and `--quiet` silences its messages
+  but not the bar — so an analysis slow enough to draw one prepended
+  `Analyzing audio volume | ... ETA ...` to the document and the stage stopped
+  with `timeline_schema` (exit `2`). Whether the bar appears depends on
+  auto-editor's audio-level cache being warm, which is why the same command
+  parsed one run and failed the next. The timeline is still validated strictly
