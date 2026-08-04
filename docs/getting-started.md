@@ -42,9 +42,7 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 
 !!! note
 
-    Every stage is implemented. What is not built yet lives behind one flag of
-    `render`: `--verify-asr` (comparing a re-transcription of the output
-    against the cut plan).
+    Every stage and every flag of the pipeline is implemented.
 
 ## Transcribing
 
@@ -88,6 +86,7 @@ video and the subtitles from the same cut plan, so the two cannot drift apart.
 vidprep render              # out/output.mp4 + out/subtitles.srt
 vidprep render --no-wrap    # and out/subtitles.nowrap.srt, without line breaks
 vidprep render --preview    # and out/telops.ass + out/preview.mp4
+vidprep render --verify-asr # and transcribe the result again to look for lost words
 vidprep render --dry-run    # the ffmpeg command it would run, filters included
 ```
 
@@ -123,6 +122,45 @@ field, so stating a `fontsize` keeps the packaged `fontname` — which is how
 weight is asked for at all. macOS renders libass through CoreText, where
 `Bold: 1` was measured to change nothing, so the presets name a weighted
 family such as `Hiragino Sans W6` instead (design.md §3.5).
+
+## Verifying the Render
+
+`--verify-asr` reads the finished file back. It transcribes `out/output.mp4`
+again — with the backend, model and detector `transcript.json` records, so the
+two passes make the same mistakes and those mistakes cancel out — and compares
+it with what the kept segments should say. Text the second pass never heard,
+two characters or more, within two seconds of a cut boundary, is a word the cut
+took with it.
+
+```bash
+vidprep render --verify-asr --json   # the comparison under "verify_asr"
+```
+
+!!! note
+
+    The check is advisory: it reports its flags and leaves the exit code at
+    `0`, because a recogniser run twice does not return the same string twice.
+    Set `render.verify_asr_mode` to `"gate"` in `profile.json` to make one flag
+    exit `3`. The global CER is reported as a reference figure and decides
+    nothing.
+
+A flagged boundary is a question, not a verdict: seek to `src_time` in
+`report/boundary_digest.mp4` and listen.
+
+## Regression Runs
+
+The whole pipeline over the fixed sample of `docs/verification-plan.md` §2 is
+one command, and it archives what it measured so the next run can be compared
+against it:
+
+```bash
+just golden        # six stages, then fixtures/runs/<date>/
+just golden-diff   # what changed between the two most recent runs
+```
+
+Both are local-only: they need the material, ffmpeg, whisper.cpp and
+auto-editor. `tests/fault_injection/` is the other half — six deliberately
+broken inputs, each asserting that the check meant to catch it does.
 
 ## What's Next?
 
