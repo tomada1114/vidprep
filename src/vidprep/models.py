@@ -206,6 +206,41 @@ class Transcript(_Strict):
         return self
 
 
+class SpeechSegment(_Strict):
+    """One region Silero VAD reported as speech, in original-timeline seconds."""
+
+    start: Seconds
+    end: Seconds
+
+
+class VadReport(_Strict):
+    """``report/vad.json`` — the regions ``transcribe`` ran the recogniser over.
+
+    Cut detection trims filler candidates to these boundaries (design.md §5.4)
+    and the transcript's own verification joins on them, so the regions are
+    required to be ordered and disjoint: two callers walking the list must
+    agree on which moment is speech.
+    """
+
+    version: Literal["1"] = "1"
+    backend: str
+    segments: list[SpeechSegment] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_segments(self, info: ValidationInfo) -> Self:
+        previous: SpeechSegment | None = None
+        for index, segment in enumerate(self.segments):
+            _check_interval(f"speech[{index}]", segment.start, segment.end, info)
+            if previous is not None and to_ms(segment.start) < to_ms(previous.end):
+                msg = (
+                    f"speech[{index}]: starts ({segment.start:.3f}) before the "
+                    f"previous region ended ({previous.end:.3f})"
+                )
+                raise ValueError(msg)
+            previous = segment
+        return self
+
+
 class Cut(_Strict):
     """One cut candidate. ``reason`` stays an open string (design.md §8)."""
 
@@ -298,6 +333,22 @@ class AudioProfile(_Strict):
     loudnorm: Loudnorm = Field(default_factory=Loudnorm)
 
 
+class AsrProfile(_Strict):
+    """Which recogniser ``transcribe`` drives, and on which weights.
+
+    ``vad`` accepts one value rather than being a switch: voice activity
+    detection is what stops whisper inventing speech in the silences — the
+    Step 1 bench measured 6 hallucinated segments without it and 0 with it
+    (verification-plan.md §12.2) — so there is no profile setting, and no flag,
+    that turns it off (design.md §5.2).
+    """
+
+    backend: Literal["whisper.cpp", "mlx-whisper"] = "whisper.cpp"
+    model: str = "large-v3-turbo"
+    language: str = "ja"
+    vad: Literal["silero-v5"] = "silero-v5"
+
+
 class SilenceProfile(_Strict):
     """Silence detection and padding parameters."""
 
@@ -337,6 +388,7 @@ class Profile(_Strict):
 
     version: Literal["1"] = "1"
     audio: AudioProfile = Field(default_factory=AudioProfile)
+    asr: AsrProfile = Field(default_factory=AsrProfile)
     silence: SilenceProfile = Field(default_factory=SilenceProfile)
     filler: FillerProfile = Field(default_factory=FillerProfile)
     render: RenderProfile = Field(default_factory=RenderProfile)

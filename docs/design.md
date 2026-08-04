@@ -196,6 +196,8 @@ src/vidprep/
   "version": "1",
   "audio": {"denoise": "deepfilternet", "highpass_hz": 80,
             "loudnorm": {"i": -14.0, "tp": -1.0, "lra": 11.0}},
+  "asr": {"backend": "whisper.cpp", "model": "large-v3-turbo",
+          "language": "ja", "vad": "silero-v5"},
   "silence": {"threshold": "4%", "min_duration": 0.6,
               "pad_pre": 0.3, "pad_post": 0.3, "min_cut_duration": 0.4},
   "filler": {"enable_weak": false, "require_adjacent_silence": 0.2},
@@ -205,6 +207,7 @@ src/vidprep/
 }
 ```
 
+- `asr.vad` は値が 1 つしかない（`silero-v5`）。VAD はスキップ不可なので、profile でも CLI でも無効化できないことをスキーマで保証する（§5.2）
 - `pad_pre/pad_post` は「発話側に残す余白」。カット区間を両端からこの分だけ縮める。保守的（長め）から始め、ゴールデンサンプルでの試聴で詰める（verification-plan.md §7）
 - `subtitle` の既定は YouTube 想定。Netflix 準拠（13 全角/行・4 文字/秒）はプロファイルの値変更で選べる
 - 時刻・秒値はすべて **float 秒・小数 3 桁（ms）丸め**で統一
@@ -267,6 +270,12 @@ f(t) = t - removed(t)                       # カット内の t は f(bi) に写
 3. VAD 区間情報は `report/vad.json` に保存（detect のフィラー判定と検証が使う）
 
 バックエンドは `whisper.cpp`（subprocess）と `mlx-whisper` の 2 実装を持ち、profile で選ぶ。モデルは Step 1 のベンチで確定。
+
+実装上の Silero VAD の担い手は whisper.cpp（`--vad`）に一本化する。whisper.cpp は発話区間の検出・区間だけの認識・原尺への時刻補正を 1 プロセスで行い、検出した区間をログに出す（`vad_segment_info`）。したがって:
+
+- `whisper.cpp` バックエンド: 1 回の実行から transcript と `report/vad.json` の両方を得る（ベンチ実測値と同じ実行形）
+- `mlx-whisper` バックエンド: 検出だけを行う whisper.cpp の実行（`-d 1`）で区間を得て、区間ごとに ffmpeg で切り出して mlx に渡し、返ってきた区間内時刻に区間 start を加算して原尺に戻す。`--clip-timestamps` で一括処理する形は実測で棄却した（ゴールデンサンプルで 106 セグメント中 23 件が発話区間外に着地し、末尾は素材尺を超えて repetition loop に入った）
+- どちらの経路でも、書き出す前に「全セグメントの start が検出区間の内側か」「既知の幻覚フレーズが無音上に乗っていないか」を検証し、破れていれば何も書かずに exit 3
 
 ### 5.3 correct
 

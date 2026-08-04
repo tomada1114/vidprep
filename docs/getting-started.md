@@ -42,9 +42,24 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 
 !!! note
 
-    `audio-fix` and `correct` are implemented. The remaining stages
-    (`transcribe`, `detect`, `render`, `report`) are registered but not
-    implemented yet; they currently report that and exit `1`.
+    `audio-fix`, `transcribe` and `correct` are implemented. The remaining
+    stages (`detect`, `render`, `report`) are registered but not implemented
+    yet; they currently report that and exit `1`.
+
+## Transcribing
+
+`transcribe` runs Silero voice activity detection in front of the recogniser
+and writes `transcript.json` in original-timeline seconds, plus
+`report/vad.json` with the speech regions it found.
+
+```bash
+vidprep transcribe          # whisper.cpp by default; see profile.json's `asr`
+vidprep transcribe --json   # segment count, speech duration, realtime factor
+```
+
+Detection has no off switch: without it whisper invents sentences in the
+silences, and those come back as subtitles later. A transcript whose segments
+do not line up with the detected speech is refused rather than written.
 
 ## What's Next?
 

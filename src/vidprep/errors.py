@@ -66,6 +66,17 @@ class FfmpegError(ExecutionFailedError):
     code: ClassVar[str] = "ffmpeg_failed"
 
 
+class AsrFailedError(ExecutionFailedError):
+    """The ASR backend exited non-zero, or left output vidprep cannot read.
+
+    Kept apart from :class:`FfmpegError` so a machine reading ``--json`` can
+    tell "the recogniser broke" from "a media command broke"; both stop the
+    stage before anything is written (design.md §6).
+    """
+
+    code: ClassVar[str] = "asr_failed"
+
+
 class SchemaInvalidError(VidprepError):
     """A JSON artifact violated its schema or an invariant."""
 

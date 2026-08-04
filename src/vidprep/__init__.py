@@ -5,7 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 from .errors import VidprepError
-from .models import Cuts, Manifest, Profile, Styles, Telops, Transcript
+from .models import Cuts, Manifest, Profile, Styles, Telops, Transcript, VadReport
 from .project import Project
 from .timeline import Timeline
 
@@ -23,6 +23,7 @@ __all__ = [
     "Telops",
     "Timeline",
     "Transcript",
+    "VadReport",
     "VidprepError",
     "__version__",
 ]

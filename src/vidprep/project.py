@@ -36,6 +36,7 @@ from .models import (
     Styles,
     Telops,
     Transcript,
+    VadReport,
     describe_validation_error,
 )
 
@@ -52,6 +53,7 @@ HASH_CHUNK_BYTES = 1024 * 1024
 #: Artifacts validated before a stage runs, in the order they are reported.
 ARTIFACT_MODELS: Mapping[str, type[BaseModel]] = {
     "transcript.json": Transcript,
+    "report/vad.json": VadReport,
     "cuts.json": Cuts,
     "telops.json": Telops,
     "styles.json": Styles,
@@ -60,7 +62,7 @@ ARTIFACT_MODELS: Mapping[str, type[BaseModel]] = {
 #: Profile sections whose values change a stage's output (used for provenance).
 STAGE_PROFILE_SECTIONS: Mapping[str, tuple[str, ...]] = {
     "audio_fix": ("audio",),
-    "transcribe": (),
+    "transcribe": ("asr",),
     "correct": (),
     "detect": ("silence", "filler"),
     "render": ("render", "subtitle"),

@@ -1,0 +1,16 @@
+{
+  "version": "1",
+  "note": "Phrases whisper is known to invent where nobody is speaking: sign-offs it learnt from subtitled videos, plus what was actually observed on the golden sample. Matched only against segments timed over silence rather than over speech (verification-plan.md §5); the re-transcription check reuses the same list.",
+  "phrases": [
+    "ご視聴ありがとうございました",
+    "ご視聴ありがとうございます",
+    "ご清聴ありがとうございました",
+    "最後までご視聴いただきありがとうございました",
+    "チャンネル登録お願いします",
+    "チャンネル登録よろしくお願いします",
+    "高評価とチャンネル登録をお願いします",
+    "次回の動画でお会いしましょう",
+    "ちょっと待ってくださいね",
+    "おだしょー"
+  ]
+}

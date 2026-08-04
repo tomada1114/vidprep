@@ -21,6 +21,7 @@ class TestPackageMetadata:
             "Telops",
             "Timeline",
             "Transcript",
+            "VadReport",
             "VidprepError",
             "__version__",
         }
