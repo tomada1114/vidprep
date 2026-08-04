@@ -19,6 +19,7 @@ from . import audio as audio_module
 from . import correct as correct_module
 from . import doctor as doctor_module
 from . import project as project_module
+from . import transcribe as transcribe_module
 from .errors import (
     EXIT_USAGE,
     EXIT_VALIDATION,
@@ -66,7 +67,6 @@ YesOption = Annotated[
 
 #: Subcommand name -> stage key in the manifest, for stages not built yet.
 PENDING_STAGES = {
-    "transcribe": "transcribe",
     "detect": "detect",
     "render": "render",
     "report": "report",
@@ -264,7 +264,29 @@ def _pending_command(name: str, summary: str) -> None:
     app.command(name=name)(command)
 
 
-_pending_command("transcribe", "Transcribe the processed audio with VAD + ASR.")
+@app.command()
+def transcribe(
+    project: ProjectOption = None,
+    json_output: JsonOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Transcribe the processed audio with Silero VAD in front of the recogniser.
+
+    Detection is not optional and has no flag: it is what keeps invented
+    sentences out of the silences, and out of every subtitle built from them
+    (design.md §5.2).
+    """
+    options = CommonOptions(project, json_output, dry_run)
+
+    def action() -> Output:
+        loaded, stale = _prepare(transcribe_module.STAGE, options)
+        if options.dry_run:
+            plan = transcribe_module.plan(loaded)
+            return Output(plan, [*stale, *_plan_lines(plan)])
+        result = transcribe_module.run_transcribe(loaded)
+        return Output(result.to_dict(), [*stale, *result.lines()])
+
+    _run(options, action)
 
 
 @app.command()

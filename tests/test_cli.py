@@ -28,7 +28,7 @@ SUBCOMMANDS = (
     "report",
 )
 #: The stages that are still skeletons.
-PENDING_SUBCOMMANDS = ("transcribe", "detect", "render", "report")
+PENDING_SUBCOMMANDS = ("detect", "render", "report")
 OVERLAPPING_CUTS = {
     "version": "1",
     "cuts": [
@@ -193,7 +193,7 @@ class TestPendingStages:
         changed.audio.highpass_hz = 120
         project_module.write_json(project_dir / "profile.json", changed)
 
-        result = run_cli("transcribe", "-p", str(project_dir))
+        result = run_cli("detect", "-p", str(project_dir))
 
         assert "may be stale" in result.stdout
         assert result.exit_code == EXIT_USAGE  # only because the stage is a skeleton

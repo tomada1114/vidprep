@@ -9,6 +9,12 @@
       "lra": 11.0
     }
   },
+  "asr": {
+    "backend": "whisper.cpp",
+    "model": "large-v3-turbo",
+    "language": "ja",
+    "vad": "silero-v5"
+  },
   "silence": {
     "threshold": "4%",
     "min_duration": 0.6,

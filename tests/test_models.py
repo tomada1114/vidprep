@@ -15,6 +15,7 @@ from vidprep.models import (
     Styles,
     Telops,
     Transcript,
+    VadReport,
     describe_validation_error,
     to_ms,
 )
@@ -106,12 +107,24 @@ STYLES_SAMPLE: dict[str, Any] = {
     },
 }
 
+VAD_SAMPLE: dict[str, Any] = {
+    "version": "1",
+    "backend": "silero-v5",
+    "segments": [{"start": 2.34, "end": 10.01}, {"start": 12.99, "end": 20.0}],
+}
+
 PROFILE_SAMPLE: dict[str, Any] = {
     "version": "1",
     "audio": {
         "denoise": "deepfilternet",
         "highpass_hz": 80,
         "loudnorm": {"i": -14.0, "tp": -1.0, "lra": 11.0},
+    },
+    "asr": {
+        "backend": "whisper.cpp",
+        "model": "large-v3-turbo",
+        "language": "ja",
+        "vad": "silero-v5",
     },
     "silence": {
         "threshold": "4%",
@@ -161,6 +174,7 @@ class TestDesignSamples:
             pytest.param(Telops, TELOPS_SAMPLE, id="telops"),
             pytest.param(Styles, STYLES_SAMPLE, id="styles"),
             pytest.param(Profile, PROFILE_SAMPLE, id="profile"),
+            pytest.param(VadReport, VAD_SAMPLE, id="vad"),
         ],
     )
     def test_sample_payload_validates(self, model, payload):
@@ -342,6 +356,50 @@ class TestForwardCompatibility:
         ]
         transcript = Transcript.model_validate(payload)
         assert transcript.segments[0].words is not None
+
+
+class TestSpeechRegions:
+    """The speech regions transcribe records for the stages that join on them."""
+
+    def test_regions_must_be_ordered_and_disjoint(self):
+        payload = {
+            "version": "1",
+            "backend": "silero-v5",
+            "segments": [{"start": 2.0, "end": 10.0}, {"start": 9.0, "end": 12.0}],
+        }
+        with pytest.raises(ValidationError, match=r"speech\[1\]: starts"):
+            VadReport.model_validate(payload)
+
+    def test_regions_touching_at_a_boundary_are_accepted(self):
+        payload = {
+            "version": "1",
+            "backend": "silero-v5",
+            "segments": [{"start": 2.0, "end": 10.0}, {"start": 10.0, "end": 12.0}],
+        }
+        assert len(VadReport.model_validate(payload).segments) == 2
+
+    def test_a_region_past_the_source_duration_is_rejected(self):
+        payload = {
+            "version": "1",
+            "backend": "silero-v5",
+            "segments": [{"start": 2.0, "end": DURATION + 0.1}],
+        }
+        with pytest.raises(ValidationError, match="past the source duration"):
+            VadReport.model_validate(payload, context=CONTEXT)
+
+
+class TestAsrSettings:
+    """REQ-002: profile.json cannot ask for a run without detection."""
+
+    def test_detection_cannot_be_switched_off(self):
+        payload = {**PROFILE_SAMPLE, "asr": {**PROFILE_SAMPLE["asr"], "vad": "none"}}
+        with pytest.raises(ValidationError, match="Input should be 'silero-v5'"):
+            Profile.model_validate(payload)
+
+    def test_an_unknown_backend_is_rejected(self):
+        payload = {**PROFILE_SAMPLE, "asr": {**PROFILE_SAMPLE["asr"], "backend": "x"}}
+        with pytest.raises(ValidationError, match="Input should be"):
+            Profile.model_validate(payload)
 
 
 class TestTelopTiming:

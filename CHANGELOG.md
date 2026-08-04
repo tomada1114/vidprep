@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep transcribe`: runs Silero voice activity detection in front of the
+  recogniser — whisper.cpp or mlx-whisper, chosen by the new `asr` section of
+  `profile.json` — and writes `transcript.json` in original-timeline seconds
+  plus `report/vad.json` with the speech regions. Detection cannot be skipped:
+  there is no flag and no profile value that turns it off. A transcript whose
+  segments start where no speech was detected, or that repeats a known
+  hallucination over silence, is refused with exit `3` and never written;
+  material with no speech at all fails with exit `2` rather than producing an
+  empty transcript
+- the known-hallucination phrase list (`vidprep/dictionaries/hallucinations.json`,
+  shipped with the package), used by the transcript verification and reusable
+  by the re-transcription check
 - `vidprep correct`: replaces the misconversion dictionary's terms in the
   transcript — literally, then by SudachiPy reading so unseen spellings are
   caught too — replacing only `confidence: always` entries and reporting the
