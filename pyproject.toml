@@ -193,6 +193,8 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# scripts/ is not a package, so tests import the bench helpers by name.
+pythonpath = ["scripts"]
 addopts = [
     "--strict-markers",
     "--strict-config",

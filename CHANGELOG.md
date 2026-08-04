@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/cer.py`: character error rate against the human reference, with the
+  normalisation rules (NFKC, punctuation and whitespace removal, lower-casing,
+  no number folding) exposed as an importable `normalize()`
+- `scripts/asr_bench.py`: the ASR benchmark harness — runs each candidate twice
+  under `/usr/bin/time -l`, counts hallucinated segments against ffmpeg
+  `silencedetect` output, compares VAD on/off, and writes the result matrix
+  plus the selection rationale
 - `vidprep audio-fix`: denoises with DeepFilterNet (falling back to `afftdn`
   when it is not installed), high-passes at 80 Hz and normalises loudness with
   a two-pass linear `loudnorm`, writing `audio/processed.wav` as PCM 16 bit at
