@@ -29,7 +29,8 @@
   "render": {
     "crf": 18,
     "preset": "slow",
-    "boundary_fade": 0.01
+    "boundary_fade": 0.01,
+    "verify_asr_mode": "advisory"
   },
   "subtitle": {
     "max_chars_per_line": 20,

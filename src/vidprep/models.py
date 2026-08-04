@@ -63,6 +63,9 @@ CutId = Annotated[str, Field(pattern=CUT_ID_PATTERN)]
 AssColour = Annotated[str, Field(pattern=ASS_COLOUR_PATTERN)]
 PresetName = Annotated[str, Field(pattern=PRESET_NAME_PATTERN)]
 
+#: How ``render --verify-asr`` reports a boundary flag (verification-plan.md §8.1).
+VerifyAsrMode = Literal["advisory", "gate"]
+
 
 def to_ms(seconds: float) -> int:
     """Return *seconds* as whole milliseconds, the unit all comparisons use."""
@@ -423,11 +426,20 @@ class FillerProfile(_Strict):
 
 
 class RenderProfile(_Strict):
-    """Re-encode parameters and the length-preserving boundary fade."""
+    """Re-encode parameters, the boundary fade, and how strict verification is.
+
+    ``verify_asr_mode`` starts at ``advisory`` on purpose: a recogniser run
+    twice over the same audio does not return the same string twice, so
+    ``render --verify-asr`` reports its flags without changing the exit code
+    until the fault injections of verification-plan.md §10 have measured its
+    detection power and its false-positive rate. ``gate`` is the promotion —
+    one flag then fails the run (verification-plan.md §8.1).
+    """
 
     crf: int = Field(default=18, ge=0, le=51)
     preset: str = "slow"
     boundary_fade: Seconds = 0.010
+    verify_asr_mode: VerifyAsrMode = "advisory"
 
 
 class SubtitleProfile(_Strict):

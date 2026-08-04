@@ -23,6 +23,7 @@ from . import project as project_module
 from . import render as render_module
 from . import report as report_module
 from . import transcribe as transcribe_module
+from . import verify as verify_module
 from .errors import (
     EXIT_USAGE,
     EXIT_VALIDATION,
@@ -73,6 +74,12 @@ NoWrapOption = Annotated[
 PreviewOption = Annotated[
     bool,
     typer.Option("--preview", help="Also burn telops.json in as out/preview.mp4."),
+]
+VerifyAsrOption = Annotated[
+    bool,
+    typer.Option(
+        "--verify-asr", help="Transcribe the output again and look for lost words."
+    ),
 ]
 CutsOption = Annotated[
     bool,
@@ -342,9 +349,10 @@ def correct(
 
 
 @app.command()
-def render(
+def render(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
     no_wrap: NoWrapOption = False,
     preview: PreviewOption = False,
+    verify_asr: VerifyAsrOption = False,
     project: ProjectOption = None,
     json_output: JsonOption = False,
     dry_run: DryRunOption = False,
@@ -355,18 +363,39 @@ def render(
     stays in the recording (design.md §3.4). The subtitles are timed by the
     same cut plan as the video, so the two cannot drift apart — and so are the
     telops `--preview` burns into `out/preview.mp4`.
+
+    `--verify-asr` reads the finished file back: it is transcribed a second
+    time with the settings `transcript.json` records and compared with what the
+    kept segments should say, which finds a word clipped at a cut boundary
+    (verification-plan.md §8.1). It is advisory — a flag is reported and the
+    exit code stays `0` — until `profile.json` sets
+    `render.verify_asr_mode = "gate"`, when a flag exits `3`.
+
+    Raises:
+        typer.Exit: `3` when the check is a gate and it flagged a boundary.
     """
     options = CommonOptions(project, json_output, dry_run)
 
     def action() -> Output:
         loaded, stale = _prepare(render_module.STAGE, options)
         if options.dry_run:
-            plan = render_module.plan(loaded, no_wrap=no_wrap, preview=preview)
+            plan = render_module.plan(
+                loaded, no_wrap=no_wrap, preview=preview, verify_asr=verify_asr
+            )
             return Output(plan, [*stale, *_plan_lines(plan)])
-        result = render_module.run_render(loaded, no_wrap=no_wrap, preview=preview)
+        result = render_module.run_render(
+            loaded, no_wrap=no_wrap, preview=preview, verify_asr=verify_asr
+        )
         return Output(result.to_dict(), [*stale, *result.lines()])
 
-    _run(options, action)
+    output = _run(options, action)
+    verified = output.result.get("verify_asr")
+    if (
+        isinstance(verified, dict)
+        and verified["mode"] == verify_module.GATE
+        and verified["near_boundary_flags"]
+    ):
+        raise typer.Exit(EXIT_VALIDATION)
 
 
 @app.command()

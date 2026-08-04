@@ -3,31 +3,32 @@
 Usage:
     uv run python scripts/cer.py <reference> <hypothesis>
 
-``normalize`` is deliberately importable: the ASR bench (``scripts/asr_bench.py``)
-and the re-transcription check planned for ``render --verify-asr`` must all
-compare text under exactly the same rules, and the only way to guarantee that is
-to share this one function.
+``normalize`` is re-exported from :mod:`vidprep._text`: the ASR bench
+(``scripts/asr_bench.py``) and the re-transcription check of
+``render --verify-asr`` must all compare text under exactly the same rules, and
+the only way to guarantee that is to share one function. It lives in the package
+because the check that needs it ships with the package; this module keeps the
+name so importers of ``scripts/cer.py`` are unaffected.
 """
 
 from __future__ import annotations
 
 import argparse
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
 import jiwer
 
-#: Punctuation dropped before comparison (verification-plan.md §3.1 lists the
-#: ideographic comma and full stop, the full-width exclamation and question
-#: marks, and the ellipsis). Normalisation runs NFKC first, which already folds
-#: the full-width marks and the ellipsis into ASCII, so only the two ideographic
-#: marks survive to be named here — the rest are matched in their ASCII form.
-PUNCTUATION = frozenset(
-    "、"  # ideographic comma
-    "。"  # ideographic full stop
-    "!?.,"  # what NFKC leaves of the full-width marks and the ellipsis
-)
+from vidprep._text import PUNCTUATION, normalize
+
+__all__ = [
+    "PUNCTUATION",
+    "CerResult",
+    "format_result",
+    "main",
+    "measure",
+    "normalize",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,19 +50,6 @@ class CerResult:
     insertions: int
     reference_chars: int
     hypothesis_chars: int
-
-
-def normalize(text: str) -> str:
-    """Return *text* reduced to the form CER is measured on.
-
-    NFKC folding, then whitespace and punctuation removal, then lower-casing.
-    Number spellings ("3つ" vs "三つ") are left alone on purpose: getting them
-    right is part of what the dictionary and the proofreading pass are measured
-    on, so normalising them away would hide the very errors we care about.
-    """
-    folded = unicodedata.normalize("NFKC", text)
-    kept = (char for char in folded if not char.isspace() and char not in PUNCTUATION)
-    return "".join(kept).lower()
 
 
 def measure(reference: str, hypothesis: str) -> CerResult:

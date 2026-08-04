@@ -15,6 +15,11 @@ a second, quieter one.
 What is written: ``out/output.mp4``, ``out/subtitles.srt`` and, with
 ``--no-wrap``, ``out/subtitles.nowrap.srt``. ``--preview`` adds the telop track
 ``out/telops.ass`` and ``out/preview.mp4``, the render with it burned in.
+
+``--verify-asr`` adds a read-only pass over the finished file: it is
+transcribed a second time and compared with what the kept segments say it
+should contain, which is how a word clipped at a cut boundary is found
+(verification-plan.md §8.1). It is delegated whole to :mod:`vidprep.verify`.
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import _ass, _preview, _reencode, _subtitles
+from . import _ass, _preview, _reencode, _subtitles, verify
 from . import audio as audio_module
 from . import doctor as doctor_module
 from . import project as project_module
@@ -49,8 +54,10 @@ __all__ = [
     "RenderResult",
     "Renderer",
     "Result",
+    "build_subtitles",
     "plan",
     "run_render",
+    "subject",
 ]
 
 STAGE = "render"
@@ -113,12 +120,16 @@ class Result:
     subtitles: Subtitles
     outputs: tuple[str, ...]
     preview: Preview | None = None
+    verified: verify.VerifyResult | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Render the result as the JSON document ``--json`` prints."""
         produced = self.rendered
         subtitles = self.subtitles
         preview = {} if self.preview is None else self.preview.to_dict()
+        verified = (
+            {} if self.verified is None else {"verify_asr": self.verified.to_dict()}
+        )
         return {
             "renderer": produced.renderer,
             "cuts_applied": {
@@ -151,6 +162,7 @@ class Result:
             },
             "outputs": list(self.outputs),
             **preview,
+            **verified,
         }
 
     def lines(self) -> list[str]:
@@ -168,6 +180,7 @@ class Result:
             f"{subtitles.count('max_cps')} over max_cps, "
             f"{subtitles.count('line_overflow')} over max_chars_per_line)",
             *([] if self.preview is None else self.preview.lines()),
+            *([] if self.verified is None else self.verified.lines()),
         ]
 
 
@@ -301,10 +314,33 @@ def _build_subtitles(loaded: Project, mapped: _Mapped) -> Subtitles:
     )
 
 
+def build_subtitles(loaded: Project, timeline: Timeline) -> Subtitles:
+    """Map the transcript onto *timeline* and dress it as subtitles.
+
+    Public because the entries are also what the written SRT is checked against
+    (:func:`vidprep.verify.missing_subtitle_entries`): a checker that built its
+    own idea of the entries would prove nothing.
+
+    Raises:
+        UsageError: If ``transcribe`` has not produced a transcript yet.
+        SchemaInvalidError: If the transcript breaks its schema.
+    """
+    return _build_subtitles(loaded, _map_transcript(loaded, timeline))
+
+
 def _write_subtitles(
     loaded: Project, subtitles: Subtitles, *, no_wrap: bool
 ) -> list[str]:
-    """Write the SRT files and return the names of the ones written."""
+    """Write the SRT files, read the main one back, and name what was written.
+
+    Reading it back is the "no missing entries" condition of
+    verification-plan.md §9: what the mapping produced has to be what ends up in
+    the file, and the only way to know is to parse the file rather than the
+    object it was built from.
+
+    Raises:
+        InvariantViolationError: If an entry did not survive being written.
+    """
     written = [SUBTITLES_NAME]
     if no_wrap:
         written.append(NOWRAP_NAME)
@@ -314,6 +350,15 @@ def _write_subtitles(
         project_module.atomic_write_text(
             path, subtitles.to_srt(wrapped=name != NOWRAP_NAME)
         )
+    missing = verify.missing_subtitle_entries(
+        loaded.root / SUBTITLES_NAME, subtitles.entries
+    )
+    if missing:
+        msg = (
+            f"{len(missing)} mapped segments are not in {SUBTITLES_NAME} "
+            f"({', '.join(missing[:5])})"
+        )
+        raise InvariantViolationError(msg)
     return [str(name) for name in written]
 
 
@@ -372,17 +417,35 @@ def _write_preview(loaded: Project, telops: _Telops, frame_ms: float) -> Preview
     return Preview(telops.plan, tuple(telops.presets), telops.source, duration)
 
 
+def subject(loaded: Project, cuts: Sequence[Cut], timeline: Timeline) -> verify.Subject:
+    """Describe the render the re-transcription check is to read back."""
+    return verify.Subject(
+        root=loaded.root,
+        video=loaded.root / VIDEO_NAME,
+        transcript=_load_transcript(loaded),
+        approved=tuple(cut for cut in cuts if cut.status == "approved"),
+        timeline=timeline,
+        profile=loaded.profile,
+    )
+
+
 def plan(
-    loaded: Project, *, no_wrap: bool = False, preview: bool = False
+    loaded: Project,
+    *,
+    no_wrap: bool = False,
+    preview: bool = False,
+    verify_asr: bool = False,
 ) -> dict[str, Any]:
     """Return what :func:`run_render` would run and write, without doing it.
 
     The upstream artifacts are checked here too, so a dry run refuses for the
-    same reason — and with the same exit code — as the real thing would.
+    same reason — and with the same exit code — as the real thing would; with
+    ``verify_asr`` that includes the recogniser the second pass would need.
     """
     audio = _audio_path(loaded)
     _transcript_path(loaded)
-    timeline = _timeline(loaded, _load_cuts(loaded))
+    cuts = _load_cuts(loaded)
+    timeline = _timeline(loaded, cuts)
     renderer = _renderer(loaded)
     commands = renderer.commands(_job(loaded, timeline, audio))
     writes = [str(loaded.root / VIDEO_NAME), str(loaded.root / SUBTITLES_NAME)]
@@ -401,6 +464,8 @@ def plan(
             str(loaded.root / PREVIEW_NAME),
         ]
     writes.append(str(loaded.root / project_module.MANIFEST_NAME))
+    if verify_asr:
+        commands += verify.commands(subject(loaded, cuts, timeline))
     return {
         "action": "render",
         "project": str(loaded.root),
@@ -411,7 +476,11 @@ def plan(
 
 
 def run_render(
-    loaded: Project, *, no_wrap: bool = False, preview: bool = False
+    loaded: Project,
+    *,
+    no_wrap: bool = False,
+    preview: bool = False,
+    verify_asr: bool = False,
 ) -> Result:
     """Apply the approved cuts of *loaded* and write the video and subtitles.
 
@@ -425,19 +494,24 @@ def run_render(
             breaks BudouX proposed against the unbroken text.
         preview: Also write ``out/telops.ass`` and burn it into
             ``out/preview.mp4``. ``out/output.mp4`` is only read for it.
+        verify_asr: Transcribe the finished output a second time and compare it
+            with what the kept segments should say (verification-plan.md §8.1).
+            The output is only read; nothing about it changes either way.
 
     Returns:
         What was applied and what the output measures.
 
     Raises:
-        UsageError: If an upstream stage has not run yet, or ``--preview`` was
-            asked for without ``telops.json`` or without libass.
+        UsageError: If an upstream stage has not run yet, if ``--preview`` was
+            asked for without ``telops.json`` or without libass, or if
+            ``verify_asr`` was asked for and the recogniser is not installed.
         HashMismatchError: If the material was replaced since ``init``.
         SchemaInvalidError: If ``cuts.json`` or ``transcript.json`` is invalid.
         TelopInvalidError: If a telop names a segment or a preset that is not
             there.
         InvariantViolationError: If the output fails the length, synchronisation
             or loudness checks of verification-plan.md §8.
+        AsrFailedError: If the second pass could not be compared at all.
     """
     # Repeated for the sake of the library caller: the CLI has verified the
     # material already, and rendering from a source that no longer matches the
@@ -449,6 +523,12 @@ def run_render(
     mapped = _map_transcript(loaded, timeline)
     subtitles = _build_subtitles(loaded, mapped)
     telops = _resolve_telops(loaded, timeline, mapped) if preview else None
+
+    # Whether the second pass could run at all is settled before the encode,
+    # not after it: a missing recogniser should not cost a whole render.
+    checked = subject(loaded, cuts, timeline) if verify_asr else None
+    if checked is not None:
+        verify.check_available(checked)
 
     # Through the protocol, not through the concrete class: a renderer that
     # cuts without re-encoding (design.md §8) drops in here unchanged.
@@ -467,8 +547,15 @@ def run_render(
         drawn = _write_preview(loaded, telops, encoder.frame_ms)
         outputs += [str(TELOPS_ASS_NAME), str(PREVIEW_NAME)]
 
+    # The stage is recorded before the second pass, not after: the render is
+    # finished and verified by this point, and a comparison that cannot be made
+    # must not leave the outputs on disk without the record that produced them.
     versions = {"ffmpeg": doctor_module.check_ffmpeg().get("version") or "unknown"}
     project_module.record_stage(loaded, STAGE, versions)
+
+    # Read-only, and last: the second pass reads the very file the reviewer
+    # will watch.
+    verified = None if checked is None else verify.run_verify_asr(checked)
     statuses = [cut.status for cut in cuts]
     return Result(
         rendered=rendered,
@@ -480,4 +567,5 @@ def run_render(
         subtitles=subtitles,
         outputs=tuple(outputs),
         preview=drawn,
+        verified=verified,
     )

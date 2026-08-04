@@ -134,7 +134,12 @@ PROFILE_SAMPLE: dict[str, Any] = {
         "min_cut_duration": 0.4,
     },
     "filler": {"enable_weak": False, "require_adjacent_silence": 0.2},
-    "render": {"crf": 18, "preset": "slow", "boundary_fade": 0.010},
+    "render": {
+        "crf": 18,
+        "preset": "slow",
+        "boundary_fade": 0.010,
+        "verify_asr_mode": "advisory",
+    },
     "subtitle": {
         "max_chars_per_line": 20,
         "max_lines": 2,
