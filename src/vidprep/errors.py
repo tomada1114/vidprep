@@ -7,7 +7,10 @@ schema, hash mismatch).
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 EXIT_OK = 0
 EXIT_USAGE = 1
@@ -25,6 +28,10 @@ class VidprepError(Exception):
 
     exit_code: ClassVar[int] = EXIT_EXECUTION
     code: ClassVar[str] = "error"
+
+    def payload(self) -> dict[str, Any]:
+        """Render the failure as the JSON object ``--json`` prints."""
+        return {"error": self.code, "detail": str(self)}
 
 
 class UsageError(VidprepError):
@@ -75,6 +82,28 @@ class InvariantViolationError(VidprepError):
 
     exit_code: ClassVar[int] = EXIT_VALIDATION
     code: ClassVar[str] = "invariant_violated"
+
+
+class PatchInvalidError(VidprepError):
+    """A correction patch failed the checks made before anything is applied.
+
+    Every problem found in the patch is reported at once, because a patch is
+    written by a language model and fixing one complaint at a time would mean
+    another round trip per mistake. Nothing is written when this is raised, so
+    the report states plainly that no segment was touched (design.md §5.3).
+    """
+
+    exit_code: ClassVar[int] = EXIT_VALIDATION
+    code: ClassVar[str] = "patch_invalid"
+
+    def __init__(self, details: Sequence[str]) -> None:
+        """Record every complaint *details* raises against the patch."""
+        super().__init__("; ".join(details))
+        self.details = list(details)
+
+    def payload(self) -> dict[str, Any]:
+        """Render the failure with every complaint and the untouched count."""
+        return {"error": self.code, "detail": self.details, "applied": 0}
 
 
 class HashMismatchError(VidprepError):

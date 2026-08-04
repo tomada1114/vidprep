@@ -1,0 +1,179 @@
+{
+  "version": "1.0.0",
+  "note": "音声入力で崩れやすい固有名詞・専門用語の正式表記リスト。confidence=always は文脈に関わらず置換してよい確実な誤変換。confidence=context は同音異義語のため自動置換せず、AI/開発の文脈かどうかの判断は LLM 校正に委ねる。実在の確信がある固有名詞のみを収録し、一般同音異義語の一律置換はしない。",
+  "entries": [
+    {
+      "correct": "Claude Code",
+      "misrecognized": ["クロードコード", "クラウドコード", "クロード コード"],
+      "yomi": "クロードコード",
+      "confidence": "always"
+    },
+    {
+      "correct": "Claude",
+      "misrecognized": ["クラウド", "クロード"],
+      "yomi": "クロード",
+      "confidence": "context",
+      "note": "AI/開発文脈のみ。天気・インフラの『クラウド』は原文維持"
+    },
+    {
+      "correct": "Anthropic",
+      "misrecognized": ["アンソロピック", "アンスロピック"],
+      "yomi": "アンソロピック",
+      "confidence": "always"
+    },
+    {
+      "correct": "CLAUDE.md",
+      "misrecognized": ["cloud.md", "クロードmd", "クロード ドット md"],
+      "yomi": "クロードドットエムディー",
+      "confidence": "always"
+    },
+    {
+      "correct": "Cursor",
+      "misrecognized": ["カーソル"],
+      "yomi": "カーソル",
+      "confidence": "context",
+      "note": "AIエディタ文脈のみ。UIのカーソルは原文維持"
+    },
+    {
+      "correct": "Codex",
+      "misrecognized": ["コーデックス", "コデックス"],
+      "yomi": "コーデックス",
+      "confidence": "always"
+    },
+    {
+      "correct": "Copilot",
+      "misrecognized": ["コパイロット", "コーパイロット"],
+      "yomi": "コパイロット",
+      "confidence": "always"
+    },
+    {
+      "correct": "Gemini",
+      "misrecognized": ["ジェミニ", "双子", "ジェミナイ"],
+      "yomi": "ジェミニ",
+      "confidence": "context",
+      "note": "AIモデル文脈のみ。星座・双子は原文維持"
+    },
+    {
+      "correct": "Opus",
+      "misrecognized": ["オーパス", "オパス"],
+      "yomi": "オーパス",
+      "confidence": "context",
+      "note": "モデル名（Claude Opus）文脈のみ"
+    },
+    {
+      "correct": "Sonnet",
+      "misrecognized": ["ソネット"],
+      "yomi": "ソネット",
+      "confidence": "context",
+      "note": "モデル名（Claude Sonnet）文脈のみ。詩のソネットは原文維持"
+    },
+    {
+      "correct": "Haiku",
+      "misrecognized": ["ハイク", "俳句"],
+      "yomi": "ハイク",
+      "confidence": "context",
+      "note": "モデル名（Claude Haiku）文脈のみ。詩の俳句は原文維持"
+    },
+    {
+      "correct": "MCP",
+      "misrecognized": ["エムシーピー", "エム シー ピー"],
+      "yomi": "エムシーピー",
+      "confidence": "always"
+    },
+    {
+      "correct": "Zenn",
+      "misrecognized": ["ゼン", "禅", "ゼンネン"],
+      "yomi": "ゼン",
+      "confidence": "context",
+      "note": "投稿プラットフォーム文脈のみ。禅（宗教）は原文維持"
+    },
+    {
+      "correct": "Qiita",
+      "misrecognized": ["キータ", "キーター"],
+      "yomi": "キータ",
+      "confidence": "always"
+    },
+    {
+      "correct": "note",
+      "misrecognized": ["ノート"],
+      "yomi": "ノート",
+      "confidence": "context",
+      "note": "note.com（投稿）文脈のみ。メモ・ノートPCは原文維持"
+    },
+    {
+      "correct": "Marp",
+      "misrecognized": ["マープ", "マルプ"],
+      "yomi": "マープ",
+      "confidence": "always"
+    },
+    {
+      "correct": "Obsidian",
+      "misrecognized": ["オブシディアン"],
+      "yomi": "オブシディアン",
+      "confidence": "always"
+    },
+    {
+      "correct": "Udemy",
+      "misrecognized": ["ユーデミー", "ユデミー"],
+      "yomi": "ユーデミー",
+      "confidence": "always"
+    },
+    {
+      "correct": "YouTube",
+      "misrecognized": ["ユーチューブ"],
+      "yomi": "ユーチューブ",
+      "confidence": "always"
+    },
+    {
+      "correct": "CU Boulder",
+      "misrecognized": ["シーユーボルダー", "ボルダー", "シーユー ボルダー"],
+      "yomi": "シーユーボルダー",
+      "confidence": "context",
+      "note": "大学院（MS-CS）文脈のみ"
+    },
+    {
+      "correct": "GitHub",
+      "misrecognized": ["ギットハブ", "ギッハブ"],
+      "yomi": "ギットハブ",
+      "confidence": "always"
+    },
+    {
+      "correct": "TypeScript",
+      "misrecognized": ["タイプスクリプト"],
+      "yomi": "タイプスクリプト",
+      "confidence": "always"
+    },
+    {
+      "correct": "Playwright",
+      "misrecognized": ["プレイライト", "プレイ ライト"],
+      "yomi": "プレイライト",
+      "confidence": "always"
+    },
+    {
+      "correct": "Slack",
+      "misrecognized": ["スラック"],
+      "yomi": "スラック",
+      "confidence": "context",
+      "note": "ツール文脈のみ"
+    },
+    {
+      "correct": "Docker",
+      "misrecognized": ["ドッカー", "ドッカ"],
+      "yomi": "ドッカー",
+      "confidence": "always"
+    },
+    {
+      "correct": "とまだ",
+      "misrecognized": ["トマダ"],
+      "yomi": "トマダ",
+      "confidence": "always",
+      "note": "著者ハンドル（ひらがな）"
+    },
+    {
+      "correct": "vidprep",
+      "misrecognized": ["ビッドプレップ", "ヴィッドプレップ", "ビットプレップ"],
+      "yomi": "ビッドプレップ",
+      "confidence": "always"
+    }
+  ]
+}
