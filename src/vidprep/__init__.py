@@ -7,6 +7,7 @@ from importlib.metadata import PackageNotFoundError, version
 from .errors import VidprepError
 from .models import Cuts, Manifest, Profile, Styles, Telops, Transcript
 from .project import Project
+from .timeline import Timeline
 
 try:
     __version__ = version("vidprep")
@@ -20,6 +21,7 @@ __all__ = [
     "Project",
     "Styles",
     "Telops",
+    "Timeline",
     "Transcript",
     "VidprepError",
     "__version__",
