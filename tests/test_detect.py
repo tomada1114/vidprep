@@ -45,6 +45,11 @@ TIMEBASE = 1000
 #: once padded, Example 2 of the issue), 1.1s and 10s (both cut).
 KEPT = ((0.0, 10.0), (10.5, 12.0), (12.9, 30.0), (31.1, 50.0), (60.0, DURATION))
 
+#: What auto-editor 29.3.1 puts on stdout ahead of the document even with the
+#: progress display off: it blanks the line the bar would have occupied. Copied
+#: byte for byte from a real ``--export v3`` run (issue #30).
+CLEARED_LINE = " " * 78 + "\r"
+
 
 def timeline_json(
     kept: Sequence[tuple[float, float]] = KEPT,
@@ -216,6 +221,23 @@ class TestSilenceConversion:
         run(detectable)
         command = auto_editor.commands[0]
         assert command[command.index("--margin") + 1] == "0s"
+
+    def test_the_progress_bar_is_kept_off_the_stream_carrying_the_document(
+        self, auto_editor, detectable
+    ):
+        # The bar is drawn on stdout, where `-o -` also puts the timeline, and
+        # `--quiet` does not switch it off (issue #30).
+        run(detectable)
+        command = auto_editor.commands[0]
+        assert command[command.index("--progress") + 1] == "none"
+
+    def test_the_line_auto_editor_blanks_before_the_document_is_tolerated(
+        self, auto_editor, detectable
+    ):
+        auto_editor.output = CLEARED_LINE + timeline_json()
+        run(detectable)
+        intervals = [(item.start, item.end) for item in read_cuts(detectable).cuts]
+        assert intervals == [(30.3, 30.8), (50.3, 59.7)]
 
     def test_silence_is_what_the_kept_clips_leave_between_them(
         self, auto_editor, detectable
