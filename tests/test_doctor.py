@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -28,6 +29,18 @@ def write_tool(directory: Path, name: str, script: str, *, mode: int = 0o755) ->
     path = directory / name
     path.write_text(f"#!/bin/sh\n{script}\n", encoding="utf-8")
     path.chmod(mode)
+    return path
+
+
+def install_hanging(directory: Path, name: str) -> Path:
+    """Install an executable that never answers in time.
+
+    PATH is replaced wholesale by the ``bin_dir`` fixture, so the script cannot
+    call out to ``sleep``; the interpreter behind its shebang is absolute.
+    """
+    path = directory / name
+    path.write_text(f"#!{sys.executable}\nimport time\n\ntime.sleep(30)\n")
+    path.chmod(0o755)
     return path
 
 
@@ -228,8 +241,8 @@ class TestAutoEditor:
         assert doctor.check_auto_editor()["error"] == "auto-editor not found in PATH"
 
     def test_auto_editor_that_hangs_times_out(self, bin_dir, monkeypatch):
-        monkeypatch.setattr(doctor, "COMMAND_TIMEOUT_SECONDS", 0.1)
-        write_tool(bin_dir, "auto-editor", "sleep 5")
+        monkeypatch.setattr(doctor, "COMMAND_TIMEOUT_SECONDS", 0.5)
+        install_hanging(bin_dir, "auto-editor")
 
         check = doctor.check_auto_editor()
 
