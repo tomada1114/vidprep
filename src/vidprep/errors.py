@@ -128,6 +128,30 @@ class PatchInvalidError(VidprepError):
         return {"error": self.code, "detail": self.details, "applied": 0}
 
 
+class TelopInvalidError(VidprepError):
+    """``telops.json`` refers to something that is not there (design.md §3.5).
+
+    A missing segment or an unknown style preset survives schema validation —
+    both are names whose meaning only exists once the transcript and the style
+    presets are loaded — so they are checked before anything is encoded, and
+    every complaint is reported at once: telops.json is written by a language
+    model or by hand, and fixing one name per run would mean one preview render
+    per mistake.
+    """
+
+    exit_code: ClassVar[int] = EXIT_VALIDATION
+    code: ClassVar[str] = "telop_invalid"
+
+    def __init__(self, details: Sequence[str]) -> None:
+        """Record every complaint *details* raises against the telops."""
+        super().__init__("; ".join(details))
+        self.details = list(details)
+
+    def payload(self) -> dict[str, Any]:
+        """Render the failure with every complaint, as Example 3 of #12 shows."""
+        return {"error": self.code, "detail": self.details}
+
+
 class HashMismatchError(VidprepError):
     """The source material no longer matches the sha256 recorded at init."""
 

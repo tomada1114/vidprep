@@ -188,6 +188,8 @@ src/vidprep/
 
 - テロップの時刻は原則 `segment_id` 参照（そのセグメントの表示期間に追従）。`start`（原尺秒）+ `duration` の直指定も許す
 - macOS の libass は CoreText 経由で `Bold: 1` が効かない事例があるため、プリセットは**ウェイト別ファミリー名**（例: `Hiragino Sans W6`）で指定する
+- `styles.json` は**フィールド単位のマージ**。同梱既定のプリセットに対し、プロジェクト側が書いたフィールドだけを上書きし、書かなかったフィールド（特に `fontname`）は既定のまま残す。既定にない名前のプリセットは追加として受理する
+- **`Bold: 1` の実機結果（2026-08-04、ffmpeg 7.1.1 + libass / macOS 15）**: 焼き込み実測で、`Hiragino Sans W3` + `Bold: 1` は `Hiragino Sans W3` 素のままと**見た目が変わらなかった**（= `Bold: 1` は効かない）。一方 `Hiragino Sans W6` は明確に太く描画される。よって上記の「ウェイト別ファミリー名で指定する」は回避策ではなく**必須**。検証素材は `fixtures/telops-12/`（`preview.mp4` と `frame-weights.png`）。Filmora 取り込み側での最終確認は verification-plan.md §9 のチェックリストに残る
 
 ### 3.6 profile.json（既定値つき）
 

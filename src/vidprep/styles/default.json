@@ -1,0 +1,35 @@
+{
+  "version": "1",
+  "presets": {
+    "default": {
+      "fontname": "Hiragino Sans W6",
+      "fontsize": 56,
+      "alignment": 2,
+      "primary_colour": "&H00FFFFFF",
+      "outline_colour": "&H00000000",
+      "outline": 3.0,
+      "shadow": 0.0,
+      "margin_v": 60
+    },
+    "emphasis": {
+      "fontname": "Hiragino Sans W6",
+      "fontsize": 64,
+      "alignment": 8,
+      "primary_colour": "&H00FFFFFF",
+      "outline_colour": "&H00000000",
+      "outline": 3.0,
+      "shadow": 0.0,
+      "margin_v": 60
+    },
+    "chapter": {
+      "fontname": "Hiragino Sans W6",
+      "fontsize": 72,
+      "alignment": 5,
+      "primary_colour": "&H0000FFFF",
+      "outline_colour": "&H00000000",
+      "outline": 4.0,
+      "shadow": 2.0,
+      "margin_v": 0
+    }
+  }
+}

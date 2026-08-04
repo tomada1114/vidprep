@@ -14,9 +14,10 @@ vidprep correct --apply-patch patch.json   # LLM 校正パッチを検証して�
 vidprep detect              # 無音 + フィラーのカット候補 → cuts.json（再実行で status 保持）
 vidprep report --cuts       # 候補ごとに「消える発話 + 前後の文脈」を表示（status 判断の材料）
 vidprep render --no-wrap    # approved カットを適用 → out/output.mp4 + out/subtitles.srt
+vidprep render --preview    # telops.json + styles.json → out/telops.ass + out/preview.mp4
 vidprep report              # stats.json + 境界波形 PNG + boundary_digest.mp4 を再生成
 ```
 
-未実装なのは `render --preview`（ASS テロップ焼き込み）と `render --verify-asr`（再文字起こし照合）です。設計は `docs/design.md`、検証計画は `docs/verification-plan.md`、調査根拠は `docs/research/feasibility-report.md` を参照してください。
+未実装なのは `render --verify-asr`（再文字起こし照合）です。設計は `docs/design.md`、検証計画は `docs/verification-plan.md`、調査根拠は `docs/research/feasibility-report.md` を参照してください。
 
 [uv-template](https://github.com/tomada1114/uv-template) をベースに構築しています。
