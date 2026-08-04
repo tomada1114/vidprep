@@ -46,6 +46,47 @@ class TestRun:
         with pytest.raises(UsageError, match="not found on PATH"):
             _ffmpeg.run(["vidprep-no-such-binary", "-version"])
 
+    def test_a_hung_command_is_given_up_on(self):
+        script = "import time; time.sleep(30)"
+
+        with pytest.raises(ExecutionFailedError, match=r"did not finish within 0\.2s"):
+            _ffmpeg.run([sys.executable, "-c", script], timeout=0.2)
+
+
+class TestRunAnalysis:
+    def test_returns_the_stderr_the_filters_printed_to(self):
+        script = "import sys; sys.stderr.write('RMS level dB: -58.3')"
+
+        assert _ffmpeg.run_analysis([sys.executable, "-c", script]) == (
+            "RMS level dB: -58.3"
+        )
+
+
+class TestDuration:
+    @pytest.fixture
+    def probe_duration(self, monkeypatch):
+        def _set(text: str) -> None:
+            monkeypatch.setattr(_ffmpeg, "run", lambda *_args, **_kwargs: text)
+
+        return _set
+
+    def test_reads_the_printed_seconds(self, probe_duration):
+        probe_duration("298.920000\n")
+
+        assert _ffmpeg.duration(Path("processed.wav")) == 298.92
+
+    def test_unreadable_output_is_reported(self, probe_duration):
+        probe_duration("N/A\n")
+
+        with pytest.raises(ExecutionFailedError, match="could not read the duration"):
+            _ffmpeg.duration(Path("processed.wav"))
+
+    def test_command_names_the_file(self):
+        command = _ffmpeg.duration_command(Path("/tmp/processed.wav"))  # noqa: S108
+
+        assert command[0] == "ffprobe"
+        assert command[-1] == "/tmp/processed.wav"  # noqa: S108
+
 
 class TestProbe:
     @pytest.fixture

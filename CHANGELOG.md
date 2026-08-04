@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep audio-fix`: denoises with DeepFilterNet (falling back to `afftdn`
+  when it is not installed), high-passes at 80 Hz and normalises loudness with
+  a two-pass linear `loudnorm`, writing `audio/processed.wav` as PCM 16 bit at
+  the source sample rate. The length is held to within 1 ms of the source and
+  verified before the file is published; `--stats` reports loudness, true
+  peak, LRA and the noise floor of the silent stretches, before and after
 - `vidprep doctor`: checks ffmpeg (including libass), ffprobe, auto-editor,
   the ASR backends (whisper.cpp / mlx-whisper), DeepFilterNet and the SudachiPy
   dictionary, prints the report as JSON with `--json`, and exits `3` when a

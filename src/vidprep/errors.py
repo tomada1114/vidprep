@@ -66,6 +66,17 @@ class SchemaInvalidError(VidprepError):
     code: ClassVar[str] = "schema_invalid"
 
 
+class InvariantViolationError(VidprepError):
+    """A stage produced output that breaks an invariant the design guarantees.
+
+    The work is thrown away rather than published, so this is a verification
+    failure (exit ``3``) and not an execution failure.
+    """
+
+    exit_code: ClassVar[int] = EXIT_VALIDATION
+    code: ClassVar[str] = "invariant_violated"
+
+
 class HashMismatchError(VidprepError):
     """The source material no longer matches the sha256 recorded at init."""
 

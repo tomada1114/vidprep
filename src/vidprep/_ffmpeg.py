@@ -23,6 +23,10 @@ FFPROBE = "ffprobe"
 FFMPEG = "ffmpeg"
 STDERR_TAIL_CHARS = 2000
 
+#: A full transcode of a long recording is legitimately slow, so the timeout is
+#: only there to turn a hung subprocess into a reported failure.
+DEFAULT_TIMEOUT_SECONDS = 3600.0
+
 
 @dataclass(frozen=True, slots=True)
 class ProbeResult:
@@ -33,17 +37,12 @@ class ProbeResult:
     audio: AudioStream
 
 
-def run(args: Sequence[str]) -> str:
-    """Run an ffmpeg-family command and return its stdout.
-
-    Args:
-        args: Full argument vector, starting with the executable name.
-
-    Returns:
-        The command's standard output.
+def _execute(args: Sequence[str], timeout: float) -> subprocess.CompletedProcess[str]:
+    """Run *args* to completion, mapping every failure onto a vidprep error.
 
     Raises:
         UsageError: If the executable is not installed.
+        ExecutionFailedError: If the command did not finish within *timeout*.
         FfmpegError: If the command exits non-zero; the message carries the
             tail of stderr so the failure is diagnosable from the log alone.
     """
@@ -55,15 +54,77 @@ def run(args: Sequence[str]) -> str:
             capture_output=True,
             text=True,
             check=False,
+            timeout=timeout,
         )
     except FileNotFoundError as exc:
         msg = f"{command[0]} was not found on PATH"
         raise UsageError(msg) from exc
+    except subprocess.TimeoutExpired as exc:
+        msg = f"{command[0]} did not finish within {timeout:g}s"
+        raise ExecutionFailedError(msg) from exc
     if completed.returncode != 0:
         tail = completed.stderr.strip()[-STDERR_TAIL_CHARS:]
         msg = f"{command[0]} exited with {completed.returncode}: {tail}"
         raise FfmpegError(msg)
-    return completed.stdout
+    return completed
+
+
+def run(args: Sequence[str], timeout: float = DEFAULT_TIMEOUT_SECONDS) -> str:
+    """Run one of the external media tools and return its stdout.
+
+    Used for the commands whose job is to produce a file (or, for ffprobe, to
+    print one value); the sibling audio tools vidprep shells out to — such as
+    DeepFilterNet — go through here too, so no stage module owns a subprocess.
+
+    Args:
+        args: Full argument vector, starting with the executable name.
+        timeout: Seconds to wait before giving up on a hung command.
+
+    Returns:
+        The command's standard output.
+    """
+    return _execute(args, timeout).stdout
+
+
+def run_analysis(args: Sequence[str], timeout: float = DEFAULT_TIMEOUT_SECONDS) -> str:
+    """Run an ffmpeg measurement pass and return its stderr.
+
+    ffmpeg filters that report numbers — ``loudnorm``, ``silencedetect``,
+    ``astats`` — print them to stderr along with the rest of the log, so an
+    analysis pass is read from there rather than from stdout.
+    """
+    return _execute(args, timeout).stderr
+
+
+def duration_command(path: Path) -> list[str]:
+    """Return the ffprobe command line that prints the duration of *path*."""
+    return [
+        FFPROBE,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "csv=p=0",
+        str(path),
+    ]
+
+
+def duration(path: Path) -> float:
+    """Return the duration of *path* in seconds.
+
+    Unlike :func:`probe` this accepts audio-only files, which is what the
+    stages compare when they must prove they did not change a length.
+
+    Raises:
+        ExecutionFailedError: If ffprobe printed no duration vidprep can read.
+    """
+    output = run(duration_command(path)).strip()
+    try:
+        return float(output)
+    except ValueError as exc:
+        msg = f"could not read the duration of {path}: {output!r}"
+        raise ExecutionFailedError(msg) from exc
 
 
 def probe_command(source: Path) -> list[str]:

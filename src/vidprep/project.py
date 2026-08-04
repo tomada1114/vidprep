@@ -117,6 +117,18 @@ def atomic_write_text(path: Path, text: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def atomic_replace(produced: Path, target: Path) -> None:
+    """Move *produced* onto *target* in one step.
+
+    Stages build their output in a working directory inside the project and
+    publish it through here, so an interrupted run never leaves a half-written
+    artifact where the next stage would read it (design.md §6). Both paths must
+    live on the same filesystem, which the in-project working directory grants.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(produced, target)  # noqa: PTH105 — pathlib has no atomic replace
+
+
 def write_json(path: Path, model: BaseModel) -> None:
     """Serialise *model* to *path* as pretty-printed JSON, atomically."""
     payload = model.model_dump(mode="json")

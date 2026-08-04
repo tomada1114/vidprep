@@ -42,6 +42,7 @@ WHISPER_MODEL_GLOB = "ggml-*.bin"
 #: DeepFilterNet has shipped under both spellings; either one satisfies it.
 DEEPFILTERNET_BINARIES = ("deep-filter", "deepFilter")
 DEEPFILTERNET_FALLBACK = "afftdn"
+DEEPFILTERNET_VERSION_PREFIX = "deep_filter "
 
 #: SudachiPy dictionary flavours, from the smallest useful one upwards.
 SUDACHI_DICTS = ("core", "full", "small")
@@ -269,7 +270,11 @@ def check_asr() -> Check:
 
 
 def check_deepfilternet() -> Check:
-    """Check DeepFilterNet, which audio-fix can do without (REQ-021)."""
+    """Check DeepFilterNet, which audio-fix can do without (REQ-021).
+
+    The version is read as well as the path, because ``audio-fix`` records it
+    as the provenance of the denoising it applied.
+    """
     path = next(
         (found for name in DEEPFILTERNET_BINARIES if (found := shutil.which(name))),
         None,
@@ -281,7 +286,9 @@ def check_deepfilternet() -> Check:
             "fallback": DEEPFILTERNET_FALLBACK,
             "error": f"none of {', '.join(DEEPFILTERNET_BINARIES)} found in PATH",
         }
-    return {"ok": True, "optional": True, "path": path}
+    banner = _run_command([path, "--version"])
+    version = _find_version(banner.output, DEEPFILTERNET_VERSION_PREFIX)
+    return {"ok": True, "optional": True, "path": path, "version": version}
 
 
 def check_sudachipy() -> Check:
