@@ -27,7 +27,8 @@ SUBCOMMANDS = (
     "render",
     "report",
 )
-PENDING_SUBCOMMANDS = SUBCOMMANDS[2:]
+#: Everything after `init`, `doctor` and `audio-fix`, which are implemented.
+PENDING_SUBCOMMANDS = SUBCOMMANDS[3:]
 OVERLAPPING_CUTS = {
     "version": "1",
     "cuts": [

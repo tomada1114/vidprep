@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import typer
 
+from . import audio as audio_module
 from . import doctor as doctor_module
 from . import project as project_module
 from .errors import (
@@ -49,10 +50,13 @@ DryRunOption = Annotated[
     bool,
     typer.Option("--dry-run", help="Show the execution plan without writing anything."),
 ]
+StatsOption = Annotated[
+    bool,
+    typer.Option("--stats", help="Measure loudness and noise floor before and after."),
+]
 
 #: Subcommand name -> stage key in the manifest, for stages not built yet.
 PENDING_STAGES = {
-    "audio-fix": "audio_fix",
     "transcribe": "transcribe",
     "correct": "correct",
     "detect": "detect",
@@ -207,6 +211,28 @@ def doctor(
         raise typer.Exit(EXIT_VALIDATION)
 
 
+@app.command(name="audio-fix")
+def audio_fix(
+    project: ProjectOption = None,
+    json_output: JsonOption = False,
+    dry_run: DryRunOption = False,
+    stats: StatsOption = False,
+) -> None:
+    """Denoise, high-pass and loudness-normalise the audio."""
+    options = CommonOptions(project, json_output, dry_run)
+
+    def action() -> Output:
+        loaded, stale = _prepare("audio_fix", options)
+        if options.dry_run:
+            plan = audio_module.plan(loaded, with_stats=stats)
+            warned = [f"⚠ {warning}" for warning in plan["warnings"]]
+            return Output(plan, [*stale, *warned, *_plan_lines(plan)])
+        result = audio_module.run_audio_fix(loaded, with_stats=stats)
+        return Output(result.to_dict(), [*stale, *result.lines()])
+
+    _run(options, action)
+
+
 def _pending_command(name: str, summary: str) -> None:
     """Register a subcommand that validates the project but does no work yet."""
     stage = PENDING_STAGES[name]
@@ -231,7 +257,6 @@ def _pending_command(name: str, summary: str) -> None:
     app.command(name=name)(command)
 
 
-_pending_command("audio-fix", "Denoise, high-pass and loudness-normalise the audio.")
 _pending_command("transcribe", "Transcribe the processed audio with VAD + ASR.")
 _pending_command("correct", "Apply the misconversion dictionary and LLM patches.")
 _pending_command("detect", "Detect silence and filler words as cut candidates.")
