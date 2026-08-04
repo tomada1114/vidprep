@@ -155,3 +155,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   naming a segment or a preset that is not there stops the run with exit `3`
   before anything is encoded, a telop whose segment a cut removed is reported
   rather than drawn, and `out/output.mp4` is only ever read
+- `vidprep transcribe`: a segment start left in the silence between two
+  detected regions is moved onto the speech it transcribes instead of failing
+  the stage. whisper.cpp recognises the regions concatenated with 0.2s of
+  silence between them and maps the timestamps back by interpolating across
+  each separator, so a boundary it placed inside one returns stretched over
+  the whole original pause — on the golden sample 0.119s of separator came
+  back as 1.300s past the end of a region. Only a segment at least half of
+  whose length lies inside detected speech is moved, and the move is reported
+  as a warning and counted as `anchored_starts` in `--json`; nothing is
+  dropped, and a segment that covers no speech is still refused with exit `3`

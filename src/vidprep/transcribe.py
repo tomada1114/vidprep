@@ -5,7 +5,9 @@ subtitles, telops, the re-transcription check — so a sentence invented over
 silence does not stay a transcription problem: it comes back as a subtitle.
 That is why detection runs first and cannot be switched off, and why this
 module refuses to publish a transcript whose segments do not line up with the
-speech that was found (REQ-040, REQ-042).
+speech that was found (REQ-040, REQ-042). A segment that does line up but
+starts a moment early is corrected and reported rather than refused, which is
+what :func:`_anchor_starts` is for.
 
 Recognition always runs on ``audio/processed.wav``, the full-length recording,
 never on anything already cut (design.md §2.1) — timestamps are only worth
@@ -69,7 +71,9 @@ HALLUCINATION_RESOURCE = "dictionaries/hallucinations.json"
 VAD_EDGE_TOLERANCE = 0.1
 
 #: A segment counts as timed over silence when less than this much of it
-#: overlaps a speech region; that is where an invented sentence lands.
+#: overlaps a speech region; that is where an invented sentence lands. The same
+#: share decides whether a start stranded in the silence is a mapping artifact
+#: worth pulling back (:func:`_anchored`) or a sentence nobody said.
 MIN_SPEECH_COVERAGE = 0.5
 
 _ID_FORMAT = "s{:04d}"
@@ -112,6 +116,7 @@ class Result:
     segments: tuple[Segment, ...]
     audio_seconds: float
     elapsed_seconds: float
+    warnings: tuple[str, ...] = ()
 
     @property
     def speech_seconds(self) -> float:
@@ -120,7 +125,7 @@ class Result:
 
     def to_dict(self) -> dict[str, Any]:
         """Render the result as the JSON document ``--json`` prints."""
-        return {
+        payload: dict[str, Any] = {
             "backend": self.backend,
             "model": self.model,
             "vad": self.vad,
@@ -133,17 +138,24 @@ class Result:
             else None,
             # Both are verified before anything is written, so both are always
             # clean here; they are reported because the completion conditions
-            # (verification-plan.md §5) are stated as numbers to read off.
+            # (verification-plan.md §5) are stated as numbers to read off. A
+            # start that was pulled back onto its region counts as clean and is
+            # named under `warnings` instead.
             "vad_outside_starts": 0,
             "hallucination_hits": [],
+            "anchored_starts": len(self.warnings),
             "output": TRANSCRIPT_NAME,
             "vad_report": str(VAD_REPORT_NAME),
         }
+        if self.warnings:
+            payload["warnings"] = list(self.warnings)
+        return payload
 
     def lines(self) -> list[str]:
-        """Render the result for a human."""
+        """Render the result for a human, warnings first."""
         factor = self.elapsed_seconds / self.audio_seconds if self.audio_seconds else 0
-        return [
+        reported = [f"⚠ {warning}" for warning in self.warnings]
+        reported += [
             f"✔ {len(self.speech)} speech regions, {self.speech_seconds:.1f}s of "
             f"{self.audio_seconds:.1f}s ({self.vad})",
             f"✔ {TRANSCRIPT_NAME}: {len(self.segments)} segments "
@@ -151,6 +163,7 @@ class Result:
             f"{factor:.2f}x realtime)",
             f"✔ {VAD_REPORT_NAME}",
         ]
+        return reported
 
 
 def _audio_path(loaded: Project) -> Path:
@@ -316,20 +329,89 @@ def _build_segments(raw: Sequence[_asr.RawSegment], duration: float) -> list[Seg
     return segments
 
 
+def _starts_in_speech(start: float, speech: Sequence[_asr.Interval]) -> bool:
+    """Return whether *start* falls in a detected region, edges included."""
+    return any(
+        region.start - VAD_EDGE_TOLERANCE <= start <= region.end + VAD_EDGE_TOLERANCE
+        for region in speech
+    )
+
+
+def _coverage(segment: Segment, speech: Sequence[_asr.Interval]) -> float:
+    """Return the share of *segment* that falls inside a detected region."""
+    length = segment.end - segment.start
+    covered = sum(region.overlap(segment.start, segment.end) for region in speech)
+    return covered / length if length > 0 else 0.0
+
+
 def _outside_speech(
     segments: Sequence[Segment], speech: Sequence[_asr.Interval]
 ) -> list[Segment]:
     """Return the segments that start where no speech was detected (REQ-040)."""
     return [
-        segment
-        for segment in segments
-        if not any(
-            region.start - VAD_EDGE_TOLERANCE
-            <= segment.start
-            <= region.end + VAD_EDGE_TOLERANCE
-            for region in speech
-        )
+        segment for segment in segments if not _starts_in_speech(segment.start, speech)
     ]
+
+
+def _anchored(segment: Segment, speech: Sequence[_asr.Interval]) -> float | None:
+    """Return where *segment* really begins, or ``None`` to leave it alone.
+
+    A segment whose start already sits in a region is left alone, and so is one
+    that covers no speech to be pulled back onto — that is an invented sentence
+    and :func:`_verify` refuses it. What is left is a start stranded in the
+    silence in front of the speech it transcribes, which is answered with the
+    first region the segment actually reaches into.
+    """
+    if _starts_in_speech(segment.start, speech) or (
+        _coverage(segment, speech) < MIN_SPEECH_COVERAGE
+    ):
+        return None
+    return min(
+        (
+            region.start
+            for region in speech
+            if region.overlap(segment.start, segment.end) > 0
+        ),
+        default=None,
+    )
+
+
+def _anchor_starts(
+    segments: Sequence[Segment], speech: Sequence[_asr.Interval]
+) -> tuple[list[Segment], list[str]]:
+    """Pull a start left in the silence back onto the speech it transcribes.
+
+    whisper.cpp does not transcribe the recording: it concatenates the regions
+    Silero found, separated by a fixed 0.2s of silence, and maps the timestamps
+    back afterwards by interpolating across each separator. A segment boundary
+    the recogniser placed inside a separator therefore returns stretched over
+    the whole original pause — on the golden sample one sat 0.119s into a 0.200s
+    separator and came back 1.300s past the end of its region, in the middle of
+    a 2.180s silence. Widening :data:`VAD_EDGE_TOLERANCE` far enough to accept
+    that would accept an invented sentence a second deep into any silence, so
+    the start is corrected instead: it is moved to where the speech it covers
+    begins, and the move is reported rather than made quietly.
+
+    Returns:
+        The segments, with such starts moved, and one warning per correction.
+        Nothing is dropped, and a segment that covers no speech is returned
+        untouched for verification to refuse.
+    """
+    anchored: list[Segment] = []
+    warnings: list[str] = []
+    for segment in segments:
+        start = _anchored(segment, speech)
+        if start is None:
+            anchored.append(segment)
+            continue
+        warnings.append(
+            f"{segment.id} started {start - segment.start:.3f}s before the speech "
+            f"it transcribes and was moved onto it ({segment.start:.3f} → "
+            f"{start:.3f}); whisper.cpp maps a boundary inside its region "
+            "separator back across the whole original pause"
+        )
+        anchored.append(segment.model_copy(update={"start": start}))
+    return anchored, warnings
 
 
 def _hallucinations(
@@ -342,14 +424,12 @@ def _hallucinations(
     spoken sit inside a region Silero found (REQ-042).
     """
     phrases = hallucination_phrases()
-    hits = []
-    for segment in segments:
-        if not any(phrase in segment.text for phrase in phrases):
-            continue
-        covered = sum(region.overlap(segment.start, segment.end) for region in speech)
-        if covered < (segment.end - segment.start) * MIN_SPEECH_COVERAGE:
-            hits.append(segment)
-    return hits
+    return [
+        segment
+        for segment in segments
+        if any(phrase in segment.text for phrase in phrases)
+        and _coverage(segment, speech) < MIN_SPEECH_COVERAGE
+    ]
 
 
 def _verify(segments: Sequence[Segment], speech: Sequence[_asr.Interval]) -> None:
@@ -437,7 +517,8 @@ def run_transcribe(loaded: Project) -> Result:
             or found no speech at all — an empty transcript is a failure, not
             a valid result (REQ-022).
         InvariantViolationError: If the transcript disagrees with the detected
-            speech; nothing is written in that case.
+            speech even after :func:`_anchor_starts` has answered the mapping
+            artifacts; nothing is written in that case.
     """
     audio = _audio_path(loaded)
     backend = _asr.resolve(loaded.profile.asr)
@@ -457,7 +538,7 @@ def run_transcribe(loaded: Project) -> Result:
         )
         raise AsrFailedError(msg)
     duration = loaded.manifest.source.duration
-    segments = _build_segments(raw, duration)
+    segments, warnings = _anchor_starts(_build_segments(raw, duration), speech)
     _verify(segments, speech)
     result = Result(
         backend=backend.name,
@@ -467,6 +548,7 @@ def run_transcribe(loaded: Project) -> Result:
         segments=tuple(segments),
         audio_seconds=duration,
         elapsed_seconds=elapsed,
+        warnings=tuple(warnings),
     )
     _publish(loaded, result)
     project_module.record_stage(loaded, STAGE, _asr.tool_versions(backend))

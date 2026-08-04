@@ -76,6 +76,7 @@ afplay audio/processed.wav         # 試聴
 **完了条件（機械）**
 - 人手リファレンス比 **CER ≤ 8%**（確定値。Step 1 実測ベンチ（§12.2）で採用した whisper.cpp large-v3-turbo + VAD の実測 CER は 4.94%。実行間のばらつきと、リファレンスが large-v3-turbo のドラフトを叩き台に作成されたことによる turbo 有利バイアス（§12.2 参照）を見込んで約 3pt のマージンを取った値を確定条件とする。旧暫定値 15% から更新）
 - ハルシネーション 0 件: VAD 発話区間の外側で開始するセグメントが **0 件**（`report/vad.json` と突き合わせ）。既知の幻覚フレーズ（「ご視聴ありがとうございました」等のリスト照合）の非発話区間での出現 **0 件**
+    - ただし whisper.cpp は検出区間を 0.2 秒の無音で連結して認識するため、その連結部に置かれた境界が元タイムラインの無音全体へ引き伸ばされて戻ることがある（#24、実測 0.119s → 1.300s）。**自身の 50% 以上が発話区間に重なるセグメントに限り**開始点を重なっている区間の先頭へ寄せ、警告 1 件として記録する（削除はしない）。発話に重ならないセグメントは従来どおり不変条件違反として exit 3
 - transcript.json がスキーマ検証を通る。segments の時刻が単調・非負・素材尺以内
 
 **完了条件（目視）**
@@ -279,7 +280,9 @@ just golden-diff   # scripts/compare_stats.py — 直近 2 回を diff（前回�
 - diff の対象は stats.json の全数値（**警告リストは長さで比較**する。「max_cps 警告が 11 → 14」はこれで出る）＋ そのランの `render` が報告した `verify_asr` セクション。名前に warning / flag / error を含むパスが増えたときだけ ⚠ を付ける
 - 素材・ffmpeg・whisper.cpp・auto-editor が要るため **CI では動かさない**（`just check` にも入れない）。ローカル運用のまま
 
-**初回実行の記録（2026-08-04）**: `[2/6] transcribe` で停止。`1 segments start outside every detected speech region (s0022@222.390)` — 既知バグ #24 で、ハーネスがこれをそのまま記録して exit 2 を返すことを確認した（audio-fix は -22.24 → -14.04 LUFS で成功）。#24 の修正後に全段通しを取り直す。
+**初回実行の記録（2026-08-04）**: `[2/6] transcribe` で停止。`1 segments start outside every detected speech region (s0022@222.390)` — 既知バグ #24 で、ハーネスがこれをそのまま記録して exit 2 を返すことを確認した（audio-fix は -22.24 → -14.04 LUFS で成功）。
+
+**#24 修正後の記録（2026-08-04）**: `[3/6] correct` まで通過し、`[4/6] detect` で停止。transcribe は 46 発話区間 / 36 セグメント / 0.11x で成功し、s0022 は警告付きで区間先頭へ寄せられた（`222.390 → 223.270`、§5 の「区間外開始 0 件」は維持）。停止理由は #24 とは別件で、auto-editor 29.3.1 の `--export v3` が JSON として読めない出力を返すこと（`timeline_schema: Invalid JSON: expected value at line 1 column 3`）。変換層の更新が要る。
 
 ## 12. Step 1（次セッション）: 環境構築 + ASR 実測ベンチ
 

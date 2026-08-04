@@ -57,7 +57,11 @@ vidprep transcribe --json   # segment count, speech duration, realtime factor
 
 Detection has no off switch: without it whisper invents sentences in the
 silences, and those come back as subtitles later. A transcript whose segments
-do not line up with the detected speech is refused rather than written.
+do not line up with the detected speech is refused rather than written. A
+segment that merely starts a moment early — whisper.cpp times its boundaries on
+the concatenated regions, so one placed between two of them comes back stranded
+in the original pause — is moved onto the speech it covers and reported as a
+warning; that only happens when most of the segment is inside detected speech.
 
 ## Detecting cuts
 
