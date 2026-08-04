@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep correct`: replaces the misconversion dictionary's terms in the
+  transcript — literally, then by SudachiPy reading so unseen spellings are
+  caught too — replacing only `confidence: always` entries and reporting the
+  homophones it deliberately left to LLM correction. `--apply-patch` verifies
+  a patch against the transcript before applying any of it (unknown ids,
+  duplicate ids, schema), rejects it whole with exit `3` otherwise, shows the
+  diff and asks unless `--yes` is given. Nothing but segment text can change,
+  checked again after the correction and before the file is written
+- the misconversion dictionary (`vidprep/dictionaries/asr-dict.json`, shipped
+  with the package), seeded from the iobsidian `fix-transcriptions` dictionary
+  with a `yomi` reading added to every entry
 - `scripts/cer.py`: character error rate against the human reference, with the
   normalisation rules (NFKC, punctuation and whitespace removal, lower-casing,
   no number folding) exposed as an importable `normalize()`

@@ -141,12 +141,21 @@ def default_profile() -> Profile:
     return Profile.model_validate_json(template.read_text(encoding="utf-8"))
 
 
-def _load_model[ModelT: BaseModel](
+def load_artifact[ModelT: BaseModel](
     path: Path,
     model: type[ModelT],
     duration: float | None = None,
 ) -> ModelT:
     """Parse *path* into *model*.
+
+    Args:
+        path: The JSON file to read.
+        model: The schema it must satisfy.
+        duration: Source duration the interval bounds are checked against;
+            without it that bound is simply not checked.
+
+    Returns:
+        The parsed artifact.
 
     Raises:
         SchemaInvalidError: If the file is not JSON or violates the schema.
@@ -251,8 +260,8 @@ def load_project(directory: Path | None = None) -> Project:
     if not profile_path.is_file():
         msg = f"{root} is missing {PROFILE_NAME}"
         raise UsageError(msg)
-    manifest = _load_model(manifest_path, Manifest)
-    profile = _load_model(profile_path, Profile)
+    manifest = load_artifact(manifest_path, Manifest)
+    profile = load_artifact(profile_path, Profile)
     return Project(root=root, manifest=manifest, profile=profile)
 
 
@@ -287,7 +296,7 @@ def validate_artifacts(project: Project) -> list[str]:
     for name, model in ARTIFACT_MODELS.items():
         path = project.root / name
         if path.is_file():
-            _load_model(path, model, duration=project.manifest.source.duration)
+            load_artifact(path, model, duration=project.manifest.source.duration)
             checked.append(name)
     return checked
 

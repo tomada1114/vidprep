@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Annotated, Any, cast
 import typer
 
 from . import audio as audio_module
+from . import correct as correct_module
 from . import doctor as doctor_module
 from . import project as project_module
 from .errors import (
@@ -54,11 +55,18 @@ StatsOption = Annotated[
     bool,
     typer.Option("--stats", help="Measure loudness and noise floor before and after."),
 ]
+PatchOption = Annotated[
+    Path | None,
+    typer.Option("--apply-patch", help="Apply an LLM correction patch (JSON)."),
+]
+YesOption = Annotated[
+    bool,
+    typer.Option("--yes", help="Apply the patch without asking for confirmation."),
+]
 
 #: Subcommand name -> stage key in the manifest, for stages not built yet.
 PENDING_STAGES = {
     "transcribe": "transcribe",
-    "correct": "correct",
     "detect": "detect",
     "render": "render",
     "report": "report",
@@ -101,8 +109,7 @@ def _run(options: CommonOptions, action: Callable[[], Output]) -> Output:
         output = action()
     except VidprepError as exc:
         if options.json_output:
-            payload = {"error": exc.code, "detail": str(exc)}
-            typer.echo(json.dumps(payload, ensure_ascii=False))
+            typer.echo(json.dumps(exc.payload(), ensure_ascii=False))
         else:
             typer.echo(f"✖ {exc}", err=True)
         raise typer.Exit(exc.exit_code) from exc
@@ -258,7 +265,50 @@ def _pending_command(name: str, summary: str) -> None:
 
 
 _pending_command("transcribe", "Transcribe the processed audio with VAD + ASR.")
-_pending_command("correct", "Apply the misconversion dictionary and LLM patches.")
+
+
+@app.command()
+def correct(
+    apply_patch: PatchOption = None,
+    yes: YesOption = False,
+    project: ProjectOption = None,
+    json_output: JsonOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Apply the misconversion dictionary and LLM patches.
+
+    The diff summary is printed before anything is written and, for a patch,
+    before the confirmation prompt, so what --yes skips is a decision the user
+    could otherwise have made.
+    """
+    options = CommonOptions(project, json_output, dry_run)
+
+    def action() -> Output:
+        loaded, stale = _prepare(correct_module.STAGE, options)
+        plan = (
+            correct_module.plan_dictionary(loaded)
+            if apply_patch is None
+            else correct_module.plan_patch(loaded, apply_patch)
+        )
+        for line in [*stale, *plan.lines(verbose=options.dry_run)]:
+            _log(line, options)
+        if options.dry_run:
+            return Output(plan.to_dict(applied=0), ["dry-run: nothing was written"])
+        if apply_patch is not None and not yes:
+            typer.confirm(
+                f"Apply {len(plan.changes)} changes?",
+                abort=True,
+                err=options.json_output,
+            )
+        applied = correct_module.apply(loaded, plan)
+        return Output(
+            plan.to_dict(applied=applied),
+            [f"✔ updated {applied} segments (source={plan.tool})"],
+        )
+
+    _run(options, action)
+
+
 _pending_command("detect", "Detect silence and filler words as cut candidates.")
 _pending_command("render", "Apply approved cuts and write the output video.")
 _pending_command("report", "Regenerate statistics, waveforms and the cut digest.")

@@ -42,9 +42,9 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 
 !!! note
 
-    The processing stages (`audio-fix`, `transcribe`, `correct`, `detect`,
-    `render`, `report`) are registered but not implemented yet; they currently
-    report that and exit `1`.
+    `audio-fix` and `correct` are implemented. The remaining stages
+    (`transcribe`, `detect`, `render`, `report`) are registered but not
+    implemented yet; they currently report that and exit `1`.
 
 ## What's Next?
 
