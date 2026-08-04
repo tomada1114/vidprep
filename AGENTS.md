@@ -29,6 +29,7 @@ in the `justfile`. Run a single test with
 src/vidprep/
 ├── __init__.py   # Public API — export everything users need here
 ├── py.typed      # PEP 561 marker for typed package
+├── audio.py      # audio-fix: denoise, high-pass, two-pass loudnorm
 ├── cli.py        # typer app: one thin subcommand per pipeline stage
 ├── errors.py     # Exception hierarchy and the 0/1/2/3 exit codes
 ├── models.py     # pydantic schemas for the intermediate JSON (design.md §3)
