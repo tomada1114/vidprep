@@ -49,6 +49,16 @@ SEGMENTS = (
 #: region: seconds counted from the start of that region, not of the recording.
 REGION_SEGMENTS = ((0.0, 3.48, "この区間の発話"), (3.48, 7.6, "その続き"))
 
+#: The regions and segments measured on the golden sample for issue #24, where
+#: whisper.cpp put a segment boundary 0.119s into the 0.200s of silence it
+#: inserts between two concatenated regions and mapped it back 1.300s past the
+#: end of the first one — into the middle of a 2.180s pause it never heard.
+STRANDED_SPEECH = ((216.46, 221.09), (223.27, 226.69), (228.58, 230.14))
+STRANDED_SEGMENTS = (
+    (216.46, 222.39, "ではですね 一旦動作を確認するために"),
+    (222.39, 230.0, "ではそうですね とりあえずこんにちはとでも打ってみます"),
+)
+
 
 def _log(speech: Sequence[tuple[float, float]]) -> str:
     """Render the log whisper.cpp prints while its VAD front-end runs."""
@@ -366,6 +376,45 @@ class TestVerification:
         )
 
         assert len(result.segments) == 2
+
+    def test_a_start_stranded_between_two_regions_is_moved_onto_the_speech(
+        self, asr_env, fake_asr, transcribable
+    ):
+        fake_asr(speech=STRANDED_SPEECH, segments=STRANDED_SEGMENTS)
+
+        result = transcribe_module.run_transcribe(
+            project_module.load_project(transcribable)
+        )
+
+        assert [segment.start for segment in result.segments] == [216.46, 223.27]
+        assert result.segments[1].end == 230.0
+        assert result.segments[1].text == STRANDED_SEGMENTS[1][2]
+
+    def test_moving_a_stranded_start_is_reported_rather_than_done_quietly(
+        self, asr_env, fake_asr, transcribable
+    ):
+        fake_asr(speech=STRANDED_SPEECH, segments=STRANDED_SEGMENTS)
+
+        result = transcribe_module.run_transcribe(
+            project_module.load_project(transcribable)
+        )
+
+        assert len(result.warnings) == 1
+        assert "s0002" in result.warnings[0]
+        assert "222.390 → 223.270" in result.warnings[0]
+        assert any(line.startswith("⚠") for line in result.lines())
+
+    def test_a_start_in_the_silence_barely_reaching_speech_is_still_refused(
+        self, asr_env, fake_asr, transcribable
+    ):
+        fake_asr(
+            segments=((2.34, 5.82, "実際の発話"), (11.0, 14.0, "無音の中の作り話"))
+        )
+
+        with pytest.raises(InvariantViolationError, match=r"outside every detected"):
+            transcribe_module.run_transcribe(project_module.load_project(transcribable))
+
+        assert not (transcribable / "transcript.json").exists()
 
     def test_a_known_hallucination_over_silence_is_refused(
         self, asr_env, fake_asr, transcribable
@@ -689,7 +738,20 @@ class TestCommandLine:
         payload = json.loads(result.stdout)
         assert payload["vad_outside_starts"] == 0
         assert payload["hallucination_hits"] == []
+        assert payload["anchored_starts"] == 0
         assert payload["output"] == "transcript.json"
+
+    def test_json_names_a_start_that_was_moved_onto_its_region(
+        self, asr_env, fake_asr, run_cli, transcribable
+    ):
+        fake_asr(speech=STRANDED_SPEECH, segments=STRANDED_SEGMENTS)
+
+        result = run_cli("transcribe", "-p", str(transcribable), "--json")
+
+        assert result.exit_code == EXIT_OK
+        payload = json.loads(result.stdout)
+        assert payload["anchored_starts"] == 1
+        assert "s0002" in payload["warnings"][0]
 
     @pytest.mark.parametrize(
         "case",
