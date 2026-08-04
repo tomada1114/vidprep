@@ -259,13 +259,17 @@ class TestStageRecords:
 
 
 class TestSubprocessIsolation:
-    """REQ-030: only the ffmpeg wrapper may spawn processes."""
+    """REQ-030: pipeline stages spawn processes only through the wrapper."""
+
+    #: ``doctor`` probes external tools that are not ffmpeg — and must record a
+    #: failure rather than raise on one — so it spawns its own processes.
+    SPAWNERS = ("_ffmpeg.py", "doctor.py")
 
     def test_no_module_but_the_wrapper_imports_subprocess(self):
         offenders = [
             path.name
             for path in sorted(SRC_ROOT.rglob("*.py"))
-            if path.name != "_ffmpeg.py" and "subprocess" in path.read_text()
+            if path.name not in self.SPAWNERS and "subprocess" in path.read_text()
         ]
 
         assert offenders == []
