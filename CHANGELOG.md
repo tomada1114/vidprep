@@ -19,5 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `vidprep` CLI skeleton with the eight subcommands, the common
   `--project/-p` / `--json` / `--dry-run` flags and the `0/1/2/3` exit codes;
   `init` is implemented, the processing stages are still skeletons
+- `Timeline`: the original/cut timeline mapping (`forward`, `inverse`,
+  `map_segments`) that video rendering and subtitle output share, so both use
+  the same cut boundaries
 - 実現可能性調査レポートと設計インプットを `docs/` に追加（設計フェーズ、実装なし）
 - [uv-template](https://github.com/tomada1114/uv-template) ベースのプロジェクト雛形

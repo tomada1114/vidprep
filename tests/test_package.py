@@ -19,6 +19,7 @@ class TestPackageMetadata:
             "Project",
             "Styles",
             "Telops",
+            "Timeline",
             "Transcript",
             "VidprepError",
             "__version__",
