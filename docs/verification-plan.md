@@ -33,8 +33,9 @@ status: approved
 
 ### 3.1 CER（文字誤り率）の計測規約
 
-- ツール: `jiwer`（dev 依存）。`uv run python scripts/cer.py <ref> <hyp>` として実装フェーズでスクリプト化する
+- ツール: `jiwer`（dev 依存）。`uv run python scripts/cer.py <ref> <hyp>` で CER・置換/欠落/挿入件数を出力する
 - 正規化してから比較する: NFKC 正規化 → 空白・句読点（、。！？…）除去 → 英字は小文字化。数字の表記ゆれ（「3つ/三つ」）は正規化しない（辞書・校正の実力として測る）
+- 正規化は `scripts/cer.py` の `normalize()` として import 可能にしてある。再文字起こし照合（§8.1）も同じ関数を使い、規約が二重定義にならないようにする
 
 ### 3.2 人手リファレンスの作成（1 回だけの投資）
 
@@ -239,6 +240,8 @@ open -a "Wondershare Filmora Mac" # 実機取り込み → チェックリスト
 | jiwer | 4.0.0 | dev グループに追加 |
 
 - CoreML エンコーダ（`ggml-large-v3-turbo-encoder.mlmodelc`）は ggml モデルと同じディレクトリに置く。`whisper-cli` の `system_info` に `COREML = 1` が出れば有効
+- **エンコーダはモデルごとに必要**。CoreML 有効ビルドではエンコーダが無いモデルは `failed to load Core ML model` → `failed to initialize whisper context` で起動しない（実測）。現状 `~/.cache/whisper.cpp/` には turbo 用しか無いため、**large-v3 の行を埋めるには先に large-v3 用エンコーダを生成する**（`whisper.cpp/models/generate-coreml-model.sh large-v3`）
+- VAD 比較（§12.2）には Silero の ggml が要る。`whisper.cpp/models/download-vad-model.sh` で取得してモデルディレクトリに置くか、`asr_bench.py --vad-model <path>` で渡す
 - auto-editor 29 系は `--export v3` の出力拡張子を `.v3` に書き換える（`-o out.json` としても `out.v3` になる）。#8 の変換層はこれを前提にする
 
 ### 12.2 ASR ベンチ手順
@@ -256,7 +259,12 @@ open -a "Wondershare Filmora Mac" # 実機取り込み → チェックリスト
 
    - 実行時間は `/usr/bin/time -l`（wall + peak RSS）。各 2 回走らせ 2 回目を採用（モデルロードのキャッシュ差を除外）
    - ハルシ件数: VAD なし素の実行で無音区間に生成されたセグメント数。**加えて VAD あり/なしを最良モデルで比較**し、VAD 前段必須の判断を実測で裏取りする
-4. 判定基準: **CER 最小を基本とし、CER 差が 1pt 以内なら実行時間の短い方**を採用
+   - 上記はハーネスで自動化済み: `uv run python scripts/asr_bench.py <loudnorm 済み wav> --reference fixtures/expected/golden.reference.txt`。4 候補を各 2 回実行し、生ログを `fixtures/bench/<model>/run{1,2}.{json,time}` に残し、マトリクスと採用判定を `fixtures/bench/matrix.md` / `bench.json` に書き出す
+   - 無音区間は ffmpeg `silencedetect`（-40dB / 0.5 秒以上、§2 の実測基準と同一）で取り、開始時刻が無音区間内にあるセグメントをハルシとして数える
+   - VAD 比較は whisper.cpp の `--vad`（Silero の ggml をモデルディレクトリに置くか `--vad-model` で指定）で行い、VAD なし行と 2 行で出力する
+   - 実行できない候補（ggml へ未変換の kotoba-whisper v2.0 など）は行を落とさず `unavailable (reason: ...)` として表に残す
+   - `--reference` なしでも実行でき、その transcript が §3.2 の人手リファレンスの叩き台になる（CER 列は空欄のまま）
+4. 判定基準: **CER 最小を基本とし、CER 差が 1pt 以内なら実行時間の短い方**を採用（ハーネスが同じ規則で採用案と根拠を出力する。最終判断は実測値を目視した上で tomada が行う）
 5. 決定をもって design.md §1 の判断 1 と本書 §5 の CER 暫定値（15%）を確定値に更新する
 
 ### 12.3 Step 1 の完了条件
