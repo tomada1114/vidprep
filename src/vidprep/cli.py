@@ -367,9 +367,9 @@ def render(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
     `--verify-asr` reads the finished file back: it is transcribed a second
     time with the settings `transcript.json` records and compared with what the
     kept segments should say, which finds a word clipped at a cut boundary
-    (verification-plan.md §8.1). It is advisory — a flag is reported and the
-    exit code stays `0` — until `profile.json` sets
-    `render.verify_asr_mode = "gate"`, when a flag exits `3`.
+    (verification-plan.md §8.1). It is a gate: one flag exits `3`. Set
+    `render.verify_asr_mode = "advisory"` in `profile.json` to have the same
+    flags reported with the exit code left at `0`.
 
     Raises:
         typer.Exit: `3` when the check is a gate and it flagged a boundary.
