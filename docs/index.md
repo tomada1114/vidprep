@@ -5,22 +5,29 @@ Japanese transcription, subtitle generation and Filmora handoff.
 
 ## Installation
 
-=== "pip"
+vidprep is not published to PyPI yet. Install it from the repository with
+[uv](https://docs.astral.sh/uv/):
 
-    ```bash
-    pip install vidprep
-    ```
+```bash
+git clone https://github.com/tomada1114/vidprep.git
+cd vidprep
+uv sync --all-groups
+uv run vidprep doctor
+```
 
-=== "uv"
-
-    ```bash
-    uv add vidprep
-    ```
+`doctor` reports the external tools the stages shell out to — ffmpeg,
+auto-editor, an ASR backend and the Silero VAD weights among them — and what to
+install for the ones that are missing.
 
 ## Quick Example
 
 ```bash
-vidprep init ./work/talk01 --source ~/Movies/VID_20260507_144024.mp4
+vidprep init ./work/talk01 --source ~/Movies/talk01.mp4
+vidprep audio-fix --stats
+vidprep transcribe
+vidprep detect
+vidprep report --cuts   # decide the status of each candidate in cuts.json
+vidprep render          # out/output.mp4 + out/subtitles.srt
 ```
 
 ## Next Steps
