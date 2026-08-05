@@ -1,0 +1,1470 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="CLI pipeline for semi-automated YouTube video preprocessing: silence cutting, Japanese transcription, subtitle generation, and Filmora handoff.">
+      
+      
+      
+        <link rel="canonical" href="https://tomada1114.github.io/vidprep/verification-plan/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>vidprep 検証計画 - vidprep</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#vidprep" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="vidprep" class="md-header__button md-logo" aria-label="vidprep" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            vidprep
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              vidprep 検証計画
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tomada1114/vidprep" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tomada1114/vidprep
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="vidprep" class="md-nav__button md-logo" aria-label="vidprep" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    vidprep
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tomada1114/vidprep" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tomada1114/vidprep
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 原則
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. ゴールデンサンプル
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 共通検証インフラ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 共通検証インフラ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-cer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 CER（文字誤り率）の計測規約
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 人手リファレンスの作成（1 回だけの投資）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-beforeafter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 before/after 比較
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-a-audio-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 機能別検証: A. 音声前処理（audio-fix）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 機能別検証: A. 音声前処理（audio-fix）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-33" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 ノイズフロア指標の定義（#33）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-b-transcribe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 機能別検証: B. 文字起こし（transcribe）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-c-correct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 機能別検証: C. 辞書校正（correct）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-d-detect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 機能別検証: D. カット候補検出（detect）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-e-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 機能別検証: E. カット適用（render）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. 機能別検証: E. カット適用（render）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 再文字起こし照合（採用）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-f" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 機能別検証: F. 字幕・テロップ出力
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 検証器の検証（フォールトインジェクション）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. 回帰確認の運用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-step-1-asr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Step 1（次セッション）: 環境構築 + ASR 実測ベンチ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. Step 1（次セッション）: 環境構築 + ASR 実測ベンチ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#121" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12.1 環境構築チェックリスト
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1211-2026-08-03apple-m2-macos-26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12.1.1 構築記録（2026-08-03、Apple M2 / macOS 26）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#122-asr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12.2 ASR ベンチ手順
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#123-step-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12.3 Step 1 の完了条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="vidprep">vidprep 検証計画<a class="headerlink" href="#vidprep" title="Permanent link">&para;</a></h1>
+<p><a href="../design/">design.md</a> と対を成す一級文書。各機能に「完了条件（DoD）/ 効果測定 / チェック項目 / 検証手順」を定義する。実装フェーズは各 Step の完了をここに照らして判定する。</p>
+<h2 id="1">1. 原則<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>二層判定</strong>: 数値化できる項目（尺、ラウドネス、字幕の欠落、CER 等）は機械チェック（コマンドで pass/fail、exit code 判定可能）。「間の自然さ」「声の質感」などの主観品質は tomada の目視・試聴が最終判定。機械チェックが通ってから人間が見る、の順に固定する</li>
+<li><strong>ゴールデンサンプル固定</strong>: すべての検証・効果測定・回帰確認は §2 の固定素材で行う。素材を変えた比較はしない</li>
+<li><strong>検証器も検証する</strong>: 機械チェックは「わざと壊した入力で fail すること」を確認してから信用する（§10 フォールトインジェクション）</li>
+<li><strong>効果測定は before/after</strong>: 各機能は「処理前後で何がどれだけ変わったか」を <code>report/stats.json</code> の数値で示す</li>
+</ol>
+<h2 id="2">2. ゴールデンサンプル<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ファイル</td>
+<td><code>fixtures/raw/VID_20260507_144024.mp4</code>（git 管理外）</td>
+</tr>
+<tr>
+<td>出所</td>
+<td><code>/Users/masuyama/Movies/Wondershare Filmora Mac/Recorded/VID_20260507_144024.mp4</code> からコピー（2026-08-03）</td>
+</tr>
+<tr>
+<td>sha256</td>
+<td><code>76d8ddd300d1cf12776a1a717cfecc318b4968ce75103d96e4d0f8c79aae1218</code></td>
+</tr>
+<tr>
+<td>諸元</td>
+<td>298.92 秒 / 31,152,621 bytes / H.264 1920x1080 25fps yuv420p 約 508kbps / AAC 44.1kHz stereo 320kbps</td>
+</tr>
+<tr>
+<td>ラウドネス（実測）</td>
+<td>integrated <strong>-22.24 LUFS</strong> / true peak -6.22 dBTP / LRA 7.4</td>
+</tr>
+<tr>
+<td>無音（実測）</td>
+<td>-40dB・0.5 秒以上の無音が <strong>66 箇所、計 132.8 秒（全体の 44.4%）</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>消失時は上記出所から再コピーし sha256 を照合して復元する</li>
+<li>ラウドネスは目標 -14 LUFS まで 8dB 強の余裕があり正規化効果が測りやすく、無音率 44% はカット効果の測定に十分。<strong>現状 1 本のみ</strong>で、性質の異なる素材（低ビットレート収録・長尺）への偏り確認は将来サブサンプル追加で対応する（既知の制約）</li>
+<li>派生資産の置き場所: 人手リファレンス等は <code>fixtures/expected/</code> に置く。<strong>リポジトリは public であり、収録内容のテキストも公開情報になるため <code>fixtures/</code> 全体を git 管理外とする</strong>（.gitignore 済み）。再作成手順が本書にあることをもって永続性とする</li>
+</ul>
+<h2 id="3">3. 共通検証インフラ<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="31-cer">3.1 CER（文字誤り率）の計測規約<a class="headerlink" href="#31-cer" title="Permanent link">&para;</a></h3>
+<ul>
+<li>ツール: <code>jiwer</code>（dev 依存）。<code>uv run python scripts/cer.py &lt;ref&gt; &lt;hyp&gt;</code> で CER・置換/欠落/挿入件数を出力する</li>
+<li>正規化してから比較する: NFKC 正規化 → 空白・句読点（、。！？…）除去 → 英字は小文字化。数字の表記ゆれ（「3つ/三つ」）は正規化しない（辞書・校正の実力として測る）</li>
+<li>正規化の実体は <code>vidprep._text.normalize()</code>（#11 で <code>scripts/cer.py</code> から移設。<code>scripts/cer.py</code> は同名で re-export しているので既存の import は変わらない）。再文字起こし照合（§8.1）はパッケージ同梱で動く必要があり、<code>scripts/</code> を import できないため。CER・ベンチ・照合の 3 者が同じ 1 関数を使い、規約が二重定義にならないようにする</li>
+</ul>
+<h3 id="32-1">3.2 人手リファレンスの作成（1 回だけの投資）<a class="headerlink" href="#32-1" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Step 1 のベンチで最良だったモデルの transcript を叩き台にする</li>
+<li>ゴールデンサンプルを試聴しながら全文を人手修正し、<code>fixtures/expected/golden.reference.txt</code> に保存（発話内容のみ。フィラーは<strong>発話どおりに残す</strong>）</li>
+<li>別途、フィラー箇所に <code>[F]</code> マークを付けた <code>golden.reference-fillers.txt</code> を作る（フィラー検出の recall 測定用）</li>
+<li>想定工数 30〜60 分。以後全 ASR・校正・カット検証の正解として使い回す</li>
+</ol>
+<h3 id="33-beforeafter">3.3 before/after 比較<a class="headerlink" href="#33-beforeafter" title="Permanent link">&para;</a></h3>
+<p><code>vidprep report --json</code> の stats.json を処理段ごとに保存し、<code>scripts/compare_stats.py</code> で前回実行分と diff する。回帰確認（§11）もこの仕組みに乗せる。</p>
+<h2 id="4-a-audio-fix">4. 機能別検証: A. 音声前処理（audio-fix）<a class="headerlink" href="#4-a-audio-fix" title="Permanent link">&para;</a></h2>
+<p><strong>完了条件（機械）</strong>
+- integrated loudness が <strong>-14.0 ± 0.5 LUFS</strong>、true peak <strong>≤ -1.0 dBTP</strong>（ffmpeg loudnorm 解析パスで検証）
+- 処理前後の音声尺の差 <strong>≤ 1ms</strong>
+- <strong>ノイズフロア（REQ-007、#33 で確定）</strong>: denoise 直後・<strong>loudnorm 前</strong>の無音区間 RMS が、同じ無音区間で測った処理前の RMS より<strong>低下</strong>していること。判定は <code>report/stats.json</code> の <code>noise_floor.denoise.improved == true</code>（= <code>delta_db &lt; 0</code>）。<code>audio-fix --stats</code> が測って <code>report/noise_floor.json</code> に記録し、<code>report</code> はそれを引用する</p>
+<h3 id="41-33">4.1 ノイズフロア指標の定義（#33）<a class="headerlink" href="#41-33" title="Permanent link">&para;</a></h3>
+<p>チェーン全体の前後比較では denoise の効果が測れないことが実測で確定したため、<strong>測定点を loudnorm の手前に移した</strong>。</p>
+<ul>
+<li><strong>絶対 RMS（チェーン後、#5 の当初実装）は不成立</strong>: loudnorm のメイクアップゲイン（約 +8dB）がフロアごと持ち上げるため、前後比較が悪化方向に出る（PR #17）</li>
+<li><strong>レベルマッチ（<code>below_programme_db</code>、#10）も不成立</strong>: プログラム比でも悪化方向に出た（PR #25）。原因は下記の測定汚染で、レベルマッチ自体は無罪だが、いずれにせよ denoise の効果を直接は測らない</li>
+<li><strong>採用</strong>: <code>denoise 直後（loudnorm 前）の無音区間 RMS</code> を、処理前の同じ無音区間の RMS と比べる。makeup gain の影響を受けず、denoise 単体の実測（DeepFilterNet で低下、#5）と整合する。<code>below_programme_db</code> は <code>noise_floor.output</code> に<strong>参考値</strong>として残す（判定には使わない）</li>
+</ul>
+<p><strong>測り方（ここまで含めて指標の定義）</strong></p>
+<ul>
+<li>無音区間は detect 段と同じ <code>silencedetect=noise=-40dB:d=0.5</code></li>
+<li>各無音区間の<strong>両端 0.1 秒を測定から除外する</strong>（<code>SILENCE_GUARD_SECONDS</code>）。境界には silencedetect が閾値を切った発話の立ち上がり・減衰が残っており、フロア（約 -60dB）より遥かに大きいため平均を支配する</li>
+<li><code>aselect</code> はフレーム単位でしか切れないので、選択前に <code>asetnsamples=n=1024</code> を挟んでフレーム長（約 23ms）をガード（100ms）より十分短く固定する。これがないと<strong>入力コンテナのフレーム長で測定値が変わる</strong></li>
+<li>この汚染は実在した: ガードなしだとゴールデンの同一音声が mp4 直読みで <strong>-55.39dB</strong>、抽出 wav で <strong>-45.87dB</strong>（10dB 差）になり、denoise の効果（実測 -9.09dB）が <strong>-0.75dB</strong> まで埋もれていた。#17 の -45.87 と #25 の 33.15dB 下（= -55.39）が食い違っていたのはこれが理由</li>
+</ul>
+<p><strong>実測（2026-08-05、ゴールデンサンプル / DeepFilterNet 0.5.6 / ffmpeg 7.1.1）</strong></p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>処理前フロア（<code>noise_floor.denoise.before_rms_db</code>）</td>
+<td><strong>-60.48 dB</strong></td>
+</tr>
+<tr>
+<td>denoise 後・loudnorm 前（<code>after_rms_db</code>）</td>
+<td><strong>-69.57 dB</strong></td>
+</tr>
+<tr>
+<td>差分（<code>delta_db</code>）</td>
+<td><strong>-9.09 dB</strong> → <code>improved: true</code>（<strong>REQ-007 成立</strong>）</td>
+</tr>
+<tr>
+<td>測定対象の無音（<code>silence_sec</code>）</td>
+<td>119.641 秒（66 区間からガード分を除いた実測長）</td>
+</tr>
+<tr>
+<td>参考: 完成音声のフロア（<code>noise_floor.output</code>）</td>
+<td>-58.19 dB / プログラム比 44.15 dB 下</td>
+</tr>
+</tbody>
+</table>
+<p><code>stats.json</code> の <code>noise_floor</code> は形が変わったため <strong><code>version</code> を <code>2</code> に上げた</strong>。§3.3 の
+before/after 比較では旧 run との diff に <code>noise_floor.source.*</code> の消失と
+<code>noise_floor.denoise.*</code> の出現が出るが、これは指標変更そのもので回帰ではない。</p>
+<p><strong>効果測定</strong>: LUFS / TP / LRA の前後比較表と上記フロア比較（stats.json）。ゴールデンの期待値: -22.24 → -14 LUFS。</p>
+<p><strong>目視・試聴チェックリスト（tomada 最終判定）</strong></p>
+<p>機械側の合否（上記 -9.09dB）が<strong>発話品質の実感と一致するか</strong>の最終確認は、以下の試聴をもって tomada が行う（#33 の 3 つ目のチェック項目のうち人手側。未消化）。
+- [ ] 冒頭 30 秒: 声の自然さ（denoise のこもり・水中感がないか）
+- [ ] 無音→発話の境界 3 箇所: ノイズゲート的な不自然な立ち上がりがないか
+- [ ] 語尾 3 箇所: リバーブ様のアーティファクトがないか
+- [ ] 全体を倍速で流し聴き: 音量の暴れ（ポンピング）がないか</p>
+<p><strong>検証手順</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>vidprep audio-fix --stats          # 実行 + 前後統計（noise_floor.json も書かれる）
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>vidprep report --json              # stats.json の noise_floor.denoise で REQ-007 を判定
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>ffmpeg -i audio/processed.wav -af loudnorm=I=-14:TP=-1:print_format=json -f null -
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                                   # 独立系統での再測定（自己申告とのクロスチェック）
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>afplay audio/processed.wav         # 試聴
+</code></pre></div></p>
+<h2 id="5-b-transcribe">5. 機能別検証: B. 文字起こし（transcribe）<a class="headerlink" href="#5-b-transcribe" title="Permanent link">&para;</a></h2>
+<p><strong>完了条件（機械）</strong>
+- 人手リファレンス比 <strong>CER ≤ 8%</strong>（確定値。Step 1 実測ベンチ（§12.2）で採用した whisper.cpp large-v3-turbo + VAD の実測 CER は 4.94%。実行間のばらつきと、リファレンスが large-v3-turbo のドラフトを叩き台に作成されたことによる turbo 有利バイアス（§12.2 参照）を見込んで約 3pt のマージンを取った値を確定条件とする。旧暫定値 15% から更新）
+- ハルシネーション 0 件: VAD 発話区間の外側で開始するセグメントが <strong>0 件</strong>（<code>report/vad.json</code> と突き合わせ）。既知の幻覚フレーズ（「ご視聴ありがとうございました」等のリスト照合）の非発話区間での出現 <strong>0 件</strong>
+    - ただし whisper.cpp は検出区間を 0.2 秒の無音で連結して認識するため、その連結部に置かれた境界が元タイムラインの無音全体へ引き伸ばされて戻ることがある（#24、実測 0.119s → 1.300s）。<strong>自身の 50% 以上が発話区間に重なるセグメントに限り</strong>開始点を重なっている区間の先頭へ寄せ、警告 1 件として記録する（削除はしない）。発話に重ならないセグメントは従来どおり不変条件違反として exit 3
+- transcript.json がスキーマ検証を通る。segments の時刻が単調・非負・素材尺以内</p>
+<p><strong>完了条件（目視）</strong>
+- 無作為 10 セグメントのタイムスタンプが実際の発話と <strong>±0.3 秒以内</strong>（動画をシークして確認）</p>
+<p><strong>効果測定</strong>: CER と実行時間（素材尺に対する倍率）。VAD あり/なしのハルシネーション件数比較（VAD 必須判断の裏取り、Step 1 で 1 回だけ実施）。</p>
+<p><strong>検証手順</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>vidprep transcribe
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>vidprep report --json              # セグメント数・総発話時間
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>uv run python scripts/cer.py fixtures/expected/golden.reference.txt &lt;transcript全文&gt;
+</code></pre></div></p>
+<h2 id="6-c-correct">6. 機能別検証: C. 辞書校正（correct）<a class="headerlink" href="#6-c-correct" title="Permanent link">&para;</a></h2>
+<p><strong>完了条件（機械）</strong>
+- 辞書エントリの対象語がゴールデン transcript 中で <strong>100% 訂正される</strong>（リファレンスと辞書から正解位置リストを作って照合）
+- 辞書適用が<strong>冪等</strong>: 2 回適用して 2 回目の変更が 0 件
+- 全セグメントの id / start / end / 件数 / 順序が適用前後で<strong>完全一致</strong>（テキスト以外の diff が空）
+- LLM パッチ検証が不正パッチを <strong>reject する</strong>（§10 のフォールトインジェクションで確認）</p>
+<p><strong>効果測定</strong>: CER の 3 点比較 — <strong>ASR 素の出力 → 辞書適用後 → LLM 校正後</strong>。各段の置換・修正件数。この 3 点が「辞書と校正にどれだけの価値があるか」の効果測定そのもの。</p>
+<p><strong>目視</strong>: 辞書適用の diff 全件（<code>correct</code> が表示する）を確認し、過剰置換（一般文脈の語を固有名詞化）が 0 件であること。</p>
+<p><strong>検証手順</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>vidprep correct --dry-run          # diff 表示 → 目視
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>vidprep correct &amp;&amp; vidprep correct # 2回目の変更 0 件 = 冪等
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a># LLM 校正はスキル経由で patch.json 生成 → vidprep correct --apply-patch patch.json
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>uv run python scripts/cer.py ...   # 3 点測定
+</code></pre></div></p>
+<h2 id="7-d-detect">7. 機能別検証: D. カット候補検出（detect）<a class="headerlink" href="#7-d-detect" title="Permanent link">&para;</a></h2>
+<p><strong>完了条件（機械）</strong>
+- cuts.json がスキーマ検証を通る（区間妥当・approved 非重複）
+- <strong>発話衝突 0 件</strong>: <code>reason: silence</code> の各カット区間と transcript 発話セグメントの重なりの合計が <strong>1 カットあたり ≤ 0.2 秒</strong>（パディングの食い込み許容分）。これは ASR とのクロスチェックであり最重要の安全網
+- パディング遵守: 各カットの前後に profile の <code>pad_pre</code> / <code>pad_post</code> が確保されている（検出器出力との差分で機械確認）
+- detect 再実行で、レビュー済み status（approved/rejected/manual）が<strong>保持される</strong>（マージ規則の検証）</p>
+<p><strong>完了条件（目視・試聴）</strong>
+- フィラー候補の precision: 候補全件（または上限 20 件サンプル）を <code>report --cuts</code> の文脈表示で審査し、<strong>8 割以上が「消してよい」</strong>と判定できること
+- フィラーの recall: <code>golden.reference-fillers.txt</code> の <code>[F]</code> マークと候補を突き合わせ、strong フィラーの検出率を記録（目標値は初回計測後に設定。v1 は precision 優先で recall は測定のみ）</p>
+<p><strong>効果測定</strong>: 候補数と削減見込み秒数の reason 別内訳。ゴールデンの期待値: 無音 132.8 秒（-40dB/0.5s 基準）に対しパディング適用後でどれだけ候補化されるか。</p>
+<p><strong>実測（2026-08-04、auto-editor 29.3.1 / 既定 profile）</strong></p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>実測値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>無音（<code>threshold=4%</code>、<code>--margin 0s</code>）</td>
+<td>検出 58 箇所 / うち <code>min_duration</code> 0.6s 以上 39 箇所</td>
+</tr>
+<tr>
+<td>パディング後</td>
+<td>30 カット・<strong>118.65 秒</strong>（原尺 298.92 秒の 39.7%）、9 箇所は <code>min_cut_duration</code> 未満で破棄</td>
+</tr>
+<tr>
+<td>発話衝突（transcript ∩ VAD）</td>
+<td>全 30 カットで <strong>0.000 秒</strong>（上限 0.2 秒）</td>
+</tr>
+<tr>
+<td>再実行（pad 0.3 → 0.25）</td>
+<td>30 件マッチ・status/note 保持、手書き <code>manual</code> 1 件保持、新規 2 件は <code>c0101</code>/<code>c0102</code>（id 再利用なし）</td>
+</tr>
+<tr>
+<td>フィラー</td>
+<td>候補 <strong>0 件</strong>。ASR transcript に strong 辞書の語が 1 つも出現しない（<code>golden.reference-fillers.txt</code> の <code>[F]</code> は「そうですね」「はい」の 2 件で、strong 辞書の対象外）</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>フィラーの precision / recall はゴールデン 1 本では測定材料がない（strong フィラー 0 件）。この話者の実際のフィラーは「そうですね」「はい」型で、パッケージ辞書ではなく <code>&lt;project&gt;/dictionaries/fillers.json</code> での追加が想定用途になる。目視 AC（#10 完了後）は素材追加後に再実施する</li>
+<li>「区間が無音カットをまたぐ transcript セグメント」は 35 件中 9 件（whisper.cpp の VAD 併用による end のずれ）。detect は警告のみで transcript を書き換えない</li>
+</ul>
+<p><strong>検証手順</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>vidprep detect
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>vidprep report --cuts              # 候補ごとの文脈表示 → フィラー審査
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>vidprep detect                     # 再実行 → status 保持を確認
+</code></pre></div></p>
+<h2 id="8-e-render">8. 機能別検証: E. カット適用（render）<a class="headerlink" href="#8-e-render" title="Permanent link">&para;</a></h2>
+<p><strong>完了条件（機械）</strong>
+- 尺の整合: <code>|出力尺 − (原尺 − approved カット総尺)|</code> <strong>≤ 1 フレーム（40ms @25fps）</strong>
+- A/V 同期: 出力の音声ストリーム尺と映像ストリーム尺の差 <strong>≤ 50ms</strong>
+- ラウドネス維持: 出力の integrated loudness が <strong>-14.0 ± 0.5 LUFS</strong>（audio-fix の効果がカットで壊れていないこと）
+- <strong>再文字起こし照合（§8.1）の境界欠落フラグ 0 件</strong>（v1 は <strong>gate</strong> 運用。フラグ 1 件で exit 3。#11 の導入時は advisory で、#32 の実測を経て昇格した — 経緯と昇格条件は §8.1 の結論を参照）
+- SRT 写像整合（§9 の F と共通）: 写像で除外されたセグメントが report の警告と一致</p>
+<p><strong>完了条件（目視・試聴）</strong>
+- <code>report/boundary_digest.mp4</code>（全境界 ±2 秒の連結動画）を通しで試聴し、全境界について: クリック音なし / 語頭・語尾の欠けなし / 「間」が不自然に詰まっていないか
+- 出力冒頭・中間・末尾の各 30 秒で映像品質（ブロックノイズ・カクつき）を確認</p>
+<p><strong>効果測定</strong>: 尺削減率（ゴールデン期待値: 無音率 44% に対し <strong>30% 前後の削減</strong>を見込む。実測して基準化する）、カット数、処理時間。</p>
+<h3 id="81">8.1 再文字起こし照合（採用）<a class="headerlink" href="#81" title="Permanent link">&para;</a></h3>
+<p>「文字起こしを先に作れば無音カットの検証に流用できる」という着想は<strong>筋が良いと判断し、採用する</strong>。根拠: 同一モデル・同一音声処理で原尺とカット後を比較するため、モデル固有の定常的な認識誤りは両側に等しく現れて相殺され、<strong>差分がカット起因の欠落に集中する</strong>。カット境界で語が切れる事故（このパイプライン最大のリスク）を、波形目視より高い網羅性で機械検出できる。</p>
+<p><strong>手順</strong>:
+1. <code>out/output.mp4</code> を transcript と同一のバックエンド・モデル・VAD 設定で再 ASR する
+2. 期待テキストを構築する: kept 区間の transcript テキストを連結し、<code>reason: filler</code> のカットに対応するフィラー語を除去したもの
+3. §3.1 の正規化を両者に適用し、文字単位 diff（<code>difflib</code>）を取る
+4. <strong>欠落 hunk</strong>（期待側にあり再 ASR 側にない、長さ ≥ 2 文字）のうち、その位置（セグメント時刻から逆写像で原尺に戻す）が<strong>カット境界 ±2 秒以内</strong>のものを境界欠落フラグとする
+5. フラグ 0 件で pass。1 件以上は該当境界を boundary_digest で試聴して人間が最終判定
+6. 参考値としてグローバル CER（期待 vs 再 ASR）も記録する（ASR 再現性ノイズの水準把握。フラグ判定には使わない）</p>
+<p><strong>限界と運用</strong>: ASR の非決定性・境界の音響変化により誤検知（false positive）は起こりうる。そのため v1 導入時は<strong>警告扱い（advisory）で開始</strong>し、§10 のフォールトインジェクション（故意の語中カット）で検出力を、正常カットで誤検知率を確認したうえで、pass/fail ゲートに昇格させる方針とした（<strong>この昇格は #32 で完了した。下記「昇格条件の再定義」以降</strong>）。コストは ASR 1 回分（ゴールデンで数十秒〜数分）で許容範囲。</p>
+<p><strong>実装上の判断（#11）</strong>:</p>
+<ul>
+<li><strong>欠落 hunk は <code>difflib</code> の <code>delete</code> オペコードのみ</strong>を数える（<strong>tomada 承認 2026-08-05、#32</strong>）。<code>replace</code> は「再 ASR が何かを聞き取ったが読み違えた」＝本手法が相殺を狙っているモデルノイズそのものであり、「期待側にあり再 ASR 側にない」（§8.1-4 の文言）には当たらないため対象外とする。語中カットは音声そのものが消えるので純粋な削除として現れる（下記実測で確認）。この規則の代償は §11 の CER 実測がそのまま示している — 辞書校正が期待側だけを直した 8 セグメントは全て <code>replace</code> に落ち、CER を 7.99% まで押し上げながら hunk は 0 件のままだった。<strong>判定に効く数（hunk）が校正の影響を受けず、参考値（CER）だけが動く</strong>のは、delete-only がまさに狙った挙動である</li>
+<li><strong>グローバル CER は同じ diff アラインメントから算出</strong>する（<code>delete</code>/<code>insert</code> はその長さ、<code>replace</code> は両側の長い方）。最小編集距離ではないが、報告する 2 つの数値が同一の比較を指すことを優先した。判定には使わない（REQ-007）ため精度要件はない</li>
+<li><strong>欠落位置は「期待テキストの文字インデックス → セグメント内で線形補間したカット後時刻 → <code>f⁻¹</code> で原尺時刻」</strong>で求める。transcript に語単位のタイムスタンプが無い以上、セグメント内は等速発話と仮定するのが唯一誠実な近似</li>
+<li><strong>フィラー語の除去は辞書スキャン</strong>（<code>_fillers.scan</code>）で行い、カットの <code>note</code> 文字列には依存しない。レビュアーが note を書き換えても期待テキストが変わらないようにするため</li>
+<li><strong>advisory / gate の切り替えは <code>profile.json</code> の <code>render.verify_asr_mode</code></strong>（#11 実装時の既定は <code>advisory</code>、#32 で <code>gate</code> へ昇格）。<code>gate</code> では境界欠落フラグ 1 件以上で exit 3</li>
+</ul>
+<p><strong>実測（2026-08-04、whisper.cpp large-v3-turbo + Silero VAD、#9 のゴールデン render を対象）</strong></p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>期待/再 ASR 文字数</th>
+<th>欠落 hunk</th>
+<th>境界フラグ</th>
+<th>境界数</th>
+<th>グローバル CER</th>
+<th>所要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>正常カット（approved 26 件）</td>
+<td>1074 / 1074</td>
+<td>0</td>
+<td><strong>0</strong></td>
+<td>52</td>
+<td>0.28%</td>
+<td>34.8s</td>
+</tr>
+<tr>
+<td>語中カット注入（<code>manual</code> 16.000–16.600、s0002「起動し<strong>まして</strong>、」を横切る）</td>
+<td>1074 / 1071</td>
+<td>1</td>
+<td><strong>1</strong></td>
+<td>54</td>
+<td>0.47%</td>
+<td>35.6s</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>注入時のフラグ: <code>{"cut_id": "c9001", "src_time": 16.672, "missing": "まして", "len": 3}</code>。逆写像で戻した位置はカット終端 16.600 から 0.072 秒、欠落文字列もカットが消した語そのもので、<strong>検出力・位置精度とも実証された</strong></li>
+<li><strong>誤検知率（REQ-013）= 0 / 52 = 0.000</strong>（正常カット、実素材 1 本 1 回）。§10 ケース #2（合成素材のフォールトインジェクション）でも同様に検出 1 件・正常カット 0 件</li>
+</ul>
+<p><strong>中間結論（2026-08-04、advisory 据え置き）</strong>: 検出力・位置精度は実証され、誤検知率も 0 だったが、根拠が<strong>ゴールデン 1 本・各 1 回の実行</strong>に留まり、本手法の既知の弱点である ASR の非決定性（同一入力を複数回走らせたときのばらつき）を一度も標本化していなかったため、この時点では advisory に据え置いた。旧昇格条件は「① 同一 render に対する照合 3 回以上でフラグ毎回 0 件、② 性質の異なる素材をもう 1 本追加してそちらでも 0 件」。</p>
+<p><strong>再現性の実測（#32、2026-08-05）</strong>: 2026-08-04-03 のゴールデンラン出力（<code>fixtures/golden/out/output.mp4</code>）に対し、<strong>再レンダリングせずに</strong>照合だけを 3 回走らせた。ASR の非決定性のみを標本化するのが目的なので、期待テキスト・カット・境界はどの回も同一である。照合だけを繰り返す入口は CLI に無い（<code>render --verify-asr</code> は毎回レンダリングし直す）ため、<code>render.subject()</code> が作った <code>verify.Subject</code> を <code>verify.run_verify_asr()</code> に 3 回渡す使い捨てスクリプトで測った。生の 3 回分は <code>fixtures/verify-repeat-2026-08-05.json</code>（git 管理外）。</p>
+<table>
+<thead>
+<tr>
+<th>回</th>
+<th>境界フラグ</th>
+<th>欠落 hunk</th>
+<th>期待 / 再 ASR 文字数</th>
+<th>境界数</th>
+<th>グローバル CER</th>
+<th>所要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>0</strong></td>
+<td>0</td>
+<td>1101 / 1074</td>
+<td>52</td>
+<td>7.99%</td>
+<td>82.8s</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>0</strong></td>
+<td>0</td>
+<td>1101 / 1074</td>
+<td>52</td>
+<td>7.99%</td>
+<td>42.0s</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>0</strong></td>
+<td>0</td>
+<td>1101 / 1074</td>
+<td>52</td>
+<td>7.99%</td>
+<td>41.9s</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>3 回とも報告値が全一致</strong>した（1 回目だけ所要が倍なのはモデルのロード分）。advisory 据え置きの根拠だった「同一入力でも再 ASR の出力が揺れる」ばらつきは、whisper.cpp large-v3-turbo + Silero VAD をこの構成で走らせるかぎり<strong>観測されなかった</strong>。文字数と hunk 数まで一致しているので、揺れがあったとしても判定に届く大きさではない</li>
+<li>誤検知率（REQ-013）は 0/52 が 3 回。#9・2026-08-04-03・§11 の切り分け 2 ラン（2026-08-05 と 2026-08-05-02）を合わせると、実素材の正常 render に対する照合は<strong>計 7 回・通算 0 / 364 境界</strong>でフラグ 0 件</li>
+</ul>
+<p><strong>昇格条件の再定義（tomada 判断、2026-08-05）</strong>: 旧条件 ② は、ゴールデンが 1 本しかない現状では<strong>満たしようがない</strong>（＝永久に昇格しない）条件だった。素材追加は §2 の既知の制約であって本チェックの検証項目ではないため、昇格条件から外し、判定可能な 3 条件に置き換える:</p>
+<ol>
+<li><strong>検出力</strong>: 実素材の語中カット注入で境界フラグ 1 件が立ち、<code>cut_id</code> と欠落文字列が注入箇所と一致すること → §8.1 実測表で実証済み。回帰は §10 ケース #2 が CI で守る</li>
+<li><strong>非決定性</strong>: 同一 render に対する照合を 3 回以上繰り返し、境界フラグが毎回 0 件であること → 上表で実証済み</li>
+<li><strong>誤検知</strong>: 実素材の正常 render に対する誤検知率（フラグ数 / 境界数）が 0 であること → 通算 0 / 364 境界（7 回）で実証済み</li>
+</ol>
+<p><strong>結論（2026-08-05、gate へ昇格）</strong>: 3 条件をすべて満たしたので、<code>render.verify_asr_mode</code> の既定を <strong><code>advisory</code> → <code>gate</code></strong> に切り替える（<code>src/vidprep/profiles/default.json</code> と <code>RenderProfile</code> の既定値）。v1 は gate で出荷する。素材多様性は昇格の前提条件ではなく<strong>再点検のトリガ</strong>として残す: 2 本目の素材を追加した時点でその素材の正常 render に対し条件 1〜3 を測り直し、誤検知が出たら ±2 秒窓の見直しか advisory への差し戻しを検討する。</p>
+<p><strong>gate の運用</strong>:</p>
+<ul>
+<li><code>vidprep render --verify-asr</code> は境界フラグ 1 件で exit 3。プロジェクト単位で <code>profile.json</code> の <code>render.verify_asr_mode</code> を <code>advisory</code> に戻せば従来どおり警告のみになる。既存プロジェクトの <code>profile.json</code> は <code>init</code> 時にコピーされた値をそのまま保持するため、影響を受けるのは<strong>新規プロジェクトと既定値を明示していない呼び出し</strong>だけである</li>
+<li>gate 判定は CLI 層（<code>cli.py</code>）にあり、ライブラリの <code>render.run_render</code> は結果を返すだけである。したがって <code>just golden</code>（<code>scripts/golden_run.py</code>）はフラグが立っても止まらず、<code>warnings.json</code> に警告として残り、<code>just golden-diff</code> が <code>verify_asr.near_boundary_flags</code> の増加に ⚠ を付ける。ゴールデンランで人が見る面はこの 2 つ</li>
+<li>誤検知が出たときの復旧手順は「<code>report/boundary_digest.mp4</code> で該当境界を試聴 → 問題なければ profile を <code>advisory</code> にして再実行」。ローカル実行のツールなので影響範囲はその 1 実行に閉じる</li>
+</ul>
+<p><strong>検証手順</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>vidprep render --verify-asr        # 再文字起こし照合つき（既定 gate: フラグ 1 件で exit 3）
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>vidprep render --verify-asr --json # verify_asr セクションに flags / global_cer
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>vidprep report --json              # 尺・LUFS・写像警告の機械チェック
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>vidprep report                     # boundary_digest.mp4 再生成
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>open report/boundary_digest.mp4    # フラグが立った境界を試聴して最終判定
+</code></pre></div></p>
+<h2 id="9-f">9. 機能別検証: F. 字幕・テロップ出力<a class="headerlink" href="#9-f" title="Permanent link">&para;</a></h2>
+<p><strong>完了条件（機械）</strong>
+- SRT が pysubs2 でラウンドトリップ可能（parse → dump で情報欠落なし）
+- <strong>欠落 0 件</strong>: 写像対象の全 kept セグメントが SRT に存在する（除外は §4 写像規則の警告リストと 1:1 対応）。<strong>#11 で <code>render</code> に組み込み済み</strong>: SRT を書いたあと書いたファイルを読み直し、写像が作ったエントリが時刻<strong>とテキスト</strong>の一致で 1 対 1 に見つからなければ exit 3（<code>vidprep.verify.missing_subtitle_entries</code>）。オブジェクトではなくファイルを parse するのが要点
+- 時刻が単調増加・エントリ間重なりなし・<code>min_display</code>（0.8s）未満は警告リストと一致
+- 行制約: 全エントリが <code>max_chars_per_line</code>（20 全角）× <code>max_lines</code>（2）以内。<code>max_cps</code>（8.0 文字/秒）超過は警告として列挙される
+- 写像関数の property test（実装フェーズで pytest 化）: 任意のカット集合に対し単調性・連続性・総尺整合が成立</p>
+<p><strong>完了条件（実機・目視）</strong>
+- [ ] subtitles.srt を <strong>Filmora に取り込める</strong>（文字化けなし・タイムコード一致）
+- [ ] Filmora 上で文言・タイムコードを編集できる
+- [ ] preview.mp4 でテロップが指定プリセットどおりに表示される（位置 9 方向・縁取り・<strong>太字が効いているか</strong> = CoreText 問題の実機確認）
+- [ ] BudouX 行分割版と改行なし版を見比べ、行分割版の改行位置が不自然でない</p>
+<p><strong>効果測定</strong>: 警告件数（min_display / max_cps / 除外）の推移。行分割の有無の見比べ（主観）。</p>
+<p><strong>検証手順</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>vidprep render                     # subtitles.srt（+ --no-wrap 版）
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>vidprep render --preview           # preview.mp4
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>open -a &quot;Wondershare Filmora Mac&quot; # 実機取り込み → チェックリスト実施
+</code></pre></div></p>
+<h2 id="10">10. 検証器の検証（フォールトインジェクション）<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
+<p>機械チェックは以下の「わざと壊した入力」で <strong>fail する</strong>ことを確認してから信用する。実装フェーズで <code>tests/fault_injection/</code> としてスクリプト化し、チェッカー自体の回帰テストにする。</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>壊し方</th>
+<th>fail すべきチェック</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>audio-fix をスキップした素材で render</td>
+<td>ラウドネス検証（§8）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>発話中央を横切る <code>manual</code> カットを手書きした cuts.json</td>
+<td>再文字起こし照合の境界欠落フラグ（§8.1）+ 発話衝突チェック（§7）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>SRT からエントリを 1 件手動削除</td>
+<td>欠落 0 件チェック（§9）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>存在しない id / id 重複を含む LLM パッチ</td>
+<td>correct のパッチ検証（§6）</td>
+</tr>
+<tr>
+<td>5</td>
+<td>区間が重なる approved カットを手書き</td>
+<td>cuts.json スキーマ検証（§7）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>素材ファイルを別動画に差し替え</td>
+<td>マニフェストの sha256 検証</td>
+</tr>
+</tbody>
+</table>
+<p>特に #2 は再文字起こし照合（§8.1）の<strong>検出力の実証</strong>であり、advisory → ゲート昇格の判断材料になった（#32 の昇格条件 1。昇格後は、検出力を弱める変更が入れば CI で落ちる回帰テストとして働く）。</p>
+<p><strong>実装（#11、2026-08-04）</strong>: <code>tests/fault_injection/case01..case06_*.py</code>。各ケースは単体で走り（<code>uv run python -m tests.fault_injection.case02_midword_cut</code>）、壊し方と「何が捕まえたか」を印字する。同じ 6 件を <code>tests/test_fault_injection.py</code> が収集するので、チェックを弱めた変更はテストが落ちて気づける。素材・ffmpeg・whisper.cpp・auto-editor はいずれも不要（<code>tests/fault_injection/_harness.py</code> がプロセス境界で差し替える）ため CI でも走る。</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>fail させたチェック</th>
+<th>実行結果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>ラウドネス検証（§8）</td>
+<td>-22.24 LUFS の出力を refuse（<code>InvariantViolationError</code>）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>境界欠落フラグ（§8.1）+ 発話衝突（§7）</td>
+<td>フラグ 1 件を検出（<code>{"cut_id":"c0003","missing":"作業状況"}</code> — cut_id と欠落文字列まで assert する）。発話衝突は §7 が <code>reason: silence</code> 限定のため <code>manual</code> カットは対象外 — 重なり 0.400s（上限 0.2s）を記録したうえで、同一区間を silence カットとして <code>detect.verify_speech</code> に与えると refuse することを確認（メッセージ中の cut_id と上限値も assert）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>欠落 0 件チェック（§9）</td>
+<td>エントリを 1 件消した SRT に対し欠落セグメント <code>s0002</code> を報告</td>
+</tr>
+<tr>
+<td>4</td>
+<td>correct のパッチ検証（§6）</td>
+<td>存在しない id と重複 id を<strong>両方</strong>列挙して refuse、適用 0 件</td>
+</tr>
+<tr>
+<td>5</td>
+<td>cuts.json スキーマ検証（§7）</td>
+<td>approved 同士の重なりを refuse</td>
+</tr>
+<tr>
+<td>6</td>
+<td>マニフェストの sha256 検証</td>
+<td>差し替えを検出（<code>HashMismatchError</code>）</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>ケース #2 は同時に<strong>正常カットでの誤検知率</strong>（フラグ件数 / 境界数、REQ-013）を測って印字する。実素材での測定値は §8.1 の実測表を参照</li>
+<li><strong>ケース #2 が証明する範囲</strong>: 再 ASR はフェイクなので、認識器そのものは試験対象ではない。証明されるのは「削除がフラグになり、正しいカットに帰属し、逆写像で 2 秒窓に収まる位置に置かれる」こと。<strong>実素材で本当に語が消えること・正常 render で本当にフラグが 0 件であること</strong>は §8.1 の実測表（実 whisper.cpp・実 render）が担当する。この 2 つは役割が違い、どちらか一方では足りない</li>
+<li>各ケースは refuse された<strong>メッセージの中身まで assert する</strong>（<code>_harness.refusal()</code> が例外を捕まえて本文を返す）。§8 のようにチェックが 3 条件を 1 つの例外にまとめる箇所では、「何かで落ちた」ではケースが素通りしてしまうため。ケース #1 は加えて<strong>対照実行</strong>（同じ素材を -14.08 LUFS で render して通ること）を行い、「この fixture は常に落ちる」でないことを示す</li>
+</ul>
+<h2 id="11">11. 回帰確認の運用<a class="headerlink" href="#11" title="Permanent link">&para;</a></h2>
+<ul>
+<li>ゴールデンサンプルに対する全パイプライン実行（audio-fix → transcribe → correct → detect → render → report）を「ゴールデンラン」と呼び、<strong>機能追加・パラメータ変更・依存更新のたびに実行</strong>する</li>
+<li>stats.json と警告リストを前回のゴールデンランと diff し、意図しない変化（CER 悪化、削減率変動、警告増加）がないことを確認する。前回結果は <code>fixtures/runs/&lt;date&gt;/</code> にローカル保存（git 管理外）</li>
+<li>実装フェーズで <code>just golden</code> ターゲットとして整備する</li>
+</ul>
+<p><strong>実装（#11、2026-08-04）</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>just golden        # scripts/golden_run.py — 6 段を順に実行し fixtures/runs/&lt;date&gt;/ へ保存
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>just golden-diff   # scripts/compare_stats.py — 直近 2 回を diff（前回なしなら「first run」で exit 0）
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>just golden --skip correct   # 1 段だけ外した計測ラン（#32 の CER 切り分けで使用）
+</code></pre></div>
+<ul>
+<li>保存内容は <code>stats.json</code>（<code>report/stats.json</code> のコピー）、<code>warnings.json</code>（全段の警告）、<code>summary.json</code>（各段の <code>--json</code> 結果・所要秒・停止段）。同日 2 回目は <code>&lt;date&gt;-02</code> になり、上書きしない</li>
+<li>段は<strong>サブプロセスではなくライブラリ関数として</strong>順に呼ぶ。失敗は例外のまま受け取れるので理由が欠けない。失敗した段でランは止まる（下流は上流の出力を読むため）が、<strong>アーカイブは必ず書く</strong> —「どこで何が理由で止まったか」こそ求められている出力だから</li>
+<li>diff の対象は stats.json の全数値（<strong>警告リストは長さで比較</strong>する。「max_cps 警告が 11 → 14」はこれで出る）＋ そのランの <code>render</code> が報告した <code>verify_asr</code> セクション。名前に warning / flag / error を含むパスが増えたときだけ ⚠ を付ける</li>
+<li>素材・ffmpeg・whisper.cpp・auto-editor が要るため <strong>CI では動かさない</strong>（<code>just check</code> にも入れない）。ローカル運用のまま</li>
+<li><code>--skip &lt;段&gt;</code>（#32）は、ある数値をパイプライン全体ではなく<strong>その 1 段に帰属させる</strong>ための計測手段。外した段の出力は前のランのものが残り、下流はそれを読む。基準ランと取り違えないよう、外した段名は <code>summary.json</code> の <code>skipped</code> に残り、実行時にも <code>skipped: correct — not a baseline run</code> と出る</li>
+</ul>
+<p><strong>初回実行の記録（2026-08-04）</strong>: <code>[2/6] transcribe</code> で停止。<code>1 segments start outside every detected speech region (s0022@222.390)</code> — 既知バグ #24 で、ハーネスがこれをそのまま記録して exit 2 を返すことを確認した（audio-fix は -22.24 → -14.04 LUFS で成功）。</p>
+<p><strong>#24 修正後の記録（2026-08-04）</strong>: <code>[3/6] correct</code> まで通過し、<code>[4/6] detect</code> で停止。transcribe は 46 発話区間 / 36 セグメント / 0.11x で成功し、s0022 は警告付きで区間先頭へ寄せられた（<code>222.390 → 223.270</code>、§5 の「区間外開始 0 件」は維持）。停止理由は #24 とは別件で、auto-editor 29.3.1 の <code>--export v3</code> が JSON として読めない出力を返すこと（<code>timeline_schema: Invalid JSON: expected value at line 1 column 3</code>）。変換層の更新が要る。</p>
+<p><strong>#30 修正後の記録（2026-08-04、<code>fixtures/runs/2026-08-04-03/</code>）</strong>: <strong>6 段すべて完走</strong>（exit 0）。REQ-020（全段の通し実行）と REQ-021（stats.json / warnings.json のアーカイブ）が実測で埋まった。</p>
+<table>
+<thead>
+<tr>
+<th>段</th>
+<th>結果</th>
+<th>所要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>audio-fix</td>
+<td>-22.24 → -14.04 LUFS、TP -1.00 dBTP、deepfilternet、長さ差 0.0ms</td>
+<td>67.4s</td>
+</tr>
+<tr>
+<td>transcribe</td>
+<td>46 発話区間 / 154.0s of 298.9s（silero-v5）</td>
+<td>38.4s</td>
+</tr>
+<tr>
+<td>correct</td>
+<td>辞書で 8 セグメント更新</td>
+<td>0.3s</td>
+</tr>
+<tr>
+<td>detect</td>
+<td>silence 26 カット / 121.4s（approved、min_cut_duration 未満で 9 件棄却）</td>
+<td>0.3s</td>
+</tr>
+<tr>
+<td>render</td>
+<td><code>out/output.mp4</code> 178.36s（-120.6s）、長さ差 0.0ms、-14.03 LUFS</td>
+<td>64.4s</td>
+</tr>
+<tr>
+<td>report</td>
+<td><code>report/stats.json</code>、境界 PNG 26 枚、boundary_digest 235.76s（期待 235.018s）</td>
+<td>55.3s</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>再文字起こし照合（§8.1）は境界欠落フラグ 0 / 52 境界</strong>（advisory）。グローバル CER は 7.99%（期待 1101 文字 / 再 ASR 1074 文字）で、#9 の 0.28% より高い。<strong>間に <code>correct</code> が入ったため</strong>で、辞書が原稿側だけを直す（「リズーム」→ <code>resume</code> 等）一方、再 ASR は同じ聞き違いを繰り返すぶん差分として残る（<strong>#32 で実測確認。下記「CER 乖離の要因切り分け」</strong>）。CER は判定に使わない参考値（REQ-007）であり、フラグは 0 件のまま</li>
+<li>警告は 2 件: transcribe の s0022 寄せ（#24 の既知挙動）と、detect の「19 セグメントが無音カットをまたぐ」（設計どおり削除せず警告）</li>
+<li>字幕警告は <code>max_cps</code> が s0011 の 1 件のみ（8.65 &gt; 8.0）</li>
+<li><code>just golden-diff</code> は前回ラン（<code>2026-08-04-02</code>）が <code>report</code> に到達していないため比較できない。次回ランからこのランが基準になる</li>
+</ul>
+<p><strong>CER 乖離の要因切り分け（#32、2026-08-05、実測済み）</strong>: 上の 7.99% が <code>correct</code> 由来だという推定を、<strong><code>correct</code> だけを外した同一構成のラン</strong>（<code>just golden --skip correct</code>、<code>fixtures/runs/2026-08-05/</code>）で確かめた。</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>期待 / 再 ASR 文字数</th>
+<th>欠落 hunk</th>
+<th>境界フラグ</th>
+<th>グローバル CER</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6 段（<code>correct</code> あり、<code>fixtures/runs/2026-08-04-03/</code>）</td>
+<td>1101 / 1074</td>
+<td>0</td>
+<td>0 / 52</td>
+<td><strong>7.99%</strong></td>
+</tr>
+<tr>
+<td>5 段（<code>correct</code> を <code>--skip</code>、<code>fixtures/runs/2026-08-05/</code>）</td>
+<td>1079 / 1074</td>
+<td>0</td>
+<td>0 / 52</td>
+<td><strong>1.48%</strong></td>
+</tr>
+<tr>
+<td>6 段 再走（対照、<code>fixtures/runs/2026-08-05-02/</code>）</td>
+<td>1101 / 1074</td>
+<td>0</td>
+<td>0 / 52</td>
+<td><strong>7.99%</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>推定は当たっていた</strong>。辞書校正を外すと CER は 7.99% → <strong>1.48%（-6.51pt）</strong> に落ちる。差は期待テキストの側だけが直った 22 文字（8 セグメント、「クロードコード」→ <code>Claude Code</code> ほか）に対応し、再 ASR は同じ聞き違いを繰り返すのでそのぶんが丸ごと <code>replace</code> として残る</li>
+<li>対照として同じ日に 6 段を走らせ直すと 7.99%（1101 / 1074）が<strong>桁まで再現</strong>した。したがって 6.51pt は実行間のドリフトではなく <code>correct</code> の有無そのものに帰属する。再 ASR 側は 3 条件とも 1074 文字だった（別々に再エンコードした <code>out/output.mp4</code> に対する別々の ASR 実行であり、動いたのは期待テキストの側だけである）</li>
+<li>したがってこれは<strong>校正が効くほどグローバル CER が上がるという設計上の性質</strong>であり、劣化ではない。判定に使う数（欠落 hunk・境界フラグ）は両条件とも 0 のまま動かない — <code>delete</code> オペコードだけを数える §8.1 の規則が意図どおり働いている証拠でもある</li>
+<li>残る 1.48%（約 16 文字）は ASR 自身のノイズ水準。#9 の 0.28% とは直接比べられない（#9 は #30 修正前の別 render・別 transcript に対する測定）。<strong>この 1.48% ではなく「フラグ 0 件」がゴールデンランの合否</strong>であり、CER が動いたときに見るのは「校正・辞書を変えたか」であって「認識が悪化したか」ではない</li>
+<li>2 ランの <code>just golden-diff</code> が出す差は 4 行だけで、<code>verify_asr.expected_chars 1079 → 1101</code> / <code>verify_asr.global_cer 0.015 → 0.080</code> / <code>subtitles.warnings.max_cps 0 → 1</code> / 所要秒である。<strong><code>correct</code> が動かす面がこの 3 つに限られている</strong>ことがそのまま読める（<code>max_cps</code> の 1 件は s0011。「クロードコード」7 文字が <code>Claude Code</code> 11 文字になり、同じ表示時間で読ませる文字数が増えるためで、上の #30 記録にある 8.65 文字/秒の警告は<strong>辞書校正の副作用</strong>だと分かる）</li>
+<li>5 段ランは基準ラン（baseline）ではない。<code>summary.json</code> に <code>"skipped": ["correct"]</code> が残るので、<code>just golden-diff</code> で拾ったときに素性が分かる</li>
+</ul>
+<h2 id="12-step-1-asr">12. Step 1（次セッション）: 環境構築 + ASR 実測ベンチ<a class="headerlink" href="#12-step-1-asr" title="Permanent link">&para;</a></h2>
+<h3 id="121">12.1 環境構築チェックリスト<a class="headerlink" href="#121" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] <code>brew install ffmpeg-full</code> 等で <strong>libass 入り ffmpeg</strong> を導入（<code>ffmpeg -filters | grep subtitles</code> で確認）</li>
+<li>[x] auto-editor 導入（<code>uv tool install auto-editor</code>）、<code>--export v3</code> の動作確認</li>
+<li>[x] whisper.cpp をビルド（Metal + CoreML 有効）+ 候補モデルの ggml を取得</li>
+<li>[x] <code>uv add mlx-whisper --group asr</code> 等で mlx-whisper 導入（比較用）</li>
+<li>[x] DeepFilterNet CLI 導入（失敗したら afftdn フォールバックで先へ進む）</li>
+<li>[x] jiwer を dev グループに追加</li>
+<li>[x] 完了判定: <code>vidprep doctor</code> が全項目 <code>ok</code>（exit 0）を返す</li>
+</ul>
+<h3 id="1211-2026-08-03apple-m2-macos-26">12.1.1 構築記録（2026-08-03、Apple M2 / macOS 26）<a class="headerlink" href="#1211-2026-08-03apple-m2-macos-26" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>対象</th>
+<th>版</th>
+<th>導入手順</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ffmpeg / ffprobe</td>
+<td>7.1.1</td>
+<td><code>brew install ffmpeg</code>（libass 入り。<code>ffmpeg -filters</code> に <code>subtitles</code> あり）</td>
+</tr>
+<tr>
+<td>auto-editor</td>
+<td>29.3.1</td>
+<td><code>uv tool install auto-editor</code></td>
+</tr>
+<tr>
+<td>whisper.cpp</td>
+<td>1.9.1 相当（master ビルド）</td>
+<td><code>brew install cmake</code> 後、<code>~/src/whisper.cpp</code> で CoreML エンコーダを生成し <code>cmake -B build -DWHISPER_COREML=1 -DGGML_METAL=1</code> → <code>~/.local/bin/whisper-cli</code> に symlink</td>
+</tr>
+<tr>
+<td>ggml モデル</td>
+<td>large-v3 / large-v3-turbo</td>
+<td>HuggingFace <code>ggerganov/whisper.cpp</code> から <code>~/.cache/whisper.cpp/</code> へ取得（<code>VIDPREP_WHISPER_MODEL_DIR</code> で変更可）</td>
+</tr>
+<tr>
+<td>mlx-whisper</td>
+<td>0.4.3</td>
+<td><code>uv sync --all-groups</code>（<code>asr</code> グループ。Apple Silicon 限定のマーカーつき）</td>
+</tr>
+<tr>
+<td>DeepFilterNet</td>
+<td>0.5.6</td>
+<td>GitHub Releases の <code>deep-filter-0.5.6-aarch64-apple-darwin</code> を <code>~/.local/bin/deep-filter</code> に配置</td>
+</tr>
+<tr>
+<td>SudachiPy 辞書</td>
+<td>core (20260428)</td>
+<td><code>sudachidict-core</code> を dev グループに追加</td>
+</tr>
+<tr>
+<td>jiwer</td>
+<td>4.0.0</td>
+<td>dev グループに追加</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>CoreML エンコーダ（<code>ggml-large-v3-turbo-encoder.mlmodelc</code>）は ggml モデルと同じディレクトリに置く。<code>whisper-cli</code> の <code>system_info</code> に <code>COREML = 1</code> が出れば有効</li>
+<li><strong>エンコーダはモデルごとに必要</strong>。CoreML 有効ビルドではエンコーダが無いモデルは <code>failed to load Core ML model</code> → <code>failed to initialize whisper context</code> で起動しない（実測）。現状 <code>~/.cache/whisper.cpp/</code> には turbo 用しか無いため、<strong>large-v3 の行を埋めるには先に large-v3 用エンコーダを生成する</strong>（<code>whisper.cpp/models/generate-coreml-model.sh large-v3</code>）</li>
+<li>VAD 比較（§12.2）には Silero の ggml が要る。<code>whisper.cpp/models/download-vad-model.sh</code> で取得してモデルディレクトリに置くか、<code>asr_bench.py --vad-model &lt;path&gt;</code> で渡す</li>
+<li>auto-editor 29 系は <code>--export v3</code> の出力拡張子を <code>.v3</code> に書き換える（<code>-o out.json</code> としても <code>out.v3</code> になる）。#8 の変換層はこれを前提にする</li>
+</ul>
+<h3 id="122-asr">12.2 ASR ベンチ手順<a class="headerlink" href="#122-asr" title="Permanent link">&para;</a></h3>
+<ol>
+<li>対象: ゴールデンサンプルの <code>audio/processed.wav</code> 相当（ベンチ時点では ffmpeg 手動実行で loudnorm まで済ませた音声。audio-fix 実装前でも実施可能にするため）</li>
+<li>人手リファレンスを作成（§3.2。最初のモデル出力を叩き台に）</li>
+<li>マトリクスを実測（2026-08-04、<code>fixtures/bench/matrix.md</code> / <code>bench.json</code>）:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>モデル × バックエンド</th>
+<th>CER</th>
+<th>実行時間（倍率）</th>
+<th>ハルシ件数</th>
+<th>ピーク RSS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>whisper.cpp large-v3</td>
+<td>70.81%（非代表値。下記注記参照）</td>
+<td>0.37x</td>
+<td>4</td>
+<td>3.8 GiB</td>
+</tr>
+<tr>
+<td>whisper.cpp large-v3-turbo</td>
+<td>5.76%</td>
+<td>0.33x</td>
+<td>6</td>
+<td>3.3 GiB</td>
+</tr>
+<tr>
+<td>mlx-whisper large-v3-turbo</td>
+<td>7.32%</td>
+<td>0.16x</td>
+<td>3</td>
+<td>1.6 GiB</td>
+</tr>
+<tr>
+<td>kotoba-whisper v2.0</td>
+<td>unavailable（理由: <code>~/.cache/whisper.cpp</code> に <code>ggml-kotoba-whisper-v2.0.bin</code> が無く、ggml 変換手段が未提供のため。<code>whisper.cpp/models/convert-h5-to-ggml.py</code> は OpenAI 形式の checkpoint を前提としており kotoba-whisper（transformers 形式のみ配布）には使えない）</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>実行時間は <code>/usr/bin/time -l</code>（wall + peak RSS）。各 2 回走らせ 2 回目を採用（モデルロードのキャッシュ差を除外）</li>
+<li>ハルシ件数: VAD なし素の実行で無音区間に生成されたセグメント数。<strong>加えて VAD あり/なしを最良モデルで比較</strong>し、VAD 前段必須の判断を実測で裏取りする</li>
+<li>上記はハーネスで自動化済み: <code>uv run python scripts/asr_bench.py &lt;loudnorm 済み wav&gt; --reference fixtures/expected/golden.reference.txt</code>。4 候補を各 2 回実行し、生ログを <code>fixtures/bench/&lt;model&gt;/run{1,2}.{json,time}</code> に残し、マトリクスと採用判定を <code>fixtures/bench/matrix.md</code> / <code>bench.json</code> に書き出す</li>
+<li>無音区間は ffmpeg <code>silencedetect</code>（-40dB / 0.5 秒以上、§2 の実測基準と同一）で取り、開始時刻が無音区間内にあるセグメントをハルシとして数える</li>
+<li>VAD 比較は whisper.cpp の <code>--vad</code>（Silero の ggml をモデルディレクトリに置くか <code>--vad-model</code> で指定）で行い、VAD なし行と 2 行で出力する</li>
+<li>実行できない候補（ggml へ未変換の kotoba-whisper v2.0 など）は行を落とさず <code>unavailable (reason: ...)</code> として表に残す</li>
+<li><code>--reference</code> なしでも実行でき、その transcript が §3.2 の人手リファレンスの叩き台になる（CER 列は空欄のまま）</li>
+</ul>
+<p><strong>large-v3 の異常値について</strong>: whisper.cpp large-v3（VAD なし）の transcript は終盤で同一文の repetition loop に陥り（<code>transcript.txt</code> が 2082 bytes と他候補の半分程度）、70.81% という CER は文字起こし精度としては非代表値。無音区間などで誘発される既知の whisper repetition 失敗モードであり、下記 VAD 比較の追加計測で解消することを確認した。</p>
+<p>VAD あり/なし比較（最良モデル + 異常値確認のための large-v3 追加計測）:</p>
+<table>
+<thead>
+<tr>
+<th>モデル × バックエンド</th>
+<th>CER</th>
+<th>実行時間（倍率）</th>
+<th>ハルシ件数</th>
+<th>ピーク RSS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>whisper.cpp large-v3-turbo（VAD なし）</td>
+<td>5.76%</td>
+<td>0.33x</td>
+<td>6</td>
+<td>3.3 GiB</td>
+</tr>
+<tr>
+<td>whisper.cpp large-v3-turbo（VAD あり）</td>
+<td>4.94%</td>
+<td>0.18x</td>
+<td>0</td>
+<td>4.2 GiB</td>
+</tr>
+<tr>
+<td>whisper.cpp large-v3（VAD あり、追加計測）</td>
+<td>5.58%</td>
+<td>0.39x</td>
+<td>0</td>
+<td>3.8 GiB</td>
+</tr>
+</tbody>
+</table>
+<p>large-v3 を VAD ありで再計測すると repetition loop は解消し（transcript は他候補と同程度のサイズ、ハルシ 0 件）、クリーンな CER 5.58% が得られた。ただし large-v3-turbo（VAD あり）の 4.94% を上回るため、採用判定は変わらない。</p>
+<ol>
+<li>判定基準（tomada 承認、2026-08-04 更新）: <strong>実行時間を問わず CER が最小の候補を採用する</strong>（精度を速度より優先）。CER 差が四捨五入で小数第 2 位まで一致する場合のみ実行時間の短い方を採用する。ハーネスの自動出力は「CER 差 1pt 以内なら実行時間の短い方」という旧ルールに基づく参考情報であり、本判定では上書きする（ハーネス改修は別途）。#7 で VAD がデフォルト必須と定義されるため、判定は VAD ありの数値同士で行う: whisper.cpp large-v3-turbo（VAD あり、CER 4.94%）が whisper.cpp large-v3（VAD あり、CER 5.58%）を下回り最小。mlx-whisper large-v3-turbo（CER 7.32%、VAD 未計測）はいずれにせよ非採用</li>
+<li><strong>決定</strong>: <strong>whisper.cpp large-v3-turbo + VAD（Silero）を採用</strong>。design.md §1 の判断 1 と本書 §5 の CER 完了条件（15% 暫定 → 8% 確定）を更新済み</li>
+</ol>
+<p><strong>注記（リファレンスのバイアス）</strong>: リファレンスは large-v3-turbo ドラフトを人手修正して作成したため、turbo に有利な方向のバイアスがありうる（tomada 了承済み）。</p>
+<h3 id="123-step-1">12.3 Step 1 の完了条件<a class="headerlink" href="#123-step-1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] 環境チェックリスト全項目が緑</li>
+<li>[x] ベンチ表が全欄埋まり、採用モデルと根拠が design.md に追記されている</li>
+<li>[x] 人手リファレンス 2 ファイル（§3.2）が fixtures/expected/ に存在する</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "content.tabs.link", "navigation.instant", "navigation.tracking", "navigation.top", "search.suggest", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

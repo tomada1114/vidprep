@@ -1,0 +1,1212 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="CLI pipeline for semi-automated YouTube video preprocessing: silence cutting, Japanese transcription, subtitle generation, and Filmora handoff.">
+      
+      
+      
+        <link rel="canonical" href="https://tomada1114.github.io/vidprep/design/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>vidprep 設計書 - vidprep</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#vidprep" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="vidprep" class="md-header__button md-logo" aria-label="vidprep" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            vidprep
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              vidprep 設計書
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tomada1114/vidprep" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tomada1114/vidprep
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="vidprep" class="md-nav__button md-logo" aria-label="vidprep" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    vidprep
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tomada1114/vidprep" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tomada1114/vidprep
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 確定した設計判断
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. アーキテクチャ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. アーキテクチャ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 パイプライン
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 モジュール構成
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 依存
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. プロジェクトとデータ設計
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. プロジェクトとデータ設計">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 作業ディレクトリ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-vidprepjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 マニフェスト（vidprep.json）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-transcriptjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 transcript.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-cutsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 cuts.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-telopsjson-stylesjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 telops.json / styles.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-profilejson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 profile.json（既定値つき）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#37-dictionariesasr-dictjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7 誤変換辞書（dictionaries/asr-dict.json）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-timelinepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. タイムライン写像仕様（timeline.py）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 各処理段の仕様
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. 各処理段の仕様">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-audio-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 audio-fix
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-transcribe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 transcribe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-correct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 correct
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-detect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 detect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 render
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6 report
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#57-doctor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.7 doctor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. CLI 仕様
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-claude-code-claudeskills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Claude Code 連携（.claude/skills/）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 拡張ポイント（v1 では作らないが壊さない）
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="vidprep">vidprep 設計書<a class="headerlink" href="#vidprep" title="Permanent link">&para;</a></h1>
+<p><a href="../design-input/">design-input.md</a>（実現可能性調査の結論）を前提とし、そこで未決だった事項の決定と、実装に入れる粒度の仕様を定める。検証・効果測定は独立した一級文書 <a href="../verification-plan/">verification-plan.md</a> に定義し、本書と対で読む。</p>
+<h2 id="1">1. 確定した設計判断<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p>design-input.md の未決事項 7 件と、本設計セッションで追加した判断。</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>論点</th>
+<th>決定</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>ASR モデル</td>
+<td><strong>whisper.cpp large-v3-turbo（VAD あり、Silero）に確定</strong>（Step 1 実測ベンチ、2026-08-04）</td>
+<td>ゴールデンサンプル実測（verification-plan.md §12.2）。VAD あり同士の比較で CER が最小（large-v3-turbo 4.94% vs large-v3 5.58%）。採用ルールは実行時間を問わず CER 最小を採用（tomada 承認、CER 差が四捨五入 2 桁で同値の場合のみ実行時間で決める）。VAD ありでハルシネーションが 6→0 件に消え（large-v3 側も無音区間での repetition loop が解消）、実行時間も 0.18x とむしろ最速。ピーク RSS 4.2GB。mlx-whisper large-v3-turbo（CER 7.32%、VAD 未計測）・kotoba-whisper v2.0（ggml 変換不可）は不採用。詳細は verification-plan.md §12.2</td>
+</tr>
+<tr>
+<td>2</td>
+<td>smart cut</td>
+<td><strong>v1 は全再エンコード</strong>（CRF 18 / preset slow）。<code>Renderer</code> プロトコルで差し替え可能にする</td>
+<td>劣化は 1 世代のみで Filmora 取り込みでは再劣化しない（実機確認済み）。検証体系を先に固める</td>
+</tr>
+<tr>
+<td>3</td>
+<td>フィラー検出</td>
+<td>辞書 2 段階（strong / weak）+ セグメント境界依存の候補化。§5.4 参照</td>
+<td>文中フィラーの切り出しは単語タイムスタンプに依存し日本語で非信頼のため v1 で扱わない</td>
+</tr>
+<tr>
+<td>4</td>
+<td>誤変換辞書</td>
+<td><strong>スキーマ互換の独立辞書</strong>。iobsidian <code>fix-transcriptions</code> と同一スキーマを <code>yomi</code> フィールドで拡張し、初期エントリは同辞書からコピー</td>
+<td>用途が違う（iobsidian は LLM の文脈参照、vidprep は読みベース決定的置換）。リポジトリ間結合を避ける</td>
+</tr>
+<tr>
+<td>5</td>
+<td>CLI フレームワーク</td>
+<td><strong>typer</strong></td>
+<td>型ヒントから CLI 生成、mypy strict 構成と親和</td>
+</tr>
+<tr>
+<td>6</td>
+<td>SRT 写像の端数処理</td>
+<td>分割せず<strong>クリップ</strong>方式。§4 に仕様化</td>
+<td>表示中の 1 文を分割すると読み時間が壊れる</td>
+</tr>
+<tr>
+<td>7</td>
+<td>プロジェクト構造</td>
+<td><strong>1 動画 = 1 作業ディレクトリ、場所は任意</strong>。<code>vidprep init</code> で作成、各コマンドは cwd または <code>--project</code> で指定</td>
+<td>ツールが置き場所を強制しない。§3.1 参照</td>
+</tr>
+<tr>
+<td>8</td>
+<td>カット候補の初期ステータス</td>
+<td>無音 = <code>approved</code>、フィラー = <code>proposed</code></td>
+<td>無音検出は誤爆が少ない。レビューの注意をフィラーに集中させる</td>
+</tr>
+<tr>
+<td>9</td>
+<td>境界のぶつ切り対策</td>
+<td>クロスフェード（重なり）ではなく<strong>境界フェード in/out（既定 10ms、尺不変）</strong></td>
+<td>acrossfade は境界ごとに尺が縮み、原尺→カット後の写像関数が壊れる。クリック防止目的はフェードで足りる。design-input の「マイクロクロスフェード 20〜50ms」からの変更点</td>
+</tr>
+<tr>
+<td>10</td>
+<td>スキーマ実装</td>
+<td><strong>pydantic v2</strong></td>
+<td>中間 JSON が設計の核でありバリデーションが本質的。mypy strict とも親和</td>
+</tr>
+<tr>
+<td>11</td>
+<td>検証素材</td>
+<td><code>fixtures/raw/VID_20260507_144024.mp4</code>（ゴールデンサンプル、git 管理外）</td>
+<td>verification-plan.md §2 参照</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2">2. アーキテクチャ<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<h3 id="21">2.1 パイプライン<a class="headerlink" href="#21" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>原尺素材 (mp4)  ※プロジェクトからは絶対パス + sha256 で参照
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a> │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a> ├─ [audio-fix]   denoise → highpass → 2パス loudnorm → audio/processed.wav
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> │                 ↓ 以降の ASR・render はすべて処理済み音声を使う
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a> ├─ [transcribe]  Silero VAD → ASR → transcript.json（原尺タイムスタンプ）
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a> │                 └─ [correct] 辞書置換 →（スキル経由 LLM 校正 → 機械検証つき適用）
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a> ├─ [detect]      auto-editor（無音）+ transcript ベースのフィラー検出 → cuts.json
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a> │                 └─ ★レビューゲート: report で境界ダイジェスト・波形を確認し
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a> │                    人間 / Claude Code が cuts.json の status を編集
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a> └─ [render]      approved のカットのみ適用
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>      ├─ out/output.mp4      全再エンコード + 境界フェード
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>      ├─ out/subtitles.srt   カット後タイムラインへ写像
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>      ├─ out/preview.mp4     ASS テロップ焼き込み（--preview 指定時）
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>      └─ report/             統計 JSON・境界波形 PNG・境界ダイジェスト動画
+</code></pre></div>
+<p>処理順序の不変条件: <strong>ASR は常に原尺（の処理済み音声）に対して行う</strong>。カット後の再 ASR は検証（再文字起こし照合）のためだけに行う。</p>
+<h3 id="22">2.2 モジュール構成<a class="headerlink" href="#22" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>src/vidprep/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── __init__.py      # 公開 API（当面は CLI のみが利用者。__all__ は最小）
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├── cli.py           # typer アプリ。各サブコマンド定義（薄く保つ）
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>├── project.py       # プロジェクト（作業ディレクトリ）の init / load / ステージ記録
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>├── models.py        # pydantic スキーマ: Manifest, Transcript, Cuts, Telops, Styles, Profile
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>├── timeline.py      # ★核心: カット区間の正規化と写像関数（原尺 → カット後）
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>├── audio.py         # audio-fix 実装
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>├── transcribe.py    # VAD + ASR バックエンド呼び出し
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>├── correct.py       # 辞書置換 + LLM パッチの機械検証つき適用
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>├── detect.py        # auto-editor 変換層 + フィラー検出 + cuts.json マージ
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>├── render.py        # Renderer プロトコル + ReencodeRenderer + SRT/ASS 出力
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>├── report.py        # 統計・波形 PNG・境界ダイジェスト
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>├── doctor.py        # 外部依存の検査
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>└── _ffmpeg.py       # ffmpeg / ffprobe サブプロセスの共通ラッパ
+</code></pre></div>
+<p>設計原則（design-input の 3 原則に加えて）:</p>
+<ul>
+<li>各サブコマンドは「JSON を読んで JSON（+成果物）を書く」。モジュール間の受け渡しはファイル経由に統一し、オンメモリの密結合を作らない</li>
+<li>信号処理ループを Python で書かない。ffmpeg / auto-editor / whisper.cpp に丸投げする</li>
+<li><code>timeline.py</code> の写像関数は render（動画）と SRT/ASS 出力で<strong>同一実装を共有</strong>する</li>
+</ul>
+<h3 id="23">2.3 依存<a class="headerlink" href="#23" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>種別</th>
+<th>もの</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python（本体）</td>
+<td>typer, pydantic, pysubs2, budoux, sudachipy</td>
+<td>CLI / スキーマ / 字幕生成 / 行分割 / 読み正規化</td>
+</tr>
+<tr>
+<td>Python（dev）</td>
+<td>jiwer</td>
+<td>CER 計測（検証用）</td>
+</tr>
+<tr>
+<td>外部バイナリ</td>
+<td>ffmpeg（libass 入り。<code>ffmpeg-full</code> 等）, ffprobe, auto-editor, whisper.cpp（または mlx-whisper）, DeepFilterNet（任意）</td>
+<td>doctor が検査する</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3">3. プロジェクトとデータ設計<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="31">3.1 作業ディレクトリ<a class="headerlink" href="#31" title="Permanent link">&para;</a></h3>
+<p><code>vidprep init &lt;dir&gt; --source &lt;mp4&gt;</code> で作成。素材はコピーせず絶対パス + sha256 で参照する（<code>--copy-source</code> で取り込みも可）。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>&lt;project&gt;/
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── vidprep.json         # マニフェスト（§3.2）
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>├── profile.json         # 処理パラメータ（テンプレートからコピーされ、動画ごとに調整可）
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>├── audio/processed.wav  # audio-fix の出力（PCM。ASR と render が使う）
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>├── transcript.json
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>├── cuts.json
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>├── telops.json          # 任意
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>├── out/                 # output.mp4 / subtitles.srt / preview.mp4
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>└── report/              # stats.json / boundaries/*.png / boundary_digest.mp4
+</code></pre></div>
+<p>各コマンドは cwd をプロジェクトとみなし、<code>--project/-p &lt;dir&gt;</code> で明示指定できる。</p>
+<h3 id="32-vidprepjson">3.2 マニフェスト（vidprep.json）<a class="headerlink" href="#32-vidprepjson" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;created_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-08-03T16:00:00+09:00&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/Users/masuyama/Movies/.../VID_20260507_144024.mp4&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nt">&quot;sha256&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;76d8ddd3...&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nt">&quot;duration&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">298.92</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="nt">&quot;video&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;codec&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;h264&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;width&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1920</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;height&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1080</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;fps&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;25/1&quot;</span><span class="p">},</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="nt">&quot;audio&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;codec&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;aac&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;sample_rate&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">44100</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">}</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span><span class="nt">&quot;stages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="nt">&quot;audio_fix&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;done_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;params_sha256&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;tool_versions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;ffmpeg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;7.x&quot;</span><span class="p">}}</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>stages</code> は各コマンドが完了時に記録する（入力パラメータのハッシュとツールバージョン）。下流コマンドは上流の記録と現在の profile を突き合わせ、<strong>古い成果物の上で動くときは警告する</strong>（ブロックはしない）</li>
+<li>source の sha256 は各コマンド開始時に検証する（素材差し替え事故の防止）</li>
+</ul>
+<h3 id="33-transcriptjson">3.3 transcript.json<a class="headerlink" href="#33-transcriptjson" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;audio_source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;audio/processed.wav&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;asr&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;whisper.cpp&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;large-v3-turbo&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;vad&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;silero-v5&quot;</span><span class="p">},</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">&quot;segments&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;s0001&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">      </span><span class="nt">&quot;start&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.234</span><span class="p">,</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">      </span><span class="nt">&quot;end&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">4.567</span><span class="p">,</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">      </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;こんにちは、とまだです。&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">      </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;asr&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">      </span><span class="nt">&quot;edits&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>id</code> は <code>s0001</code> 形式の連番。<strong>一度振った id は不変</strong>（correct はテキストのみ変更、削除・並べ替えをしない）</li>
+<li><code>source</code> は <code>asr | dict | llm</code>（最後にテキストを変更した主体）</li>
+<li><code>edits[]</code> は <code>{"at": ISO8601, "tool": "dict|llm|manual", "before": "旧テキスト"}</code> の履歴。冪等性の検証（同じ入力に再適用して変化しないこと）に使う</li>
+<li><code>words</code> は v1 では持たない（日本語の単語タイムスタンプ非信頼の決定による）。スキーマ上は将来の追加を許す</li>
+</ul>
+<h3 id="34-cutsjson">3.4 cuts.json<a class="headerlink" href="#34-cutsjson" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;cuts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c0001&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;start&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">10.500</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;end&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">13.240</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;silence&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">     </span><span class="nt">&quot;confidence&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.95</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;approved&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;note&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">},</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c0002&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;start&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">45.100</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;end&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">45.900</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;filler&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">     </span><span class="nt">&quot;confidence&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.7</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;proposed&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;note&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;「えーと」+前後無音&quot;</span><span class="p">}</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>reason</code>: <code>silence | filler | manual</code>。<code>status</code>: <code>proposed | approved | rejected</code></li>
+<li><strong>render が適用するのは <code>approved</code> のみ</strong></li>
+<li>不変条件（models.py が強制）: 区間は <code>0 &lt;= start &lt; end &lt;= duration</code>、<strong>approved 同士は重ならない</strong>（proposed との重なりは許す）</li>
+</ul>
+<p><strong>detect 再実行時のマージ規則</strong>（レビュー結果を消さないための核心仕様）:</p>
+<ol>
+<li>新検出区間と既存カットを <code>reason</code> が同じで区間の IoU ≥ 0.5 のものどうしで対応付ける</li>
+<li>対応が付いた場合: 既存の <code>id</code> / <code>status</code> / <code>note</code> を保持し、区間と confidence は新検出値で更新する</li>
+<li>対応が付かない既存カット: <code>manual</code> と <code>rejected</code> と <code>approved</code> は無条件で保持、<code>proposed</code> は削除</li>
+<li>新規候補には新しい id を採番する。<strong>id は再利用しない</strong>（過去の最大値 + 1）</li>
+</ol>
+<h3 id="35-telopsjson-stylesjson">3.5 telops.json / styles.json<a class="headerlink" href="#35-telopsjson-stylesjson" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">// telops.json — Claude Code スキルまたは人間が書き、render --preview が読む</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="p">{</span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;telops&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;segment_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;s0012&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ここが重要&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;style_preset&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;emphasis&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">   </span><span class="nt">&quot;start&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;duration&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">}</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">]}</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1">// styles.json — ASS スタイルプリセット。リポジトリ同梱の既定 + プロジェクトで上書き</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">{</span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;presets&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;emphasis&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;fontname&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Hiragino Sans W6&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">&quot;fontsize&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">64</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;alignment&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;primary_colour&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&amp;H00FFFFFF&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;...&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">}}}</span>
+</code></pre></div>
+<ul>
+<li>テロップの時刻は原則 <code>segment_id</code> 参照（そのセグメントの表示期間に追従）。<code>start</code>（原尺秒）+ <code>duration</code> の直指定も許す</li>
+<li>macOS の libass は CoreText 経由で <code>Bold: 1</code> が効かない事例があるため、プリセットは<strong>ウェイト別ファミリー名</strong>（例: <code>Hiragino Sans W6</code>）で指定する</li>
+<li><code>styles.json</code> は<strong>フィールド単位のマージ</strong>。同梱既定のプリセットに対し、プロジェクト側が書いたフィールドだけを上書きし、書かなかったフィールド（特に <code>fontname</code>）は既定のまま残す。既定にない名前のプリセットは追加として受理する</li>
+<li><strong><code>Bold: 1</code> の実機結果（2026-08-04、ffmpeg 7.1.1 + libass / macOS 15）</strong>: 焼き込み実測で、<code>Hiragino Sans W3</code> + <code>Bold: 1</code> は <code>Hiragino Sans W3</code> 素のままと<strong>見た目が変わらなかった</strong>（= <code>Bold: 1</code> は効かない）。一方 <code>Hiragino Sans W6</code> は明確に太く描画される。よって上記の「ウェイト別ファミリー名で指定する」は回避策ではなく<strong>必須</strong>。検証素材は <code>fixtures/telops-12/</code>（<code>preview.mp4</code> と <code>frame-weights.png</code>）。Filmora 取り込み側での最終確認は verification-plan.md §9 のチェックリストに残る</li>
+</ul>
+<h3 id="36-profilejson">3.6 profile.json（既定値つき）<a class="headerlink" href="#36-profilejson" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">&quot;audio&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;denoise&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepfilternet&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;highpass_hz&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">            </span><span class="nt">&quot;loudnorm&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;i&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-14.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;tp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-1.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;lra&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">11.0</span><span class="p">}},</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">&quot;asr&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;whisper.cpp&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;large-v3-turbo&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">          </span><span class="nt">&quot;language&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ja&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;vad&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;silero-v5&quot;</span><span class="p">},</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="nt">&quot;silence&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;threshold&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;4%&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;min_duration&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.6</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">              </span><span class="nt">&quot;pad_pre&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pad_post&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;min_cut_duration&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.4</span><span class="p">},</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="nt">&quot;filler&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;enable_weak&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;require_adjacent_silence&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="p">},</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span><span class="nt">&quot;render&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;crf&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">18</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;preset&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;slow&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;boundary_fade&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.010</span><span class="p">,</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">             </span><span class="nt">&quot;verify_asr_mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gate&quot;</span><span class="p">},</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">  </span><span class="nt">&quot;subtitle&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;max_chars_per_line&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_lines&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">               </span><span class="nt">&quot;min_display&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.8</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_cps&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">8.0</span><span class="p">}</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>asr.vad</code> は値が 1 つしかない（<code>silero-v5</code>）。VAD はスキップ不可なので、profile でも CLI でも無効化できないことをスキーマで保証する（§5.2）</li>
+<li><code>render.verify_asr_mode</code> は <code>render --verify-asr</code>（再文字起こし照合）の扱い。<code>gate</code>（既定）は境界欠落フラグ 1 件でも exit 3。<code>advisory</code> は同じフラグを警告として報告し exit code を変えない。#11 の導入時は <code>advisory</code> が既定で、#32 の再現性実測（同一 render に 3 回照合してフラグ 0 件・報告値全一致、誤検知 通算 0/364 境界）を経て <code>gate</code> へ昇格した（verification-plan.md §8.1）</li>
+<li><code>pad_pre/pad_post</code> は「発話側に残す余白」。カット区間を両端からこの分だけ縮める。保守的（長め）から始め、ゴールデンサンプルでの試聴で詰める（verification-plan.md §7）</li>
+<li><code>subtitle</code> の既定は YouTube 想定。Netflix 準拠（13 全角/行・4 文字/秒）はプロファイルの値変更で選べる</li>
+<li>時刻・秒値はすべて <strong>float 秒・小数 3 桁（ms）丸め</strong>で統一</li>
+</ul>
+<h3 id="37-dictionariesasr-dictjson">3.7 誤変換辞書（dictionaries/asr-dict.json）<a class="headerlink" href="#37-dictionariesasr-dictjson" title="Permanent link">&para;</a></h3>
+<p>iobsidian の <code>misconversion-dict.json</code> スキーマに <code>yomi</code> を追加した拡張。リポジトリに同梱し git 管理する。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;entries&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;correct&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Claude Code&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;misrecognized&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;クロードコード&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;クラウドコード&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">   </span><span class="nt">&quot;yomi&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;クロードコード&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;confidence&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">},</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;correct&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vidprep&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;misrecognized&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ビッドプレップ&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;yomi&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ビッドプレップ&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">   </span><span class="nt">&quot;confidence&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">}</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="p">]}</span>
+</code></pre></div>
+<ul>
+<li>置換は 2 段: ①<code>misrecognized</code> の表層一致（決定的）②<code>yomi</code> と SudachiPy 読みの一致による検出（誤認識バリエーションの取りこぼし対策）。②は <code>confidence: always</code> のエントリのみ自動置換し、<code>context</code> は LLM 校正に委ねる</li>
+<li>初期エントリは iobsidian 辞書から流用コピーする（YouTube で話す技術用語と重なりが大きい）。以後は独立に育てる</li>
+</ul>
+<h2 id="4-timelinepy">4. タイムライン写像仕様（timeline.py）<a class="headerlink" href="#4-timelinepy" title="Permanent link">&para;</a></h2>
+<p><strong>入力</strong>: approved カット区間の集合。<strong>前処理（正規化）</strong>: start 昇順に整列し、隣接・重複区間を結合して互いに素な区間列 <code>C = [(a1,b1), ..., (an,bn)]</code> を得る。</p>
+<p><strong>写像関数</strong> <code>f: 原尺秒 → カット後秒</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>removed(t) = Σ |(ai,bi) ∩ [0,t)|          # t までに削除された総尺
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>f(t) = t - removed(t)                       # カット内の t は f(bi) に写る（連続）
+</code></pre></div>
+<p>境界フェードは重なりを持たない（§1 判断 9）ため、<strong>写像は区間ごとの平行移動のみ</strong>で表せる。逆写像 <code>f⁻¹</code>（カット後 → 原尺）も同じ区間表で実装し、report の境界表示と再文字起こし照合（verification-plan.md §8.1）が使う。</p>
+<p><strong>字幕セグメントの写像規則</strong>（未決 6 の仕様化）:</p>
+<table>
+<thead>
+<tr>
+<th>ケース</th>
+<th>扱い</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>セグメントがカットに完全に含まれる</td>
+<td>SRT から除外し、report に警告として記録（「発話を消すカット」の兆候）</td>
+</tr>
+<tr>
+<td>セグメントの端がカットと重なる</td>
+<td>重なった端をカット境界まで<strong>クリップ</strong>してから写像</td>
+</tr>
+<tr>
+<td>セグメントの内部にカットが完全に含まれる</td>
+<td><strong>分割しない</strong>。1 エントリのまま写像し、表示時間は自然に短縮される</td>
+</tr>
+<tr>
+<td>写像後の表示時間 &lt; <code>min_display</code>（既定 0.8s）</td>
+<td>出力はするが report に警告（自動削除はしない）</td>
+</tr>
+<tr>
+<td>写像後に前後エントリと時刻が接触</td>
+<td>end を次エントリ start まで切り詰め（ms 精度、単調増加を保証）</td>
+</tr>
+</tbody>
+</table>
+<p>丸めは ms 単位・最終出力時のみ（中間計算は float のまま）。この規則により「フィラー 1 語をセグメント中央から消した」場合も字幕テキストは全文のまま短い表示になる — 読み速度警告（<code>max_cps</code> 超過）が report に出るので、そこで人間が判断する。</p>
+<h2 id="5">5. 各処理段の仕様<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<h3 id="51-audio-fix">5.1 audio-fix<a class="headerlink" href="#51-audio-fix" title="Permanent link">&para;</a></h3>
+<p>チェーン: <code>denoise（DeepFilterNet、無ければ afftdn にフォールバック）→ highpass 80Hz → loudnorm 2 パス（linear モード）</code>。出力は <code>audio/processed.wav</code>（PCM 16bit、ソースのサンプルレート維持）。</p>
+<ul>
+<li>loudnorm は 1 パス目で measured 値を取得し、2 パス目に <code>measured_*</code> を渡す linear モードで実行する（dynamic モードのポンピング回避）</li>
+<li>尺を変えてはならない（完了条件: 尺差 ≤ 1ms。verification-plan.md §4）</li>
+<li><code>--stats</code> で処理前後の LUFS / TP / LRA / 無音区間 RMS を JSON 出力</li>
+<li><code>--stats</code> 時は denoise 直後（loudnorm 前）の無音区間 RMS を処理前と比較し、<code>report/noise_floor.json</code> に記録する。この測定点はチェーン実行中にしか存在せず後から再現できないため、<code>report</code> は自分で測らずこのファイルを引用して REQ-007 を判定する（verification-plan.md §4.1）</li>
+</ul>
+<h3 id="52-transcribe">5.2 transcribe<a class="headerlink" href="#52-transcribe" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Silero VAD で発話区間を検出（ハルシネーション対策として<strong>必須</strong>、スキップ不可）</li>
+<li>発話区間ごとに ASR を実行し、タイムスタンプを原尺に補正して結合</li>
+<li>VAD 区間情報は <code>report/vad.json</code> に保存（detect のフィラー判定と検証が使う）</li>
+</ol>
+<p>バックエンドは <code>whisper.cpp</code>（subprocess）と <code>mlx-whisper</code> の 2 実装を持ち、profile で選ぶ。モデルは Step 1 のベンチで確定。</p>
+<p>実装上の Silero VAD の担い手は whisper.cpp（<code>--vad</code>）に一本化する。whisper.cpp は発話区間の検出・区間だけの認識・原尺への時刻補正を 1 プロセスで行い、検出した区間をログに出す（<code>vad_segment_info</code>）。したがって:</p>
+<ul>
+<li><code>whisper.cpp</code> バックエンド: 1 回の実行から transcript と <code>report/vad.json</code> の両方を得る（ベンチ実測値と同じ実行形）</li>
+<li><code>mlx-whisper</code> バックエンド: 検出だけを行う whisper.cpp の実行（<code>-d 1</code>）で区間を得て、区間ごとに ffmpeg で切り出して mlx に渡し、返ってきた区間内時刻に区間 start を加算して原尺に戻す。<code>--clip-timestamps</code> で一括処理する形は実測で棄却した（ゴールデンサンプルで 106 セグメント中 23 件が発話区間外に着地し、末尾は素材尺を超えて repetition loop に入った）</li>
+<li>どちらの経路でも、書き出す前に「全セグメントの start が検出区間の内側か」「既知の幻覚フレーズが無音上に乗っていないか」を検証し、破れていれば何も書かずに exit 3</li>
+</ul>
+<h3 id="53-correct">5.3 correct<a class="headerlink" href="#53-correct" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>vidprep correct</code> : 辞書置換（決定的・冪等）。§3.7 の 2 段方式</li>
+<li><code>vidprep correct --apply-patch &lt;patch.json&gt;</code> : LLM 校正パッチの適用。パッチは <code>{"edits": [{"id": "s0001", "text": "新テキスト"}]}</code> 形式で、適用前に機械検証する:</li>
+<li>存在する id のみか / id の重複がないか</li>
+<li><strong>タイムスタンプ・セグメント数・順序を変更していないか</strong>（パッチ形式上そもそも書けないが、適用後の不変条件としても検証）</li>
+<li>変更セグメント数と diff サマリを表示し、<code>--yes</code> がなければ確認を求める</li>
+</ul>
+<p>LLM 校正そのもの（プロンプト・文脈判断）は Claude Code スキルの仕事で、CLI は検証つき適用だけを担う。</p>
+<h3 id="54-detect">5.4 detect<a class="headerlink" href="#54-detect" title="Permanent link">&para;</a></h3>
+<ul>
+<li>無音: <code>auto-editor --export v3</code> の JSON タイムラインを keep/cut リストへ変換（変換層は auto-editor のバージョンを記録し、v3 スキーマ変化を検知したらエラーにする）。パディング適用後 <code>min_cut_duration</code> 未満の区間は捨てる</li>
+<li>フィラー: transcript.json のセグメントに対し辞書照合で検出する。<strong>候補化するのは次のどちらかのみ</strong>:</li>
+<li>(a) セグメント全体がフィラー語のみ（例: 「えーと」だけのセグメント）→ セグメント区間 + 隣接無音を一体のカット候補にする</li>
+<li>(b) セグメントの先頭/末尾がフィラー語で、<code>require_adjacent_silence</code> 秒以上の無音に隣接 → VAD 境界を使ってフィラー部分を切り出す</li>
+<li>文中フィラーは検出のみ（<code>note</code> に記録、カット候補にしない）</li>
+<li>フィラー辞書（profile とは別にリポジトリ同梱、プロジェクトで追記可）:</li>
+<li>strong（既定で候補化）: えー、えーと、えっと、あのー、そのー、うーん</li>
+<li>weak（<code>enable_weak: true</code> のときのみ候補化）: まあ、なんか、こう</li>
+<li>出力は §3.4 のマージ規則で既存 cuts.json に統合する</li>
+</ul>
+<p>実装時に確定した詳細（auto-editor 29.3.1 実測）:</p>
+<ul>
+<li>無音検出の入力は <code>audio/processed.wav</code>（detect は audio-fix の下流）。<code>--margin 0s</code> を明示し、パディングは vidprep 側で行う。auto-editor の margin に任せると「検出器出力との差分」でパディングを機械確認できなくなるため</li>
+<li><code>min_duration</code> に相当する CLI オプションは auto-editor 29.3.1 に存在しないため、変換層で「gap 長 &lt; min_duration の無音は検出しない」として適用する</li>
+<li><strong><code>--progress none</code> を明示する</strong>。タイムラインは <code>-o -</code> で stdout から受け取るが、auto-editor は進捗バーも stdout に描くうえ <code>--quiet</code> ではバーが止まらない。音量解析が進捗バーを描く程度に遅いランでは <code>Analyzing audio volume | ... ETA ...</code> が JSON の前に混ざり、<code>timeline_schema</code>（exit 2）で停止する。バーが出るかは auto-editor の音量キャッシュ（<code>$TMPDIR/ae-29.3.1/</code>）が温まっているかで変わるため、同じコマンドが通ったり落ちたりする（#30 実測）。なお <code>-o &lt;file&gt;</code> は §12.1.1 のとおり拡張子を <code>.v3</code> に書き換えるので、stdout 経由をやめる選択肢は取らない</li>
+<li><strong>発話衝突（1 カットあたり ≤ 0.2 秒）は transcript セグメント区間そのものではなく「transcript ∩ VAD 発話区間」で測る</strong>。whisper.cpp の VAD 併用時、セグメントの end が次の発話区間の末尾まで伸びることがある（ゴールデン実測: 1 セグメントが 55 秒の無音をまたいだ）。生の区間で測ると 30 カット中 15 件が閾値超過となり、実際には発話を消していないカットで detect が止まる</li>
+<li>区間が無音カットをまたぐ transcript セグメントは<strong>削除せず警告</strong>する（#7 の二重防御の結論）。transcript は transcribe の所有物であり、detect は書き換えない</li>
+<li>条件 (b) は「セグメント内部に VAD 境界があるとき」のみ候補化する。境界がなければフィラーの終端を推測できないため note のみに留める（precision 優先）</li>
+<li>フィラー候補は同じ実行で検出した無音カットとの重なりを引いてから出力する。両方を approved にしても「approved 同士は重ならない」不変条件が破れないようにするため</li>
+</ul>
+<h3 id="55-render">5.5 render<a class="headerlink" href="#55-render" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Renderer</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">keep</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Interval</span><span class="p">],</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>               <span class="n">audio</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">profile</span><span class="p">:</span> <span class="n">Profile</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RenderResult</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>v1 実装は <code>ReencodeRenderer</code>: keep 区間を <code>trim</code> + <code>concat</code> フィルタで連結し、映像 CRF 18 / preset slow / 元解像度・fps 維持、音声は processed.wav の対応区間 + 境界フェード（<code>afade</code> 10ms、尺不変）で AAC 320kbps に再エンコード。smart cut は将来 <code>SmartCutRenderer</code> として同一プロトコルで差し替える。</p>
+<ul>
+<li><code>subtitles.srt</code>: §4 の写像で生成（BudouX + <code>max_chars_per_line</code> で行分割した版。<code>--no-wrap</code> で改行なし版も出せる）</li>
+<li><code>--preview</code>: telops.json + styles.json から ASS を組み、libass 焼き込みの preview.mp4 を出す</li>
+<li>render は開始前に cuts.json の不変条件と、transcript / cuts の元になった素材ハッシュの一致を検証する</li>
+<li><code>--verify-asr</code>: レンダリング後に出力を再 ASR し、カット境界での語の欠落を照合する（仕様は verification-plan.md §8.1）</li>
+</ul>
+<h3 id="56-report">5.6 report<a class="headerlink" href="#56-report" title="Permanent link">&para;</a></h3>
+<p>レビューゲートと検証の道具。<code>vidprep report</code> で以下を再生成する:</p>
+<ul>
+<li><code>report/stats.json</code>: 原尺 / カット後尺 / 削減率 / reason 別カット数と秒数 / LUFS 前後 / ノイズフロア（<code>denoise</code> = REQ-007 判定、<code>output</code> = 完成音声の参考値）/ 字幕警告一覧（写像時の除外・min_display 未満・max_cps 超過）</li>
+<li><code>report/boundaries/*.png</code>: 各カット境界前後 ±2s の波形 PNG（<code>showwavespic</code>）</li>
+<li><code>report/boundary_digest.mp4</code>: <strong>全カット境界の前後 ±2s だけを連結した確認用動画</strong>（境界位置に無音の 0.5s 黒フレームを挟む）。カットが 30 箇所あっても数分で全境界を試聴でき、レビューゲートの主力になる</li>
+<li><code>--cuts</code>: カット候補ごとに「削除される transcript テキスト + 前後の文脈」を表示（人間 / スキルが status を判断する材料）</li>
+</ul>
+<h3 id="57-doctor">5.7 doctor<a class="headerlink" href="#57-doctor" title="Permanent link">&para;</a></h3>
+<p>検査対象: ffmpeg（<code>subtitles</code> フィルタ = libass の有無も確認）、ffprobe、auto-editor、ASR バックエンド（whisper.cpp バイナリ + モデルファイル / mlx-whisper import）、Silero VAD の重み（<code>ggml-silero-*.bin</code>。§5.2 の VAD は両バックエンドで必須なので必須項目扱い。モデルファイルとしては ASR 側の候補から除外する）、DeepFilterNet（任意扱い）、SudachiPy 辞書。結果を JSON 出力し、必須が欠けていれば exit 3。</p>
+<h2 id="6-cli">6. CLI 仕様<a class="headerlink" href="#6-cli" title="Permanent link">&para;</a></h2>
+<p>サブコマンド: <code>init | doctor | audio-fix | transcribe | correct | detect | render | report</code></p>
+<p>共通仕様:</p>
+<ul>
+<li><code>--project/-p &lt;dir&gt;</code>（既定 cwd）、<code>--json</code>（結果 JSON を stdout、人間向けログは stderr）、<code>--dry-run</code>（実行計画の表示のみ。外部コマンド列を含む）</li>
+<li>exit code: <code>0</code> 成功 / <code>1</code> 使用法・環境エラー / <code>2</code> 処理実行の失敗 / <code>3</code> 検証 NG（スキーマ不正、ハッシュ不一致、doctor の必須欠如など）</li>
+<li>破壊的でない: すべての出力は上書き前に生成し、成功時にアトミックに置き換える。ソース素材には一切書き込まない</li>
+</ul>
+<h2 id="7-claude-code-claudeskills">7. Claude Code 連携（.claude/skills/）<a class="headerlink" href="#7-claude-code-claudeskills" title="Permanent link">&para;</a></h2>
+<p>CLI 本体は AI 非依存。スキルは中間 JSON の読み書きと CLI 呼び出しだけを行う。v1 で用意するスキルは 3 つ（実装はスキル作成時に詰める。ここでは契約のみ定義）:</p>
+<table>
+<thead>
+<tr>
+<th>スキル</th>
+<th>読む</th>
+<th>書く</th>
+<th>契約</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>correct-transcript</td>
+<td>transcript.json, dictionaries/</td>
+<td>patch.json</td>
+<td>パッチ形式（§5.3）のみ。適用は必ず <code>vidprep correct --apply-patch</code> を通す</td>
+</tr>
+<tr>
+<td>review-cuts</td>
+<td>cuts.json, <code>report --cuts</code> 出力, transcript.json</td>
+<td>cuts.json（status のみ）</td>
+<td>区間・id の変更禁止。判断根拠を <code>note</code> に書く</td>
+</tr>
+<tr>
+<td>place-telops</td>
+<td>transcript.json, styles.json</td>
+<td>telops.json</td>
+<td>検証は <code>render --preview</code> のスキーマ検証に委ねる</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8-v1">8. 拡張ポイント（v1 では作らないが壊さない）<a class="headerlink" href="#8-v1" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>smart cut</strong>: <code>Renderer</code> プロトコル差し替え（§5.5）。cuts.json・写像仕様は変更不要</li>
+<li><strong>テキスト指定カット</strong>: 「この発言を消して」→ スキルが transcript から区間を引いて <code>reason: manual</code> のカットを書く。既存スキーマで表現可能</li>
+<li><strong>チャプター・概要欄生成</strong>: transcript.json + 写像関数の副産物。新規スキーマ不要</li>
+<li><strong>言い直し検出</strong>: detect に検出器を追加し <code>reason</code> を増やすだけで載る（スキーマの <code>reason</code> は将来値を許容するバリデーションにする）</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "content.tabs.link", "navigation.instant", "navigation.tracking", "navigation.top", "search.suggest", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
