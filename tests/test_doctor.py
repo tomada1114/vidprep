@@ -21,7 +21,16 @@ FFPROBE_BANNER = "ffprobe version 7.1.1 Copyright (c) 2007-2025 the FFmpeg devel
 SUBTITLES_FILTER = " ..C subtitles         V->V       Render text subtitles onto video."
 OTHER_FILTERS = " ... afftdn            A->A       Denoise audio samples using FFT.\n"
 MODEL_NAME = "ggml-large-v3-turbo.bin"
-ALL_CHECKS = ("ffmpeg", "ffprobe", "auto_editor", "asr", "deepfilternet", "sudachipy")
+VAD_MODEL_NAME = "ggml-silero-v5.1.2.bin"
+ALL_CHECKS = (
+    "ffmpeg",
+    "ffprobe",
+    "auto_editor",
+    "asr",
+    "vad",
+    "deepfilternet",
+    "sudachipy",
+)
 
 
 def write_tool(directory: Path, name: str, script: str, *, mode: int = 0o755) -> Path:
@@ -80,6 +89,11 @@ def install_whisper_cpp(
     (models / model).write_bytes(b"pretend this is a ggml model")
 
 
+def install_vad_model(models: Path, *, model: str = VAD_MODEL_NAME) -> None:
+    models.mkdir(parents=True, exist_ok=True)
+    (models / model).write_bytes(b"pretend these are the Silero weights")
+
+
 class FakeTokenizer:
     """A Sudachi tokenizer that always finds one morpheme."""
 
@@ -123,6 +137,7 @@ def healthy_env(
     install_ffprobe(bin_dir)
     install_auto_editor(bin_dir)
     install_whisper_cpp(bin_dir, model_dir)
+    install_vad_model(model_dir)
     monkeypatch.setattr(sudachipy, "Dictionary", FakeDictionary)
     return bin_dir
 
@@ -345,6 +360,73 @@ class TestAsr:
         assert "not importable" in check["error"]
 
 
+class TestVad:
+    def test_the_silero_weights_are_reported_by_name(self, model_dir):
+        install_vad_model(model_dir)
+
+        check = doctor.check_vad()
+
+        assert check == {
+            "ok": True,
+            "model_dir": str(model_dir),
+            "models": [VAD_MODEL_NAME],
+        }
+
+    def test_a_model_directory_without_silero_weights_is_not_ok(
+        self, bin_dir, model_dir
+    ):
+        install_whisper_cpp(bin_dir, model_dir)
+
+        check = doctor.check_vad()
+
+        assert check["ok"] is False
+        assert check["models"] == []
+        assert doctor.VAD_MODEL_GLOB in check["error"]
+        assert str(model_dir) in check["error"]
+
+    def test_a_model_directory_that_does_not_exist_is_not_ok(self, model_dir):
+        check = doctor.check_vad()
+
+        assert check["ok"] is False
+        assert check["models"] == []
+
+    def test_the_silero_weights_do_not_count_as_a_transcription_model(
+        self, bin_dir, model_dir
+    ):
+        """`transcribe` needs both, and only one of them was downloaded."""
+        write_tool(bin_dir, "whisper-cli", "exit 0")
+        install_vad_model(model_dir)
+
+        assert doctor.check_vad()["ok"] is True
+        assert doctor.check_whisper_cpp() == {
+            "ok": False,
+            "path": str(bin_dir / "whisper-cli"),
+            "model_dir": str(model_dir),
+            "models": [],
+            "error": f"no transcription model ({doctor.WHISPER_MODEL_GLOB}) "
+            f"in {model_dir}",
+        }
+
+    def test_missing_silero_weights_make_the_report_ng(self, healthy_env, model_dir):
+        (model_dir / VAD_MODEL_NAME).unlink()
+
+        report = doctor.diagnose()
+
+        assert report.status == "ng"
+        assert report.missing == ("vad",)
+
+    def test_missing_silero_weights_name_the_download_script(
+        self, healthy_env, model_dir
+    ):
+        (model_dir / VAD_MODEL_NAME).unlink()
+
+        lines = doctor.summary_lines(doctor.diagnose())
+
+        assert lines[4].startswith(f"✖ vad: no {doctor.VAD_MODEL_GLOB} model in ")
+        assert "download-vad-model.sh silero-v5.1.2" in lines[4]
+        assert lines[-1] == "✖ missing required dependencies: vad"
+
+
 class TestDeepFilterNet:
     def test_a_missing_deepfilternet_records_the_fallback(self, bin_dir):
         check = doctor.check_deepfilternet()
@@ -431,7 +513,7 @@ class TestReport:
         assert report.missing == ("ffprobe",)
 
     def test_every_category_is_reported_even_when_all_are_broken(
-        self, bin_dir, monkeypatch
+        self, bin_dir, model_dir, monkeypatch
     ):
         def no_dictionary(**kwargs: Any) -> FakeDictionary:
             message = f"no dictionary {kwargs['dict']}"
@@ -465,8 +547,9 @@ class TestSummaryLines:
         assert lines[0] == "✔ ffmpeg 7.1.1 (libass: yes)"
         assert lines[2] == "✔ auto-editor 29.3.1 (--export v3: yes)"
         assert f"whisper.cpp ({MODEL_NAME})" in lines[3]
-        assert lines[4].startswith("⚠ deepfilternet:")
-        assert lines[5] == "✔ sudachipy: core dictionary OK"
+        assert lines[4] == f"✔ vad: {VAD_MODEL_NAME}"
+        assert lines[5].startswith("⚠ deepfilternet:")
+        assert lines[6] == "✔ sudachipy: core dictionary OK"
 
     def test_a_missing_dependency_is_followed_by_what_to_do_about_it(self, healthy_env):
         (healthy_env / "auto-editor").unlink()
@@ -515,6 +598,18 @@ class TestCli:
         assert result.exit_code == EXIT_VALIDATION
         assert payload["status"] == "ng"
         assert payload["missing"] == ["ffprobe"]
+
+    def test_doctor_exits_three_when_the_vad_weights_are_missing(
+        self, run_cli, healthy_env, model_dir
+    ):
+        (model_dir / VAD_MODEL_NAME).unlink()
+
+        result = run_cli("doctor", "--json")
+
+        payload = json.loads(result.stdout)
+        assert result.exit_code == EXIT_VALIDATION
+        assert payload["status"] == "ng"
+        assert payload["missing"] == ["vad"]
 
     def test_doctor_exits_zero_when_only_deepfilternet_is_missing(
         self, run_cli, healthy_env

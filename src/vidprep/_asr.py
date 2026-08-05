@@ -43,8 +43,9 @@ MLX_WHISPER = "mlx-whisper"
 MLX_BINARY = "mlx_whisper"
 
 #: Silero weights whisper.cpp's ``--vad`` needs, looked up next to the models
-#: so ``$VIDPREP_WHISPER_MODEL_DIR`` moves both at once (design.md §5.7).
-VAD_MODEL_GLOB = "ggml-silero-*.bin"
+#: so ``$VIDPREP_WHISPER_MODEL_DIR`` moves both at once (design.md §5.7). The
+#: pattern lives in :mod:`doctor`, which reports on the same file.
+VAD_MODEL_GLOB = doctor.VAD_MODEL_GLOB
 
 #: Stem every backend writes its transcript under, inside the workspace.
 OUTPUT_STEM = "asr"
