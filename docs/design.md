@@ -204,14 +204,14 @@ src/vidprep/
               "pad_pre": 0.3, "pad_post": 0.3, "min_cut_duration": 0.4},
   "filler": {"enable_weak": false, "require_adjacent_silence": 0.2},
   "render": {"crf": 18, "preset": "slow", "boundary_fade": 0.010,
-             "verify_asr_mode": "advisory"},
+             "verify_asr_mode": "gate"},
   "subtitle": {"max_chars_per_line": 20, "max_lines": 2,
                "min_display": 0.8, "max_cps": 8.0}
 }
 ```
 
 - `asr.vad` は値が 1 つしかない（`silero-v5`）。VAD はスキップ不可なので、profile でも CLI でも無効化できないことをスキーマで保証する（§5.2）
-- `render.verify_asr_mode` は `render --verify-asr`（再文字起こし照合）の扱い。`advisory`（既定）は境界欠落フラグを警告として報告し exit code を変えない。`gate` は 1 件でも exit 3（verification-plan.md §8.1）
+- `render.verify_asr_mode` は `render --verify-asr`（再文字起こし照合）の扱い。`gate`（既定）は境界欠落フラグ 1 件でも exit 3。`advisory` は同じフラグを警告として報告し exit code を変えない。#11 の導入時は `advisory` が既定で、#32 の再現性実測（同一 render に 3 回照合してフラグ 0 件・報告値全一致、誤検知 通算 0/364 境界）を経て `gate` へ昇格した（verification-plan.md §8.1）
 - `pad_pre/pad_post` は「発話側に残す余白」。カット区間を両端からこの分だけ縮める。保守的（長め）から始め、ゴールデンサンプルでの試聴で詰める（verification-plan.md §7）
 - `subtitle` の既定は YouTube 想定。Netflix 準拠（13 全角/行・4 文字/秒）はプロファイルの値変更で選べる
 - 時刻・秒値はすべて **float 秒・小数 3 桁（ms）丸め**で統一

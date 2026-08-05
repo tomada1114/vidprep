@@ -31,10 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   heard, placed back on the original timeline through the cut mapping and
   landing within two seconds of a cut boundary, is reported as a boundary flag
   with the cut, the second and the missing text. The global CER is recorded as a
-  reference figure and decides nothing. The check is advisory — flags are
-  reported and the exit code stays `0` — until `profile.json` sets the new
-  `render.verify_asr_mode` to `"gate"`, when one flag exits `3`. The render is
-  only read; nothing about it changes either way
+  reference figure and decides nothing. The check is a gate — one flag exits
+  `3` — and the new `render.verify_asr_mode` set to `"advisory"` in
+  `profile.json` reports the same flags with the exit code left at `0`. It was
+  introduced as advisory and promoted once the recogniser's repeatability had
+  been measured: three comparisons of one render returned identical numbers,
+  and no normal boundary has been flagged in 364 of them
+  (verification-plan.md §8.1). The render is only read; nothing about it
+  changes either way
 - `vidprep render` now reads `out/subtitles.srt` back after writing it and
   refuses with exit `3` if an entry the mapping produced is not in the file, at
   its timing and with its text (verification-plan.md §9)
@@ -45,7 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   either way. `just golden-diff` (`scripts/compare_stats.py`) diffs two runs —
   every number, warning lists by their length, and text values such as the
   `verify_asr` backend and model — and reports "first run" and exits `0` when
-  there is nothing to compare against. Both are local-only
+  there is nothing to compare against. Both are local-only. `--skip <stage>`
+  leaves one stage out of an otherwise identical run, which is how a number is
+  attributed to that stage rather than to the pipeline; the run says what it
+  skipped and records it in `summary.json`, because a run missing a stage is
+  not a baseline
 - `tests/fault_injection/`: the six deliberately broken inputs of
   verification-plan.md §10, each asserting that the check meant to catch it
   fails. Every case runs on its own

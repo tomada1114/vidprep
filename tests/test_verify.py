@@ -510,13 +510,31 @@ class TestCli:
 
         assert result.exit_code == EXIT_OK
         payload = json.loads(result.stdout)["verify_asr"]
-        assert payload["mode"] == verify.ADVISORY
+        assert payload["mode"] == verify.GATE
         assert payload["near_boundary_flags"] == 0
         assert payload["boundaries"] == 2 * len(APPROVED)
 
-    def test_advisory_reports_a_flag_without_failing(self, tmp_path, run_cli):
+    def test_a_flag_fails_the_run_under_the_default_mode(self, tmp_path, run_cli):
+        """The gate of verification-plan.md §8.1, promoted in #32."""
         cuts = (*CUTS, MIDWORD_CUT)
         flagged = build_project(tmp_path / "flagged", cuts)
+
+        with FakeMedia(reasr=self._damaged()).installed(tmp_path):
+            result = run_cli(
+                "render", "--verify-asr", "--json", "--project", str(flagged.root)
+            )
+
+        assert result.exit_code == EXIT_VALIDATION
+        payload = json.loads(result.stdout)["verify_asr"]
+        assert payload["mode"] == verify.GATE
+        assert payload["flags"][0]["cut_id"] == "c0003"
+
+    def test_advisory_reports_the_same_flag_without_failing(self, tmp_path, run_cli):
+        cuts = (*CUTS, MIDWORD_CUT)
+        flagged = build_project(tmp_path / "flagged", cuts)
+        profile = flagged.profile.model_copy(deep=True)
+        profile.render.verify_asr_mode = verify.ADVISORY
+        project_module.write_json(flagged.root / project_module.PROFILE_NAME, profile)
 
         with FakeMedia(reasr=self._damaged()).installed(tmp_path):
             result = run_cli(
@@ -525,23 +543,9 @@ class TestCli:
 
         assert result.exit_code == EXIT_OK
         payload = json.loads(result.stdout)["verify_asr"]
+        assert payload["mode"] == verify.ADVISORY
         assert payload["near_boundary_flags"] == 1
         assert payload["flags"][0]["cut_id"] == "c0003"
-
-    def test_the_gate_mode_turns_the_same_flag_into_exit_three(self, tmp_path, run_cli):
-        cuts = (*CUTS, MIDWORD_CUT)
-        flagged = build_project(tmp_path / "flagged", cuts)
-        profile = flagged.profile.model_copy(deep=True)
-        profile.render.verify_asr_mode = verify.GATE
-        project_module.write_json(flagged.root / project_module.PROFILE_NAME, profile)
-
-        with FakeMedia(reasr=self._damaged()).installed(tmp_path):
-            result = run_cli(
-                "render", "--verify-asr", "--json", "--project", str(flagged.root)
-            )
-
-        assert result.exit_code == EXIT_VALIDATION
-        assert json.loads(result.stdout)["verify_asr"]["mode"] == verify.GATE
 
     def test_a_dry_run_shows_the_second_pass_it_would_make(
         self, project, tmp_path, run_cli

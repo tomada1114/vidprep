@@ -12,11 +12,13 @@ the second pass never heard, within two seconds of a boundary.
 :func:`missing_subtitle_entries` reads ``out/subtitles.srt`` back and checks
 every entry the mapping produced is really in the file (verification-plan.md §9).
 
-The check is advisory to begin with: a recogniser run twice does not return the
-same string twice, so the flag count is reported and the exit code is left alone
-until the fault injections of §10 have shown what its detection power and its
-false-positive rate are. ``profile.json`` promotes it with
-``render.verify_asr_mode = "gate"``.
+The check is a gate: one flag fails the run. It began as advisory, on the
+assumption that a recogniser run twice does not return the same string twice,
+and was promoted once that assumption had been measured — three comparisons of
+one render returned identical numbers, and no normal boundary has been flagged
+in 364 of them (verification-plan.md §8.1). A project that wants the old
+behaviour sets ``render.verify_asr_mode = "advisory"`` in ``profile.json``,
+which reports the same flags and leaves the exit code alone.
 """
 
 from __future__ import annotations

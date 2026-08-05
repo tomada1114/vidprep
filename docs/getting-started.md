@@ -142,11 +142,12 @@ vidprep render --verify-asr --json   # the comparison under "verify_asr"
 
 !!! note
 
-    The check is advisory: it reports its flags and leaves the exit code at
-    `0`, because a recogniser run twice does not return the same string twice.
-    Set `render.verify_asr_mode` to `"gate"` in `profile.json` to make one flag
-    exit `3`. The global CER is reported as a reference figure and decides
-    nothing.
+    The check is a gate: one flag exits `3`. Set `render.verify_asr_mode` to
+    `"advisory"` in `profile.json` to have the same flags reported with the
+    exit code left at `0`. The global CER is reported as a reference figure and
+    decides nothing — running `correct` first raises it, because the dictionary
+    fixes the expected side while the second pass repeats the misrecognition
+    (verification-plan.md §11).
 
 A flagged boundary is a question, not a verdict: seek to `src_time` in
 `report/boundary_digest.mp4` and listen.
@@ -160,6 +161,8 @@ against it:
 ```bash
 just golden        # six stages, then fixtures/runs/<date>/
 just golden-diff   # what changed between the two most recent runs
+just golden --skip correct   # the same run without one stage, to attribute a
+                             # number to it; not a baseline, and says so
 ```
 
 Both are local-only: they need the material, ffmpeg, whisper.cpp and

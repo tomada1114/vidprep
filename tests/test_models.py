@@ -138,7 +138,7 @@ PROFILE_SAMPLE: dict[str, Any] = {
         "crf": 18,
         "preset": "slow",
         "boundary_fade": 0.010,
-        "verify_asr_mode": "advisory",
+        "verify_asr_mode": "gate",
     },
     "subtitle": {
         "max_chars_per_line": 20,

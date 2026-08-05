@@ -15,7 +15,7 @@ vidprep detect              # 無音 + フィラーのカット候補 → cuts.j
 vidprep report --cuts       # 候補ごとに「消える発話 + 前後の文脈」を表示（status 判断の材料）
 vidprep render --no-wrap    # approved カットを適用 → out/output.mp4 + out/subtitles.srt
 vidprep render --preview    # telops.json + styles.json → out/telops.ass + out/preview.mp4
-vidprep render --verify-asr # 出力を再文字起こしし、境界で消えた語を検出する（advisory）
+vidprep render --verify-asr # 出力を再文字起こしし、境界で消えた語を検出する（既定は gate）
 vidprep report              # stats.json + 境界波形 PNG + boundary_digest.mp4 を再生成
 just golden                 # ゴールデンサンプルで全段を通し fixtures/runs/<date>/ に保存
 just golden-diff            # 直近 2 回のゴールデンランを diff する

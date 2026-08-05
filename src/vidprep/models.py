@@ -428,18 +428,19 @@ class FillerProfile(_Strict):
 class RenderProfile(_Strict):
     """Re-encode parameters, the boundary fade, and how strict verification is.
 
-    ``verify_asr_mode`` starts at ``advisory`` on purpose: a recogniser run
-    twice over the same audio does not return the same string twice, so
-    ``render --verify-asr`` reports its flags without changing the exit code
-    until the fault injections of verification-plan.md §10 have measured its
-    detection power and its false-positive rate. ``gate`` is the promotion —
-    one flag then fails the run (verification-plan.md §8.1).
+    ``verify_asr_mode`` is ``gate``: one boundary flag fails the run. It was
+    introduced as ``advisory`` — a recogniser run twice over the same audio was
+    not assumed to return the same string twice — and promoted once that
+    assumption had been measured: three comparisons of one render returned
+    identical numbers, and no normal boundary has ever been flagged in 364 of
+    them (verification-plan.md §8.1). ``advisory`` remains available per
+    project, and reports the same flags while leaving the exit code alone.
     """
 
     crf: int = Field(default=18, ge=0, le=51)
     preset: str = "slow"
     boundary_fade: Seconds = 0.010
-    verify_asr_mode: VerifyAsrMode = "advisory"
+    verify_asr_mode: VerifyAsrMode = "gate"
 
 
 class SubtitleProfile(_Strict):

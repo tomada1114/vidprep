@@ -30,7 +30,7 @@
     "crf": 18,
     "preset": "slow",
     "boundary_fade": 0.01,
-    "verify_asr_mode": "advisory"
+    "verify_asr_mode": "gate"
   },
   "subtitle": {
     "max_chars_per_line": 20,

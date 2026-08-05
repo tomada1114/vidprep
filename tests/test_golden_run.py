@@ -69,6 +69,41 @@ class TestRunStages:
         ]
         assert summary["failed"] is None
 
+    def test_nothing_is_recorded_as_skipped_when_nothing_was(self, pipeline, tmp_path):
+        assert golden_run.run_stages(tmp_path)["skipped"] == []
+
+    def test_a_skipped_stage_does_not_run_and_the_rest_still_do(
+        self, pipeline, tmp_path
+    ):
+        summary = golden_run.run_stages(tmp_path, ["correct"])
+
+        assert "correct" not in pipeline
+        assert pipeline == ["audio-fix", "transcribe", "detect", "render", "report"]
+        assert "correct" not in summary["stages"]
+
+    def test_what_was_skipped_is_named_so_the_run_is_not_taken_for_a_baseline(
+        self, pipeline, tmp_path
+    ):
+        summary = golden_run.run_stages(tmp_path, ["detect", "correct"])
+
+        assert summary["skipped"] == ["correct", "detect"]
+        assert summary["failed"] is None
+
+    def test_skipping_every_stage_runs_nothing_rather_than_failing(
+        self, pipeline, tmp_path
+    ):
+        summary = golden_run.run_stages(tmp_path, golden_run.STAGE_NAMES)
+
+        assert pipeline == []
+        assert summary["stages"] == {}
+        assert summary["failed"] is None
+
+    def test_a_name_that_is_not_a_stage_skips_nothing(self, pipeline, tmp_path):
+        summary = golden_run.run_stages(tmp_path, ["polish"])
+
+        assert len(pipeline) == len(golden_run.STAGES)
+        assert summary["skipped"] == []
+
     def test_every_warning_is_collected_under_its_stage(self, pipeline, tmp_path):
         summary = golden_run.run_stages(tmp_path)
 
@@ -195,6 +230,30 @@ class TestMain:
 
         assert code == EXIT_OK
         assert "saved:" in capsys.readouterr().out
+
+    def test_skip_leaves_the_named_stage_out_and_says_so(
+        self, pipeline, tmp_path, capsys
+    ):
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "vidprep.json").write_text("{}", encoding="utf-8")
+        runs = tmp_path / "runs"
+
+        code = golden_run.main(
+            ["--project", str(project), "--runs", str(runs), "--skip", "correct"]
+        )
+
+        assert code == EXIT_OK
+        assert "correct" not in pipeline
+        assert "skipped: correct" in capsys.readouterr().out
+        archived = json.loads(next(runs.iterdir()).joinpath("summary.json").read_text())
+        assert archived["skipped"] == ["correct"]
+
+    def test_skipping_a_stage_that_does_not_exist_is_refused(self, tmp_path):
+        with pytest.raises(SystemExit) as raised:
+            golden_run.main(["--project", str(tmp_path), "--skip", "polish"])
+
+        assert raised.value.code == 2
 
     def test_a_missing_golden_sample_is_explained_rather_than_traced(self, tmp_path):
         with pytest.raises(SystemExit, match="golden sample is not at"):
