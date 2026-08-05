@@ -340,7 +340,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 
 ### 5.7 doctor
 
-検査対象: ffmpeg（`subtitles` フィルタ = libass の有無も確認）、ffprobe、auto-editor、ASR バックエンド（whisper.cpp バイナリ + モデルファイル / mlx-whisper import）、DeepFilterNet（任意扱い）、SudachiPy 辞書。結果を JSON 出力し、必須が欠けていれば exit 3。
+検査対象: ffmpeg（`subtitles` フィルタ = libass の有無も確認）、ffprobe、auto-editor、ASR バックエンド（whisper.cpp バイナリ + モデルファイル / mlx-whisper import）、Silero VAD の重み（`ggml-silero-*.bin`。§5.2 の VAD は両バックエンドで必須なので必須項目扱い。モデルファイルとしては ASR 側の候補から除外する）、DeepFilterNet（任意扱い）、SudachiPy 辞書。結果を JSON 出力し、必須が欠けていれば exit 3。
 
 ## 6. CLI 仕様
 
