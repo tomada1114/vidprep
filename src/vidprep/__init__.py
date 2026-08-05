@@ -5,7 +5,16 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 from .errors import VidprepError
-from .models import Cuts, Manifest, Profile, Styles, Telops, Transcript, VadReport
+from .models import (
+    Cuts,
+    Manifest,
+    NoiseFloorReport,
+    Profile,
+    Styles,
+    Telops,
+    Transcript,
+    VadReport,
+)
 from .project import Project
 from .timeline import Timeline
 
@@ -17,6 +26,7 @@ except PackageNotFoundError:
 __all__ = [
     "Cuts",
     "Manifest",
+    "NoiseFloorReport",
     "Profile",
     "Project",
     "Styles",

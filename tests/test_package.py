@@ -15,6 +15,7 @@ class TestPackageMetadata:
         assert set(__all__) == {
             "Cuts",
             "Manifest",
+            "NoiseFloorReport",
             "Profile",
             "Project",
             "Styles",

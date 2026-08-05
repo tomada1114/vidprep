@@ -30,6 +30,7 @@ from .errors import (
 from .models import (
     Cuts,
     Manifest,
+    NoiseFloorReport,
     Profile,
     Source,
     StageRecord,
@@ -53,6 +54,7 @@ HASH_CHUNK_BYTES = 1024 * 1024
 #: Artifacts validated before a stage runs, in the order they are reported.
 ARTIFACT_MODELS: Mapping[str, type[BaseModel]] = {
     "transcript.json": Transcript,
+    "report/noise_floor.json": NoiseFloorReport,
     "report/vad.json": VadReport,
     "cuts.json": Cuts,
     "telops.json": Telops,

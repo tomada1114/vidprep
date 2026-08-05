@@ -13,6 +13,12 @@ labels its output with timestamps offset by its lookahead. Rebuilding the
 timestamps and padding back to the source length undoes both without shifting
 the timeline the transcript will be built on; the result is then re-probed, so
 the guarantee is verified rather than assumed.
+
+``--stats`` writes a second, much smaller thing: ``report/noise_floor.json``,
+the noise floor before and after denoising. It is written here rather than
+measured by ``report`` because the audio it describes — denoised, not yet
+normalised — exists only while this stage is running, and that is the only
+point of the chain where the effect of denoising can be seen at all (#33).
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from typing import TYPE_CHECKING, Any
 from . import _ffmpeg, doctor
 from . import project as project_module
 from .errors import ExecutionFailedError, InvariantViolationError, UsageError
+from .models import NoiseFloorReport
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -38,6 +45,9 @@ if TYPE_CHECKING:
 
 STAGE = "audio_fix"
 OUTPUT_NAME = Path("audio") / "processed.wav"
+
+#: Where ``--stats`` records the REQ-007 comparison, for ``report`` to quote.
+NOISE_FLOOR_NAME = Path("report") / "noise_floor.json"
 
 DEEPFILTERNET = "deepfilternet"
 AFFTDN = "afftdn"
@@ -51,6 +61,21 @@ SAMPLE_CODEC = "pcm_s16le"
 SILENCE_NOISE = "-40dB"
 SILENCE_MIN_SECONDS = 0.5
 
+#: Held back from each end of a silent stretch before the floor is read over
+#: it. Two things live at those ends and neither is noise: the ramp of the
+#: speech that silencedetect drew the boundary against, and whatever ``aselect``
+#: pulls in with the frame it lets through — the filter keeps or drops whole
+#: frames, so it cannot cut on a sample. Both are far louder than the floor and
+#: dominate the average when they get in: measured over the golden sample, the
+#: same audio reads -45.87 dB with the ends included and -60.48 dB without
+#: (#33). Silence is at least :data:`SILENCE_MIN_SECONDS` long, so 0.1s off each
+#: end always leaves something to measure.
+SILENCE_GUARD_SECONDS = 0.1
+
+#: Frames ``aselect`` decides on, so what one frame can pull in stays far
+#: shorter than the guard above whatever the source's own framing is.
+FLOOR_FRAME = "asetnsamples=n=1024"
+
 #: Appended to the pass-2 chain so ``-t`` can cut at the source length: fresh
 #: timestamps from the sample count, then silence to pad against.
 LENGTH_TAIL = "asetpts=N/SR/TB,apad"
@@ -58,6 +83,7 @@ LENGTH_TAIL = "asetpts=N/SR/TB,apad"
 MAX_DELTA_MS = 1.0
 MS_PER_SECOND = 1000.0
 DELTA_DECIMALS = 3
+LEVEL_DECIMALS = 2
 WORKSPACE_PREFIX = ".audio-fix-"
 EXTRACTED_NAME = "source.wav"
 RENDERED_NAME = "processed.wav"
@@ -128,12 +154,23 @@ class Chain:
         """Whether denoising runs as a separate process before ffmpeg."""
         return self.denoise == DEEPFILTERNET
 
-    def filters(self, measured: Mapping[str, str] | None) -> str:
-        """Return the whole chain: denoise (when in-band), high-pass, loudnorm."""
+    def cleanup_filters(self) -> list[str]:
+        """Return the chain up to but excluding ``loudnorm``.
+
+        This is where the noise floor of REQ-007 is read: everything meant to
+        remove noise has run, and the makeup gain that would lift the floor
+        back up has not (#33). With DeepFilterNet the denoising already
+        happened in its own process, so only the high-pass is left to apply.
+        """
         stages = [] if self.uses_deepfilternet else [AFFTDN]
         stages.append(f"highpass=f={self.highpass_hz}")
-        stages.append(_loudnorm_filter(self.loudnorm, measured))
-        return ",".join(stages)
+        return stages
+
+    def filters(self, measured: Mapping[str, str] | None) -> str:
+        """Return the whole chain: denoise (when in-band), high-pass, loudnorm."""
+        return ",".join(
+            [*self.cleanup_filters(), _loudnorm_filter(self.loudnorm, measured)]
+        )
 
     def extract_command(self, source: Path, target: Path) -> list[str]:
         """Return the command that decodes the source audio into a wav."""
@@ -217,6 +254,15 @@ class Chain:
 
 
 @dataclass(frozen=True, slots=True)
+class Stages:
+    """The three points of the chain ``--stats`` measures, in chain order."""
+
+    extracted: Path
+    denoised: Path
+    rendered: Path
+
+
+@dataclass(frozen=True, slots=True)
 class Result:
     """What one ``audio-fix`` run produced and measured."""
 
@@ -225,6 +271,7 @@ class Result:
     output_duration: float
     before: Measurement | None = None
     after: Measurement | None = None
+    noise_floor: NoiseFloorReport | None = None
     warnings: tuple[str, ...] = ()
 
     @property
@@ -238,6 +285,8 @@ class Result:
         if self.before is not None and self.after is not None:
             payload["before"] = self.before.to_dict()
             payload["after"] = self.after.to_dict()
+        if self.noise_floor is not None:
+            payload["noise_floor"] = floor_section(self.noise_floor)
         payload["duration"] = {
             "source": round(self.source_duration, DELTA_DECIMALS),
             "output": round(self.output_duration, DELTA_DECIMALS),
@@ -257,6 +306,8 @@ class Result:
                 f"{self.after.integrated_lufs:.2f} LUFS",
                 f"TP {self.after.true_peak_dbtp:.2f} dBTP",
             ]
+        if self.noise_floor is not None and self.noise_floor.delta_db is not None:
+            detail.append(f"floor {self.noise_floor.delta_db:+.2f} dB")
         detail += [f"denoise: {self.denoise_used}", f"delta {self.delta_ms:.1f}ms"]
         reported = [f"⚠ {warning}" for warning in self.warnings]
         reported.append(f"✔ {OUTPUT_NAME} ({', '.join(detail)})")
@@ -310,18 +361,73 @@ def silence_command(source: Path) -> list[str]:
     return _analysis_command(source, filters)
 
 
-def noise_floor_command(source: Path, expression: str) -> list[str]:
-    """Return the command that measures the RMS level of *expression* only."""
-    filters = (
-        f"aselect='{expression}',asetpts=N/SR/TB,"
-        "astats=measure_perchannel=none:measure_overall=RMS_level"
+def noise_floor_command(
+    source: Path, expression: str, prefix: Sequence[str] = ()
+) -> list[str]:
+    """Return the command that measures the RMS level of *expression* only.
+
+    Args:
+        source: The file to read.
+        expression: The ``aselect`` expression naming the stretches to measure.
+        prefix: Filters applied before the selection, so a point of the chain
+            that was never written to disk can still be measured — which is
+            how the pre-``loudnorm`` floor of REQ-007 is read.
+    """
+    filters = ",".join(
+        [
+            *prefix,
+            FLOOR_FRAME,
+            f"aselect='{expression}'",
+            "asetpts=N/SR/TB",
+            "astats=measure_perchannel=none:measure_overall=RMS_level",
+        ]
     )
     return _analysis_command(source, filters)
+
+
+def floor_section(measured: NoiseFloorReport | None) -> dict[str, Any] | None:
+    """Return the REQ-007 comparison as ``--stats`` and ``stats.json`` print it.
+
+    Returns:
+        ``None`` when nothing was measured, so "the floor did not move" and
+        "nobody looked" never render the same way.
+    """
+    if measured is None:
+        return None
+    return {
+        "before_rms_db": _level(measured.before_rms_db),
+        "after_rms_db": _level(measured.after_rms_db),
+        "delta_db": _level(measured.delta_db),
+        "improved": measured.improved,
+        "silence_sec": round(measured.silence_sec, DELTA_DECIMALS),
+    }
+
+
+def _level(value: float | None) -> float | None:
+    """Round a level to hundredths of a dB, leaving "unknown" alone."""
+    return None if value is None else round(value, LEVEL_DECIMALS)
 
 
 def interval_expression(intervals: Sequence[tuple[float, float]]) -> str:
     """Return the ``aselect`` expression that keeps only *intervals*."""
     return "+".join(f"between(t,{start:.3f},{end:.3f})" for start, end in intervals)
+
+
+def floor_intervals(
+    intervals: Sequence[tuple[float, float]],
+) -> list[tuple[float, float]]:
+    """Return *intervals* pulled in by :data:`SILENCE_GUARD_SECONDS` at each end.
+
+    This is what "the noise floor" is measured over, here and in ``report``
+    alike; a stretch with nothing left after the guard is dropped rather than
+    inverted.
+    """
+    guard = SILENCE_GUARD_SECONDS
+    return [
+        (start + guard, end - guard)
+        for start, end in intervals
+        if end - start > 2 * guard
+    ]
 
 
 def _loudnorm_report(text: str) -> dict[str, str]:
@@ -433,8 +539,9 @@ def measure(
         path: The audio or video file to measure.
         targets: The EBU R128 targets the loudnorm analysis is run against;
             they do not change what is measured, only what it is compared with.
-        intervals: The silence the noise floor is read over. Without it the
-            floor is reported as unknown rather than guessed at.
+        intervals: The silence the noise floor is read over, guard and all
+            (:func:`noise_floor`). Without it the floor is reported as unknown
+            rather than guessed at.
 
     Returns:
         The four numbers this stage and ``report`` both quote.
@@ -442,34 +549,65 @@ def measure(
     integrated, true_peak, lra = _loudness(
         _loudnorm_report(_ffmpeg.run_analysis(measurement_command(path, targets)))
     )
-    floor = None
-    if intervals:
-        command = noise_floor_command(path, interval_expression(intervals))
-        floor = _rms_level(_ffmpeg.run_analysis(command))
-    return Measurement(integrated, true_peak, lra, floor)
+    return Measurement(integrated, true_peak, lra, noise_floor(path, intervals))
+
+
+def noise_floor(
+    path: Path,
+    intervals: Sequence[tuple[float, float]],
+    prefix: Sequence[str] = (),
+) -> float | None:
+    """Return the RMS level of *path* over *intervals*, after *prefix* filters.
+
+    Args:
+        path: The audio to read.
+        intervals: The silence the floor is measured over, before the guard of
+            :func:`floor_intervals` is applied to it.
+        prefix: Filters to apply first, for measuring a point of the chain that
+            was never written out (:meth:`Chain.cleanup_filters`).
+
+    Returns:
+        The level in dB, or ``None`` when there is nothing left to measure
+        after the guard or astats could not put a number on what there was.
+    """
+    measured = floor_intervals(intervals)
+    if not measured:
+        return None
+    command = noise_floor_command(path, interval_expression(measured), prefix)
+    return _rms_level(_ffmpeg.run_analysis(command))
 
 
 def _compare(
-    chain: Chain, sources: tuple[Path, Path], seconds: float
-) -> tuple[Measurement, Measurement, list[str]]:
+    chain: Chain, stages: Stages, seconds: float
+) -> tuple[Measurement, Measurement, NoiseFloorReport, list[str]]:
     """Measure the audio before and after the chain over the same silence.
 
+    The loudness comparison spans the whole chain, source against finished
+    file. The noise floor stops one step earlier, on the denoised audio before
+    ``loudnorm``: that is the comparison REQ-007 is decided on (#33), and
+    running it over the very same silent stretches on both sides is what makes
+    the two levels subtractable.
+
     Returns:
-        The two measurements and any warning about what could not be measured.
+        The two measurements, the floor comparison, and any warning about what
+        could not be measured.
     """
-    original, produced = sources
-    intervals = detect_silence(original, seconds)
+    intervals = detect_silence(stages.extracted, seconds)
     warnings = []
     if not intervals:
         warnings.append(
             f"no silence of {SILENCE_MIN_SECONDS:g}s at {SILENCE_NOISE} was found; "
             "the noise floor could not be measured"
         )
-    return (
-        measure(original, chain.loudnorm, intervals),
-        measure(produced, chain.loudnorm, intervals),
-        warnings,
+    before = measure(stages.extracted, chain.loudnorm, intervals)
+    after = measure(stages.rendered, chain.loudnorm, intervals)
+    denoised = noise_floor(stages.denoised, intervals, chain.cleanup_filters())
+    floor = NoiseFloorReport(
+        silence_sec=sum(end - start for start, end in floor_intervals(intervals)),
+        before_rms_db=before.noise_floor_rms_db,
+        after_rms_db=denoised,
     )
+    return before, after, floor, warnings
 
 
 def resolve_chain(loaded: Project) -> tuple[Chain, list[str]]:
@@ -530,20 +668,27 @@ def plan(loaded: Project, *, with_stats: bool = False) -> dict[str, Any]:
         chain.render_command(denoised, rendered, PLACEHOLDERS, "<source duration>"),
         _ffmpeg.duration_command(rendered),
     ]
+    writes = [
+        str(loaded.root / OUTPUT_NAME),
+        str(loaded.root / project_module.MANIFEST_NAME),
+    ]
     if with_stats:
         commands.append(silence_command(extracted))
         for path in (extracted, rendered):
             commands.append(chain.measure_command(path))
             commands.append(noise_floor_command(path, INTERVALS_PLACEHOLDER))
+        commands.append(
+            noise_floor_command(
+                denoised, INTERVALS_PLACEHOLDER, chain.cleanup_filters()
+            )
+        )
+        writes.append(str(loaded.root / NOISE_FLOOR_NAME))
     return {
         "action": "audio-fix",
         "project": str(loaded.root),
         "denoise_used": chain.denoise,
         "commands": commands,
-        "writes": [
-            str(loaded.root / OUTPUT_NAME),
-            str(loaded.root / project_module.MANIFEST_NAME),
-        ],
+        "writes": writes,
         "warnings": warnings,
     }
 
@@ -601,11 +746,32 @@ def _produce(
     _check_duration(seconds, produced)
 
     before = after = None
+    floor = None
     warnings: list[str] = []
     if with_stats:
-        before, after, warnings = _compare(chain, (extracted, rendered), seconds)
+        stages = Stages(extracted, denoised, rendered)
+        before, after, floor, warnings = _compare(chain, stages, seconds)
     project_module.atomic_replace(rendered, loaded.root / OUTPUT_NAME)
-    return Result(chain.denoise, seconds, produced, before, after, tuple(warnings))
+    _publish_floor(loaded, floor)
+    return Result(
+        chain.denoise, seconds, produced, before, after, floor, tuple(warnings)
+    )
+
+
+def _publish_floor(loaded: Project, floor: NoiseFloorReport | None) -> None:
+    """Write the REQ-007 measurement, or drop the one a run without it left.
+
+    The file describes the ``audio/processed.wav`` sitting next to it. A run
+    without ``--stats`` writes a new one and measures nothing, so the previous
+    file would go on describing audio that is no longer there; deleting it
+    says "not measured" instead of saying something untrue.
+    """
+    target = loaded.root / NOISE_FLOOR_NAME
+    if floor is None:
+        target.unlink(missing_ok=True)
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    project_module.write_json(target, floor)
 
 
 def run_audio_fix(loaded: Project, *, with_stats: bool = False) -> Result:
@@ -613,7 +779,9 @@ def run_audio_fix(loaded: Project, *, with_stats: bool = False) -> Result:
 
     Args:
         loaded: The project to process; its source material is only read.
-        with_stats: Also measure loudness and noise floor before and after.
+        with_stats: Also measure loudness across the chain and the noise floor
+            before and after denoising, recording the latter in
+            :data:`NOISE_FLOOR_NAME` for ``report`` to quote (REQ-007).
 
     Returns:
         What was produced, including the before/after statistics when asked.
