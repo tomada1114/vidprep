@@ -16,8 +16,9 @@ uv add vidprep
 
 Start by checking the machine. `vidprep doctor` inspects the external tools the
 pipeline shells out to — ffmpeg (including whether it was built with libass),
-ffprobe, auto-editor, an ASR backend, DeepFilterNet and a SudachiPy dictionary —
-and tells you what to install for the ones that are missing.
+ffprobe, auto-editor, an ASR backend, the Silero VAD weights that backend runs,
+DeepFilterNet and a SudachiPy dictionary — and tells you what to install for the
+ones that are missing.
 
 ```bash
 vidprep doctor          # readable report

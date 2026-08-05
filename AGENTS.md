@@ -27,15 +27,38 @@ in the `justfile`. Run a single test with
 
 ```
 src/vidprep/
-├── __init__.py   # Public API — export everything users need here
-├── py.typed      # PEP 561 marker for typed package
-├── audio.py      # audio-fix: denoise, high-pass, two-pass loudnorm
-├── cli.py        # typer app: one thin subcommand per pipeline stage
-├── errors.py     # Exception hierarchy and the 0/1/2/3 exit codes
-├── models.py     # pydantic schemas for the intermediate JSON (design.md §3)
-├── project.py    # Project directory: init, load, verify, stage records
-├── _ffmpeg.py    # The only module allowed to spawn subprocesses
-└── profiles/     # Packaged templates (default.json) copied by `vidprep init`
+├── __init__.py      # Public API — export everything users need here
+├── py.typed         # PEP 561 marker for typed package
+├── cli.py           # typer app: one thin subcommand per pipeline stage
+├── errors.py        # Exception hierarchy and the 0/1/2/3 exit codes
+├── models.py        # pydantic schemas for the intermediate JSON (design.md §3)
+├── project.py       # Project directory: init, load, verify, stage records
+├── timeline.py      # Original <-> cut timeline mapping (design.md §4)
+├── doctor.py        # doctor: inspect the tools the stages shell out to
+├── audio.py         # audio-fix: denoise, high-pass, two-pass loudnorm
+├── transcribe.py    # transcribe: Silero VAD in front of the recogniser
+├── correct.py       # correct: dictionary replacement, verified patches
+├── detect.py        # detect: silence and filler cut candidates
+├── render.py        # render: apply the cuts, write the video and the SRT
+├── report.py        # report: the review gate and the numbers behind it
+├── verify.py        # --verify-asr: read the finished render back
+├── _ffmpeg.py       # The only module allowed to spawn subprocesses
+├── _asr.py          # whisper.cpp / mlx-whisper behind transcribe
+├── _dictionary.py   # The misconversion dictionary and its two passes
+├── _text.py         # The comparison form text measurements share
+├── _autoeditor.py   # auto-editor's v3 timeline -> cut intervals
+├── _intervals.py    # Interval arithmetic detection and rendering share
+├── _fillers.py      # Filler scanning and the cuts it justifies
+├── _reencode.py     # The renderer protocol and the v1 re-encode
+├── _subtitles.py    # Line breaking, readability limits, the SRT file
+├── _ass.py          # Telops as an ASS subtitle track (design.md §3.5)
+├── _preview.py      # Burning the telop track into the preview video
+├── _boundaries.py   # Waveform stills and the boundary digest video
+├── _review.py       # The `report --cuts` listing
+├── _retranscribe.py # The arithmetic behind the re-transcription check
+├── dictionaries/    # Packaged ASR misconversions, fillers, hallucinations
+├── profiles/        # Packaged templates (default.json) copied by `vidprep init`
+└── styles/          # Packaged telop style presets (default.json)
 ```
 
 - Keep the public API surface small — export via `__init__.py.__all__`

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 COMMAND_TIMEOUT_SECONDS = 5.0
 
 #: Checks the pipeline cannot run without (design.md §5.7, REQ-020).
-REQUIRED_CHECKS = ("ffmpeg", "ffprobe", "auto_editor", "asr", "sudachipy")
+REQUIRED_CHECKS = ("ffmpeg", "ffprobe", "auto_editor", "asr", "vad", "sudachipy")
 
 #: `--export v3` became an explicit export name in auto-editor 28.0.0.
 MIN_AUTO_EDITOR_MAJOR = 28
@@ -38,6 +38,11 @@ WHISPER_BINARIES = ("whisper-cli", "whisper-cpp", "main")
 WHISPER_MODEL_DIR_ENV = "VIDPREP_WHISPER_MODEL_DIR"
 DEFAULT_WHISPER_MODEL_DIR = Path.home() / ".cache" / "whisper.cpp"
 WHISPER_MODEL_GLOB = "ggml-*.bin"
+
+#: The Silero weights whisper.cpp's ``--vad`` runs. They live next to the
+#: transcription models — and match their glob — so both move together when
+#: ``$VIDPREP_WHISPER_MODEL_DIR`` is set (design.md §5.2).
+VAD_MODEL_GLOB = "ggml-silero-*.bin"
 
 #: DeepFilterNet has shipped under both spellings; either one satisfies it.
 DEEPFILTERNET_BINARIES = ("deep-filter", "deepFilter")
@@ -212,17 +217,31 @@ def whisper_model_dir() -> Path:
     return Path(override).expanduser() if override else DEFAULT_WHISPER_MODEL_DIR
 
 
+def _model_names(directory: Path, pattern: str) -> list[str]:
+    """Return the names of the models in *directory* matching *pattern*."""
+    if not directory.is_dir():
+        return []
+    return sorted(model.name for model in directory.glob(pattern))
+
+
 def check_whisper_cpp() -> Check:
-    """Check the whisper.cpp binary and the ggml models next to it."""
+    """Check the whisper.cpp binary and the ggml models next to it.
+
+    The Silero weights are left out of the model list: they match the same
+    glob but cannot transcribe anything, so counting them would let a machine
+    that only downloaded the VAD model pass the ASR check. :func:`check_vad`
+    reports them instead.
+    """
     path = next(
         (found for name in WHISPER_BINARIES if (found := shutil.which(name))), None
     )
     directory = whisper_model_dir()
-    models = (
-        sorted(model.name for model in directory.glob(WHISPER_MODEL_GLOB))
-        if directory.is_dir()
-        else []
-    )
+    vad_models = set(_model_names(directory, VAD_MODEL_GLOB))
+    models = [
+        name
+        for name in _model_names(directory, WHISPER_MODEL_GLOB)
+        if name not in vad_models
+    ]
     check: Check = {
         "ok": bool(path) and bool(models),
         "path": path,
@@ -232,7 +251,7 @@ def check_whisper_cpp() -> Check:
     if path is None:
         check["error"] = f"none of {', '.join(WHISPER_BINARIES)} found in PATH"
     elif not models:
-        check["error"] = f"no {WHISPER_MODEL_GLOB} model in {directory}"
+        check["error"] = f"no transcription model ({WHISPER_MODEL_GLOB}) in {directory}"
     return check
 
 
@@ -266,6 +285,28 @@ def check_asr() -> Check:
     }
     if not check["ok"]:
         check["error"] = "no ASR backend available (whisper.cpp or mlx-whisper)"
+    return check
+
+
+def check_vad() -> Check:
+    """Check the Silero weights the mandatory VAD front-end runs.
+
+    Required rather than informational: ``transcribe`` resolves these weights
+    for both ASR backends and refuses to start without them (design.md §5.2),
+    so a machine that has the recogniser but not the Silero model can no more
+    transcribe than one with no recogniser at all. Reporting that as a warning
+    would hide it behind the DeepFilterNet line, which is the one thing doctor
+    exists to prevent.
+    """
+    directory = whisper_model_dir()
+    models = _model_names(directory, VAD_MODEL_GLOB)
+    check: Check = {
+        "ok": bool(models),
+        "model_dir": str(directory),
+        "models": models,
+    }
+    if not models:
+        check["error"] = f"no {VAD_MODEL_GLOB} model in {directory}"
     return check
 
 
@@ -320,6 +361,7 @@ CHECKS = {
     "ffprobe": check_ffprobe,
     "auto_editor": check_auto_editor,
     "asr": check_asr,
+    "vad": check_vad,
     "deepfilternet": check_deepfilternet,
     "sudachipy": check_sudachipy,
 }
@@ -349,6 +391,7 @@ _SATISFIED: dict[str, Callable[[Check], str]] = {
     "ffprobe": lambda check: f"ffprobe {check['version']}",
     "auto_editor": lambda check: f"auto-editor {check['version']} (--export v3: yes)",
     "asr": lambda check: f"asr: {', '.join(_asr_backends(check))}",
+    "vad": lambda check: f"vad: {', '.join(check['models'])}",
     "deepfilternet": lambda check: f"deepfilternet: {check['path']}",
     "sudachipy": lambda check: f"sudachipy: {check['dict']} dictionary OK",
 }
@@ -362,6 +405,11 @@ _REMEDIES = {
         "`brew install whisper-cpp` plus a ggml model in "
         f"{DEFAULT_WHISPER_MODEL_DIR} (or ${WHISPER_MODEL_DIR_ENV}), "
         "or `uv sync --group asr` for mlx-whisper"
+    ),
+    "vad": (
+        "fetch the Silero weights with whisper.cpp's "
+        "`models/download-vad-model.sh silero-v5.1.2` into "
+        f"{DEFAULT_WHISPER_MODEL_DIR} (or ${WHISPER_MODEL_DIR_ENV})"
     ),
     "deepfilternet": (
         f"optional: install DeepFilterNet, or accept the {DEEPFILTERNET_FALLBACK} "
