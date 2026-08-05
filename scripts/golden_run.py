@@ -2,6 +2,7 @@
 
 Usage:
     uv run python scripts/golden_run.py [--project DIR] [--source VIDEO]
+    uv run python scripts/golden_run.py --skip correct   # attribution run
 
 Six stages in order — audio-fix, transcribe, correct, detect, render
 (with ``--verify-asr``), report — over the material of verification-plan.md §2,
@@ -9,6 +10,12 @@ after which ``report/stats.json`` and every warning raised are archived under
 ``fixtures/runs/<date>/`` for ``scripts/compare_stats.py`` to diff against the
 run before it. Run it after a parameter change, a dependency update or a new
 feature; what it costs is two ASR passes and a re-encode.
+
+``--skip`` leaves a named stage out of an otherwise identical run, which is how
+a number is attributed to one stage rather than to the pipeline: the run that
+told §8.1 how much of the global CER is the dictionary's doing was this run
+without ``correct``. It is a measurement tool, not a fast path — a run missing a
+stage is not a baseline, so what it skipped is recorded in ``summary.json``.
 
 Nothing is archived outside ``fixtures/``, which is not in git: the recording is
 private and so is everything derived from it (verification-plan.md §2).
@@ -35,7 +42,7 @@ from vidprep import project as project_module
 from vidprep.errors import EXIT_EXECUTION, EXIT_OK, VidprepError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Collection, Sequence
 
     from vidprep.project import Project
 
@@ -84,6 +91,9 @@ STAGES: tuple[tuple[str, Callable[[Project], Stage]], ...] = (
     ("report", report.run_report),
 )
 
+#: The stage names ``--skip`` accepts, in pipeline order.
+STAGE_NAMES: tuple[str, ...] = tuple(name for name, _ in STAGES)
+
 
 def run_directory(label: str, root: Path = RUNS_DIR) -> Path:
     """Return where this run is archived, never overwriting an earlier one.
@@ -119,18 +129,27 @@ def _warnings(payload: Sequence[str]) -> list[str]:
     return [line for line in payload if line.startswith("⚠")]
 
 
-def run_stages(project: Path) -> dict[str, Any]:
+def run_stages(project: Path, skip: Collection[str] = ()) -> dict[str, Any]:
     """Run the pipeline over *project* and return what each stage reported.
 
+    Args:
+        project: The project directory to run over.
+        skip: Stage names to leave out (see the module docstring). A skipped
+            stage's own outputs stay as the previous run left them, so the
+            stages after it read those; that is the point of the comparison.
+
     Returns:
-        ``{"stages": {...}, "warnings": [...], "failed": <name or None>}``.
-        A stage that raises stops the run and is recorded with its error code
-        and message; the stages that never started are simply absent.
+        ``{"stages": {...}, "skipped": [...], "warnings": [...],
+        "failed": <name or None>}``. A stage that raises stops the run and is
+        recorded with its error code and message; the stages that never started
+        are simply absent, which is why the ones deliberately left out are named
+        separately rather than inferred from what is missing.
     """
     stages: dict[str, Any] = {}
     warnings: list[str] = []
     failed: str | None = None
-    for index, (name, action) in enumerate(STAGES, start=1):
+    planned = [(name, action) for name, action in STAGES if name not in skip]
+    for index, (name, action) in enumerate(planned, start=1):
         started = time.monotonic()
         try:
             result = action(_prepare(project))
@@ -141,15 +160,20 @@ def run_stages(project: Path) -> dict[str, Any]:
             failed = name
             code = exc.code if isinstance(exc, VidprepError) else type(exc).__name__
             stages[name] = {"error": code, "detail": str(exc)}
-            print(f"[{index}/{len(STAGES)}] {name} ... failed ({code}: {exc})")
+            print(f"[{index}/{len(planned)}] {name} ... failed ({code}: {exc})")
             break
         elapsed = time.monotonic() - started
         reported = result.lines()
         warnings += [f"{name}: {line}" for line in _warnings(reported)]
         stages[name] = {"result": result.to_dict(), "elapsed_sec": round(elapsed, 2)}
         headline = next((line for line in reported if not line.startswith("⚠")), "")
-        print(f"[{index}/{len(STAGES)}] {name} ... ok {headline}")
-    return {"stages": stages, "warnings": warnings, "failed": failed}
+        print(f"[{index}/{len(planned)}] {name} ... ok {headline}")
+    return {
+        "stages": stages,
+        "skipped": [name for name in STAGE_NAMES if name in skip],
+        "warnings": warnings,
+        "failed": failed,
+    }
 
 
 def archive(project: Path, target: Path, summary: dict[str, Any]) -> Path:
@@ -204,14 +228,27 @@ def main(argv: list[str] | None = None) -> int:
         default=datetime.now(tz=UTC).astimezone().date().isoformat(),
         help="name of the archive directory (default: today's date)",
     )
+    parser.add_argument(
+        "--skip",
+        action="append",
+        choices=STAGE_NAMES,
+        default=[],
+        metavar="STAGE",
+        help=(
+            "leave a stage out of the run, to attribute a number to it; "
+            f"repeatable, one of: {', '.join(STAGE_NAMES)}"
+        ),
+    )
     arguments = parser.parse_args(argv)
     _initialise(arguments.project, arguments.source)
-    summary = run_stages(arguments.project)
+    summary = run_stages(arguments.project, arguments.skip)
     target = archive(
         arguments.project,
         run_directory(arguments.label, arguments.runs),
         summary,
     )
+    if summary["skipped"]:
+        print(f"skipped: {', '.join(summary['skipped'])} — not a baseline run")
     print(f"saved: {target}")
     if summary["failed"] is not None:
         print(f"the run stopped at {summary['failed']}")
