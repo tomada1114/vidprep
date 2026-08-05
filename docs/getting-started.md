@@ -2,14 +2,20 @@
 
 ## Installation
 
+vidprep is not published to PyPI yet, so install it from the repository with
+[uv](https://docs.astral.sh/uv/):
+
 ```bash
-pip install vidprep
+git clone https://github.com/tomada1114/vidprep.git
+cd vidprep
+uv sync --all-groups
 ```
 
-Or with [uv](https://docs.astral.sh/uv/):
+Every command below then runs as `uv run vidprep …`. To use the CLI outside the
+checkout, install it as a tool instead:
 
 ```bash
-uv add vidprep
+uv tool install --from . vidprep
 ```
 
 ## Basic Usage
