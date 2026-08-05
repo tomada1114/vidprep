@@ -47,12 +47,6 @@ class NotAProjectError(UsageError):
     code: ClassVar[str] = "not_a_project"
 
 
-class StageNotImplementedError(UsageError):
-    """The subcommand exists as a skeleton but its stage is not built yet."""
-
-    code: ClassVar[str] = "not_implemented"
-
-
 class ExecutionFailedError(VidprepError):
     """A stage started but could not complete."""
 
