@@ -181,3 +181,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `timeline_schema` (exit `2`). Whether the bar appears depends on
   auto-editor's audio-level cache being warm, which is why the same command
   parsed one run and failed the next. The timeline is still validated strictly
+- `vidprep audio-fix --stats` measures the noise floor where denoising can be
+  seen: on the denoised audio *before* `loudnorm`, against the same silence in
+  the material. Both earlier forms of the comparison failed on the golden
+  sample — the absolute floor of the finished file because the makeup gain
+  lifts the floor with everything else, and the level-matched
+  `below_programme_db` for the same reason plus a measurement fault. Each
+  silent stretch is now read with 0.1s held back from either end and with
+  `aselect` deciding on 1024-sample frames, because the speech ramp at the
+  boundary and whatever a long frame drags in with it are tens of dB above the
+  floor and were dominating the average: the same audio read -45.87 dB with
+  the ends included and -60.48 dB without, which hid a 9 dB improvement behind
+  a 0.75 dB one. The comparison is written to the new `report/noise_floor.json`
+  — the point of the chain it describes exists only while the stage runs — and
+  `report/stats.json` quotes it as `noise_floor.denoise`, which is what REQ-007
+  is decided on. `noise_floor.output` keeps the absolute and level-matched
+  floor of the finished audio as reference figures. The statistics document is
+  version `2`

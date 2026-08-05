@@ -170,6 +170,40 @@ class Manifest(_Strict):
     stages: dict[str, StageRecord] = Field(default_factory=dict)
 
 
+class NoiseFloorReport(_Strict):
+    """``report/noise_floor.json`` — the noise floor ``audio-fix --stats`` read.
+
+    Both levels are RMS over the same silent stretches of the source material.
+    ``after_rms_db`` is measured on the denoised audio *before* ``loudnorm``
+    runs: taken after it, the number describes the makeup gain — which lifts
+    the whole file, the floor included — more than it describes the denoiser
+    (#33). That point of the chain exists only while ``audio-fix`` is running,
+    which is why the measurement is recorded here rather than recomputed from
+    ``audio/processed.wav`` by whoever wants it.
+
+    A level ``astats`` could not compute (digital silence reads as ``-inf``) is
+    recorded as ``null`` rather than guessed at.
+    """
+
+    version: Literal["1"] = "1"
+    silence_sec: Seconds = 0.0
+    before_rms_db: float | None = None
+    after_rms_db: float | None = None
+
+    @property
+    def delta_db(self) -> float | None:
+        """How far denoising moved the floor; negative means it went down."""
+        if self.before_rms_db is None or self.after_rms_db is None:
+            return None
+        return self.after_rms_db - self.before_rms_db
+
+    @property
+    def improved(self) -> bool | None:
+        """Whether the floor dropped, which is REQ-007's condition itself."""
+        delta = self.delta_db
+        return None if delta is None else delta < 0.0
+
+
 class Edit(_Strict):
     """One recorded text change, used to verify that correction is idempotent."""
 

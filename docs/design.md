@@ -266,6 +266,7 @@ f(t) = t - removed(t)                       # カット内の t は f(bi) に写
 - loudnorm は 1 パス目で measured 値を取得し、2 パス目に `measured_*` を渡す linear モードで実行する（dynamic モードのポンピング回避）
 - 尺を変えてはならない（完了条件: 尺差 ≤ 1ms。verification-plan.md §4）
 - `--stats` で処理前後の LUFS / TP / LRA / 無音区間 RMS を JSON 出力
+- `--stats` 時は denoise 直後（loudnorm 前）の無音区間 RMS を処理前と比較し、`report/noise_floor.json` に記録する。この測定点はチェーン実行中にしか存在せず後から再現できないため、`report` は自分で測らずこのファイルを引用して REQ-007 を判定する（verification-plan.md §4.1）
 
 ### 5.2 transcribe
 
@@ -332,7 +333,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 
 レビューゲートと検証の道具。`vidprep report` で以下を再生成する:
 
-- `report/stats.json`: 原尺 / カット後尺 / 削減率 / reason 別カット数と秒数 / LUFS 前後 / 字幕警告一覧（写像時の除外・min_display 未満・max_cps 超過）
+- `report/stats.json`: 原尺 / カット後尺 / 削減率 / reason 別カット数と秒数 / LUFS 前後 / ノイズフロア（`denoise` = REQ-007 判定、`output` = 完成音声の参考値）/ 字幕警告一覧（写像時の除外・min_display 未満・max_cps 超過）
 - `report/boundaries/*.png`: 各カット境界前後 ±2s の波形 PNG（`showwavespic`）
 - `report/boundary_digest.mp4`: **全カット境界の前後 ±2s だけを連結した確認用動画**（境界位置に無音の 0.5s 黒フレームを挟む）。カットが 30 箇所あっても数分で全境界を試聴でき、レビューゲートの主力になる
 - `--cuts`: カット候補ごとに「削除される transcript テキスト + 前後の文脈」を表示（人間 / スキルが status を判断する材料）

@@ -91,6 +91,9 @@ class FakeTools:
             audio.RENDERED_NAME: AFTER_REPORT,
         }
         self.rms = {audio.EXTRACTED_NAME: "-58.3", audio.RENDERED_NAME: "-71.4"}
+        #: The pre-loudnorm floor, told apart by the high-pass its command
+        #: carries: it is the only measurement that filters before selecting.
+        self.denoised_rms = "-63.9"
         self.silence = SILENCE_LOG
         self.denoiser_writes = True
 
@@ -134,7 +137,8 @@ class FakeTools:
         if "silencedetect" in filters:
             return self.silence
         if "astats" in filters:
-            return astats_log(self.rms[key])
+            level = self.denoised_rms if "highpass" in filters else self.rms[key]
+            return astats_log(level)
         return loudnorm_log(self.reports[key])
 
     @staticmethod
@@ -297,8 +301,15 @@ class TestPlan:
         with_stats = audio.plan(loaded, with_stats=True)
 
         added = with_stats["commands"][len(plain["commands"]) :]
-        assert len(added) == 5
+        assert len(added) == 6
         assert any("silencedetect" in " ".join(command) for command in added)
+
+    def test_stats_names_the_noise_floor_it_would_write(
+        self, tools, loaded, project_dir
+    ):
+        plan = audio.plan(loaded, with_stats=True)
+
+        assert str(project_dir / "report" / "noise_floor.json") in plan["writes"]
 
     def test_fallback_is_announced_in_the_plan(
         self, tools, without_deepfilternet, loaded
@@ -513,23 +524,132 @@ class TestStats:
         assert payload["before"]["noise_floor_rms_db"] == -58.3
         assert payload["after"]["noise_floor_rms_db"] == -71.4
 
-    def test_both_sides_are_measured_over_the_same_silence(self, tools, loaded):
+    def test_the_floor_of_req_007_is_compared_before_loudnorm(self, tools, loaded):
+        payload = audio.run_audio_fix(loaded, with_stats=True).to_dict()
+
+        assert payload["noise_floor"] == {
+            "before_rms_db": -58.3,
+            "after_rms_db": -63.9,
+            "delta_db": -5.6,
+            "improved": True,
+            "silence_sec": 4.103,
+        }
+
+    def test_the_floor_after_denoising_is_read_off_the_denoised_file(
+        self, tools, loaded
+    ):
+        audio.run_audio_fix(loaded, with_stats=True)
+
+        command = next(
+            args
+            for args in tools.commands
+            if "-af" in args
+            and "astats" in args[args.index("-af") + 1]
+            and "highpass" in args[args.index("-af") + 1]
+        )
+        filters = command[command.index("-af") + 1]
+        assert Path(command[command.index("-i") + 1]).parent.name == audio.DENOISED_DIR
+        assert filters.startswith(
+            f"highpass=f=80,{audio.FLOOR_FRAME},aselect="
+        )  # no denoiser: DFN ran
+        assert "loudnorm" not in filters
+
+    def test_the_in_band_denoiser_is_applied_before_the_floor_is_read(
+        self, tools, without_deepfilternet, loaded
+    ):
+        audio.run_audio_fix(loaded, with_stats=True)
+
+        filters = next(
+            f
+            for f in tools.ffmpeg_filters
+            if "astats" in f and "aselect" in f and f.startswith(audio.AFFTDN)
+        )
+        assert filters.startswith(
+            f"{audio.AFFTDN},highpass=f=80,{audio.FLOOR_FRAME},aselect="
+        )
+        assert "loudnorm" not in filters
+
+    def test_a_floor_that_did_not_drop_is_not_an_improvement(self, tools, loaded):
+        tools.denoised_rms = "-57.9"
+
+        payload = audio.run_audio_fix(loaded, with_stats=True).to_dict()
+
+        assert payload["noise_floor"]["delta_db"] == 0.4
+        assert payload["noise_floor"]["improved"] is False
+
+    def test_the_comparison_is_recorded_for_report_to_quote(
+        self, tools, loaded, project_dir
+    ):
+        audio.run_audio_fix(loaded, with_stats=True)
+
+        written = json.loads(
+            (project_dir / "report" / "noise_floor.json").read_text(encoding="utf-8")
+        )
+        assert written == {
+            "version": "1",
+            "silence_sec": 4.103,
+            "before_rms_db": -58.3,
+            "after_rms_db": -63.9,
+        }
+
+    def test_a_run_without_stats_drops_a_stale_measurement(
+        self, tools, loaded, project_dir
+    ):
+        audio.run_audio_fix(loaded, with_stats=True)
+
+        audio.run_audio_fix(loaded)
+
+        assert not (project_dir / "report" / "noise_floor.json").exists()
+
+    def test_every_side_is_measured_over_the_same_silence(self, tools, loaded):
         audio.run_audio_fix(loaded, with_stats=True)
 
         selections = [
-            filters for filters in tools.ffmpeg_filters if "aselect" in filters
+            filters[filters.index("aselect") :]
+            for filters in tools.ffmpeg_filters
+            if "aselect" in filters
         ]
-        assert len(selections) == 2
-        assert selections[0] == selections[1]
-        assert "between(t,0.000,2.020)" in selections[0]
-        assert "between(t,4.017,6.500)" in selections[0]
+        assert len(selections) == 3
+        assert len(set(selections)) == 1
+        assert "between(t,0.100,1.920)" in selections[0]
+        assert "between(t,4.117,6.400)" in selections[0]
+
+    def test_the_ends_of_each_silence_are_left_out_of_the_measurement(
+        self, tools, loaded
+    ):
+        audio.run_audio_fix(loaded, with_stats=True)
+
+        selection = next(f for f in tools.ffmpeg_filters if "aselect" in f)
+        assert f"{audio.FLOOR_FRAME},aselect=" in selection
+        # 0.000-2.020 and 4.017-6.500, each pulled in by the guard.
+        assert "between(t,0.100,1.920)+between(t,4.117,6.400)" in selection
+
+    def test_a_silence_too_short_for_the_guard_is_left_out(self, tools, loaded):
+        brief = audio.SILENCE_GUARD_SECONDS
+
+        assert audio.floor_intervals([(1.0, 1.0 + 2 * brief)]) == []
+        assert audio.floor_intervals([(1.0, 2.0)]) == [(1.0 + brief, 2.0 - brief)]
+
+    def test_nothing_left_after_the_guard_is_measured_as_unknown(self, tools, loaded):
+        brief = [(1.0, 1.0 + audio.SILENCE_GUARD_SECONDS)]
+
+        assert audio.noise_floor(Path("source.wav"), brief) is None
+        assert tools.commands == []
 
     def test_without_silence_the_noise_floor_is_unknown(self, tools, loaded):
         tools.silence = "[silencedetect @ 0x1] nothing quiet enough\n"
 
         result = audio.run_audio_fix(loaded, with_stats=True)
 
-        assert result.to_dict()["before"]["noise_floor_rms_db"] is None
+        payload = result.to_dict()
+        assert payload["before"]["noise_floor_rms_db"] is None
+        assert payload["noise_floor"] == {
+            "before_rms_db": None,
+            "after_rms_db": None,
+            "delta_db": None,
+            "improved": None,
+            "silence_sec": 0.0,
+        }
         assert "noise floor could not be measured" in result.warnings[0]
 
     @pytest.mark.parametrize("level", ["-inf", "unavailable"])
@@ -552,7 +672,7 @@ class TestStats:
         audio.run_audio_fix(loaded, with_stats=True)
 
         selection = next(f for f in tools.ffmpeg_filters if "aselect" in f)
-        assert "between(t,3.000,5.000)" in selection
+        assert "between(t,3.100,4.900)" in selection
         assert "1.500" not in selection
 
     def test_an_unfinished_silence_runs_to_the_end(self, tools, loaded):
@@ -561,7 +681,7 @@ class TestStats:
         audio.run_audio_fix(loaded, with_stats=True)
 
         selection = next(f for f in tools.ffmpeg_filters if "aselect" in f)
-        assert f"between(t,290.000,{SOURCE_SECONDS:.3f})" in selection
+        assert f"between(t,290.100,{SOURCE_SECONDS - 0.1:.3f})" in selection
 
     def test_missing_astats_output_is_reported(self, tools, loaded):
         tools.rms[audio.EXTRACTED_NAME] = ""
@@ -574,6 +694,7 @@ class TestStats:
 
         assert "before" not in payload
         assert "after" not in payload
+        assert "noise_floor" not in payload
 
 
 class TestCli:

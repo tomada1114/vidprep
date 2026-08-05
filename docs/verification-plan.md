@@ -53,11 +53,42 @@ status: approved
 **完了条件（機械）**
 - integrated loudness が **-14.0 ± 0.5 LUFS**、true peak **≤ -1.0 dBTP**（ffmpeg loudnorm 解析パスで検証）
 - 処理前後の音声尺の差 **≤ 1ms**
-- 無音区間の RMS（ノイズフロア）が処理前より**低下**していること（denoise 有効時）
+- **ノイズフロア（REQ-007、#33 で確定）**: denoise 直後・**loudnorm 前**の無音区間 RMS が、同じ無音区間で測った処理前の RMS より**低下**していること。判定は `report/stats.json` の `noise_floor.denoise.improved == true`（= `delta_db < 0`）。`audio-fix --stats` が測って `report/noise_floor.json` に記録し、`report` はそれを引用する
 
-**効果測定**: LUFS / TP / LRA / ノイズフロア RMS の前後比較表（stats.json）。ゴールデンの期待値: -22.24 → -14 LUFS。
+### 4.1 ノイズフロア指標の定義（#33）
+
+チェーン全体の前後比較では denoise の効果が測れないことが実測で確定したため、**測定点を loudnorm の手前に移した**。
+
+- **絶対 RMS（チェーン後、#5 の当初実装）は不成立**: loudnorm のメイクアップゲイン（約 +8dB）がフロアごと持ち上げるため、前後比較が悪化方向に出る（PR #17）
+- **レベルマッチ（`below_programme_db`、#10）も不成立**: プログラム比でも悪化方向に出た（PR #25）。原因は下記の測定汚染で、レベルマッチ自体は無罪だが、いずれにせよ denoise の効果を直接は測らない
+- **採用**: `denoise 直後（loudnorm 前）の無音区間 RMS` を、処理前の同じ無音区間の RMS と比べる。makeup gain の影響を受けず、denoise 単体の実測（DeepFilterNet で低下、#5）と整合する。`below_programme_db` は `noise_floor.output` に**参考値**として残す（判定には使わない）
+
+**測り方（ここまで含めて指標の定義）**
+
+- 無音区間は detect 段と同じ `silencedetect=noise=-40dB:d=0.5`
+- 各無音区間の**両端 0.1 秒を測定から除外する**（`SILENCE_GUARD_SECONDS`）。境界には silencedetect が閾値を切った発話の立ち上がり・減衰が残っており、フロア（約 -60dB）より遥かに大きいため平均を支配する
+- `aselect` はフレーム単位でしか切れないので、選択前に `asetnsamples=n=1024` を挟んでフレーム長（約 23ms）をガード（100ms）より十分短く固定する。これがないと**入力コンテナのフレーム長で測定値が変わる**
+- この汚染は実在した: ガードなしだとゴールデンの同一音声が mp4 直読みで **-55.39dB**、抽出 wav で **-45.87dB**（10dB 差）になり、denoise の効果（実測 -9.09dB）が **-0.75dB** まで埋もれていた。#17 の -45.87 と #25 の 33.15dB 下（= -55.39）が食い違っていたのはこれが理由
+
+**実測（2026-08-05、ゴールデンサンプル / DeepFilterNet 0.5.6 / ffmpeg 7.1.1）**
+
+| 項目 | 値 |
+|---|---|
+| 処理前フロア（`noise_floor.denoise.before_rms_db`） | **-60.48 dB** |
+| denoise 後・loudnorm 前（`after_rms_db`） | **-69.57 dB** |
+| 差分（`delta_db`） | **-9.09 dB** → `improved: true`（**REQ-007 成立**） |
+| 測定対象の無音（`silence_sec`） | 119.641 秒（66 区間からガード分を除いた実測長） |
+| 参考: 完成音声のフロア（`noise_floor.output`） | -58.19 dB / プログラム比 44.15 dB 下 |
+
+`stats.json` の `noise_floor` は形が変わったため **`version` を `2` に上げた**。§3.3 の
+before/after 比較では旧 run との diff に `noise_floor.source.*` の消失と
+`noise_floor.denoise.*` の出現が出るが、これは指標変更そのもので回帰ではない。
+
+**効果測定**: LUFS / TP / LRA の前後比較表と上記フロア比較（stats.json）。ゴールデンの期待値: -22.24 → -14 LUFS。
 
 **目視・試聴チェックリスト（tomada 最終判定）**
+
+機械側の合否（上記 -9.09dB）が**発話品質の実感と一致するか**の最終確認は、以下の試聴をもって tomada が行う（#33 の 3 つ目のチェック項目のうち人手側。未消化）。
 - [ ] 冒頭 30 秒: 声の自然さ（denoise のこもり・水中感がないか）
 - [ ] 無音→発話の境界 3 箇所: ノイズゲート的な不自然な立ち上がりがないか
 - [ ] 語尾 3 箇所: リバーブ様のアーティファクトがないか
@@ -65,7 +96,8 @@ status: approved
 
 **検証手順**
 ```
-vidprep audio-fix --stats          # 実行 + 前後統計
+vidprep audio-fix --stats          # 実行 + 前後統計（noise_floor.json も書かれる）
+vidprep report --json              # stats.json の noise_floor.denoise で REQ-007 を判定
 ffmpeg -i audio/processed.wav -af loudnorm=I=-14:TP=-1:print_format=json -f null -
                                    # 独立系統での再測定（自己申告とのクロスチェック）
 afplay audio/processed.wav         # 試聴

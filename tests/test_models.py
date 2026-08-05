@@ -11,6 +11,7 @@ from vidprep.models import (
     Cut,
     Cuts,
     Manifest,
+    NoiseFloorReport,
     Profile,
     Styles,
     Telops,
@@ -391,6 +392,36 @@ class TestSpeechRegions:
         }
         with pytest.raises(ValidationError, match="past the source duration"):
             VadReport.model_validate(payload, context=CONTEXT)
+
+
+class TestNoiseFloorReport:
+    """REQ-007: the floor comparison audio-fix records for report to judge on."""
+
+    def test_a_floor_that_dropped_is_an_improvement(self):
+        measured = NoiseFloorReport(
+            silence_sec=132.8, before_rms_db=-55.39, after_rms_db=-60.3
+        )
+
+        assert measured.delta_db == pytest.approx(-4.91)
+        assert measured.improved is True
+
+    def test_a_floor_that_stayed_put_is_not_an_improvement(self):
+        measured = NoiseFloorReport(before_rms_db=-55.39, after_rms_db=-55.39)
+
+        assert measured.delta_db == 0.0
+        assert measured.improved is False
+
+    def test_a_level_that_could_not_be_measured_decides_nothing(self):
+        measured = NoiseFloorReport(before_rms_db=-55.39, after_rms_db=None)
+
+        assert measured.delta_db is None
+        assert measured.improved is None
+
+    def test_an_unknown_key_is_rejected(self):
+        payload = {"version": "1", "below_programme_db": 33.15}
+
+        with pytest.raises(ValidationError, match="Extra inputs"):
+            NoiseFloorReport.model_validate(payload)
 
 
 class TestAsrSettings:

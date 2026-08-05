@@ -30,7 +30,7 @@ from . import project as project_module
 from . import transcribe as transcribe_module
 from .detect import CUTS_NAME
 from .errors import ExecutionFailedError, UsageError
-from .models import Cuts, Transcript, to_ms
+from .models import Cuts, NoiseFloorReport, Transcript, to_ms
 from .timeline import Timeline
 
 if TYPE_CHECKING:
@@ -48,7 +48,10 @@ STATS_NAME = REPORT_DIR / "stats.json"
 #: Written by ``render`` (#9); read here only to measure what came out of it.
 RENDERED_NAME = Path("out") / "output.mp4"
 
-STATS_VERSION = "1"
+#: Bumped when a section of the document changes shape rather than value —
+#: ``noise_floor`` did in #33, so a reader that knew the old keys cannot be
+#: left thinking it still knows them.
+STATS_VERSION = "2"
 
 #: Always present in ``cuts.by_reason``, even at zero, so a consumer never has
 #: to guess whether a missing key means "none" or "not measured".
@@ -75,6 +78,7 @@ class Inputs:
     transcript: Transcript | None
     audio: Path | None
     rendered: Path | None
+    noise_floor: NoiseFloorReport | None
     warnings: tuple[str, ...]
 
     @property
@@ -184,11 +188,22 @@ def _read(loaded: Project) -> Inputs:
             f"{RENDERED_NAME} not found; the output statistics are null "
             "until `vidprep render` has run"
         )
+
+    floor = None
+    floor_path = loaded.root / audio_module.NOISE_FLOOR_NAME
+    if floor_path.is_file():
+        floor = project_module.load_artifact(floor_path, NoiseFloorReport, duration)
+    else:
+        warnings.append(
+            f"{audio_module.NOISE_FLOOR_NAME} not found; run "
+            "`vidprep audio-fix --stats` for the denoising comparison"
+        )
     return Inputs(
         cuts=cuts,
         transcript=transcript,
         audio=audio if audio.is_file() else None,
         rendered=rendered if rendered.is_file() else None,
+        noise_floor=floor,
         warnings=tuple(warnings),
     )
 
@@ -256,14 +271,13 @@ def _integrated(measurement: Measurement | None) -> float | None:
     return round(measurement.integrated_lufs, LEVEL_DECIMALS)
 
 
-def _floor(measurement: Measurement | None) -> dict[str, float] | None:
-    """Return the noise floor, absolute and relative to the programme level.
+def _output_floor(measurement: Measurement | None) -> dict[str, float] | None:
+    """Return the floor of the finished audio, absolute and level-matched.
 
-    The absolute figure alone cannot answer "did denoising help?", because
-    ``loudnorm`` raises the whole file — floor included — to reach the target.
-    ``below_programme_db`` is the level-matched form of the same measurement:
-    how far the floor sits under the integrated loudness, which the makeup gain
-    leaves alone.
+    Neither figure answers "did denoising help?" — that is what
+    ``noise_floor.denoise`` is for (#33) — but both describe what a listener
+    is left with: how loud the quiet parts are, and how far they sit under the
+    programme level, which is roughly how audible they are.
     """
     if measurement is None or measurement.noise_floor_rms_db is None:
         return None
@@ -399,34 +413,40 @@ def _measure(
         return None, [f"{path.name} could not be measured ({exc})"]
 
 
+def _silence(loaded: Project) -> tuple[list[tuple[float, float]], list[str]]:
+    """Return the silent stretches of the source, or nothing with the reason."""
+    try:
+        intervals = audio_module.detect_silence(
+            loaded.source_path, loaded.manifest.source.duration
+        )
+    except _RECOVERABLE as exc:
+        return [], [
+            f"the silence of the source could not be detected ({exc}); "
+            "the noise floor was not measured"
+        ]
+    if not intervals:
+        return [], ["no silence was found; the noise floor was not measured"]
+    return intervals, []
+
+
 def _levels(loaded: Project, inputs: Inputs) -> tuple[Levels, list[str]]:
     """Measure the material, the processed audio and the rendered output.
 
-    The noise floor is read over the silence of the source and over the very
-    same intervals in ``audio/processed.wav``, which is what makes the two
-    comparable. The rendered output lives on the cut timeline, where those
-    intervals no longer mean anything — and where the silence has largely been
-    removed on purpose — so only its loudness is measured.
+    Only ``audio/processed.wav`` has its noise floor read here, over the silent
+    stretches of the source — the two share a timeline, so the intervals still
+    point at the same moments. What denoising did to the floor is not measured
+    here at all: that comparison has to be made before ``loudnorm`` runs, so
+    ``audio-fix --stats`` makes it and this stage quotes it (#33). The rendered
+    output lives on the cut timeline, where those intervals no longer mean
+    anything — and where the silence has largely been removed on purpose — so
+    only its loudness is measured.
     """
     targets = loaded.profile.audio.loudnorm
-    duration = loaded.manifest.source.duration
-    warnings: list[str] = []
-    intervals: list[tuple[float, float]] = []
-    try:
-        intervals = audio_module.detect_silence(loaded.source_path, duration)
-    except _RECOVERABLE as exc:
-        warnings.append(
-            f"the silence of the source could not be detected ({exc}); "
-            "the noise floor was not measured"
-        )
-    else:
-        if not intervals:
-            warnings.append("no silence was found; the noise floor was not measured")
-
-    source, failed = _measure(loaded.source_path, targets, intervals)
-    warnings += failed
+    source, warnings = _measure(loaded.source_path, targets, ())
     processed = None
     if inputs.audio is not None:
+        intervals, detected = _silence(loaded)
+        warnings += detected
         processed, failed = _measure(inputs.audio, targets, intervals)
         warnings += failed
     rendered = None
@@ -456,10 +476,11 @@ def plan(loaded: Project) -> dict[str, Any]:
     inputs = _read(loaded)
     targets = loaded.profile.audio.loudnorm
     source = loaded.source_path
-    commands = [
-        audio_module.silence_command(source),
-        audio_module.measurement_command(source, targets),
-    ]
+    commands = [audio_module.measurement_command(source, targets)]
+    if inputs.audio is not None:
+        # The silence is only looked for when there is processed audio to read
+        # the floor over; nothing else in the report uses it.
+        commands.append(audio_module.silence_command(source))
     commands.extend(
         audio_module.measurement_command(path, targets)
         for path in (inputs.audio, inputs.rendered)
@@ -555,8 +576,8 @@ def run_report(loaded: Project) -> Result:
         "cuts": _cut_section(inputs.cuts),
         "loudness": _loudness_section(levels, loaded.profile.audio.loudnorm),
         "noise_floor": {
-            "source": _floor(levels.source),
-            "processed": _floor(levels.processed),
+            "denoise": audio_module.floor_section(inputs.noise_floor),
+            "output": _output_floor(levels.processed),
         },
         "subtitles": subtitles,
         "artifacts": {

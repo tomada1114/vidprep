@@ -42,6 +42,14 @@ LOUDNESS = {SOURCE_NAME: "-22.24", PROCESSED_NAME: "-14.06", OUTPUT_NAME: "-14.0
 #: Noise-floor RMS the fake reports over the silence of each file.
 NOISE_FLOOR = {SOURCE_NAME: "-45.87", PROCESSED_NAME: "-37.05"}
 
+#: What ``audio-fix --stats`` measured before loudnorm, for report to quote.
+NOISE_FLOOR_REPORT = {
+    "version": "1",
+    "silence_sec": 2.0,
+    "before_rms_db": -45.87,
+    "after_rms_db": -52.4,
+}
+
 SILENCE_LOG = """\
 [silencedetect @ 0x1] silence_start: 10.0
 [silencedetect @ 0x1] silence_end: 12.0 | silence_duration: 2.0
@@ -189,6 +197,7 @@ def prepared(project_dir: Path) -> Path:
     """A project with cuts, a transcript, processed audio and a rendered output."""
     write_json(project_dir / "cuts.json", {"version": "1", "cuts": CUTS})
     write_json(project_dir / "transcript.json", TRANSCRIPT)
+    write_json(project_dir / audio.NOISE_FLOOR_NAME, NOISE_FLOOR_REPORT)
     for name in ("audio/processed.wav", "out/output.mp4"):
         path = project_dir / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -352,28 +361,53 @@ class TestStats:
             "tolerance": 0.5,
         }
 
-    def test_the_noise_floor_is_reported_level_matched_as_well_as_absolute(
+    def test_req_007_is_judged_on_what_audio_fix_measured_before_loudnorm(
         self, fake_tools, loaded
     ):
         result = report.run_report(loaded)
 
-        assert result.stats["noise_floor"] == {
-            "source": {"rms_db": -45.87, "below_programme_db": 23.63},
-            "processed": {"rms_db": -37.05, "below_programme_db": 22.99},
+        assert result.stats["noise_floor"]["denoise"] == {
+            "before_rms_db": -45.87,
+            "after_rms_db": -52.4,
+            "delta_db": -6.53,
+            "improved": True,
+            "silence_sec": 2.0,
         }
 
-    def test_the_noise_floor_is_read_over_the_same_silence_on_both_sides(
+    def test_the_floor_of_the_finished_audio_is_reported_alongside_it(
+        self, fake_tools, loaded
+    ):
+        result = report.run_report(loaded)
+
+        assert result.stats["noise_floor"]["output"] == {
+            "rms_db": -37.05,
+            "below_programme_db": 22.99,
+        }
+
+    def test_without_the_audio_fix_measurement_req_007_is_not_judged(
+        self, fake_tools, loaded
+    ):
+        (loaded.root / audio.NOISE_FLOOR_NAME).unlink()
+
+        result = report.run_report(loaded)
+
+        assert result.stats["noise_floor"]["denoise"] is None
+        assert any("audio-fix --stats" in warning for warning in result.warnings)
+
+    def test_the_floor_of_the_output_is_read_over_the_silence_of_the_source(
         self, fake_tools, loaded
     ):
         report.run_report(loaded)
 
-        expressions = [
-            command[command.index("-af") + 1]
+        measured = [
+            command
             for command in fake_tools.commands
             if "-af" in command and "astats" in command[command.index("-af") + 1]
         ]
-        assert len(expressions) == 2
-        assert expressions[0] == expressions[1]
+        assert len(measured) == 1
+        filters = measured[0][measured[0].index("-af") + 1]
+        assert Path(measured[0][measured[0].index("-i") + 1]).name == PROCESSED_NAME
+        assert "between(t,10.100,11.900)" in filters
 
     def test_without_silence_the_noise_floor_is_unknown_and_the_run_says_so(
         self, fake_tools, loaded
@@ -382,7 +416,7 @@ class TestStats:
 
         result = report.run_report(loaded)
 
-        assert result.stats["noise_floor"] == {"source": None, "processed": None}
+        assert result.stats["noise_floor"]["output"] is None
         assert any("noise floor" in warning for warning in result.warnings)
 
     def test_a_failed_measurement_is_a_warning_rather_than_a_failure(
@@ -410,7 +444,7 @@ class TestStats:
 
         result = report.run_report(loaded)
 
-        assert result.stats["noise_floor"]["source"] is None
+        assert result.stats["noise_floor"]["output"] is None
         assert any("silence of the source" in warning for warning in result.warnings)
 
     def test_a_rendered_output_whose_length_cannot_be_read_stays_null(
@@ -433,7 +467,7 @@ class TestStats:
         result = report.run_report(loaded)
 
         assert stats_of(loaded.root) == result.stats
-        assert stats_of(loaded.root)["version"] == "1"
+        assert stats_of(loaded.root)["version"] == "2"  # #33 reshaped noise_floor
 
 
 # --------------------------------------------------------------------------- #
