@@ -1,0 +1,8 @@
+# Generated Codex bridge symlinks (managed by bridge_symlink.sh).
+# Real Codex-only skills are NOT listed here and remain committable.
+correct-transcript
+create-pr
+place-telops
+review-cuts
+shipping-issues
+smart-commit

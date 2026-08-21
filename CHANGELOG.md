@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The three Claude Code skills of design.md §7 —
+- The three agent skills of design.md §7 —
   `.claude/skills/correct-transcript`, `review-cuts` and `place-telops`. Each
   one reads the intermediate JSON, writes exactly one artifact
   (`patch.json`, the `status`/`note` of `cuts.json`, `telops.json`) and hands it

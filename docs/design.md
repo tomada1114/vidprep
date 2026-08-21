@@ -38,7 +38,7 @@ design-input.md の未決事項 7 件と、本設計セッションで追加し�
  │                 └─ [correct] 辞書置換 →（スキル経由 LLM 校正 → 機械検証つき適用）
  ├─ [detect]      auto-editor（無音）+ transcript ベースのフィラー検出 → cuts.json
  │                 └─ ★レビューゲート: report で境界ダイジェスト・波形を確認し
- │                    人間 / Claude Code が cuts.json の status を編集
+ │                    人間 / agent skill が cuts.json の status を編集
  └─ [render]      approved のカットのみ適用
       ├─ out/output.mp4      全再エンコード + 境界フェード
       ├─ out/subtitles.srt   カット後タイムラインへ写像
@@ -176,7 +176,7 @@ src/vidprep/
 ### 3.5 telops.json / styles.json
 
 ```json
-// telops.json — Claude Code スキルまたは人間が書き、render --preview が読む
+// telops.json — agent skill または人間が書き、render --preview が読む
 {"version": "1", "telops": [
   {"segment_id": "s0012", "text": "ここが重要", "style_preset": "emphasis",
    "start": null, "duration": null}
@@ -290,7 +290,7 @@ f(t) = t - removed(t)                       # カット内の t は f(bi) に写
   - **タイムスタンプ・セグメント数・順序を変更していないか**（パッチ形式上そもそも書けないが、適用後の不変条件としても検証）
   - 変更セグメント数と diff サマリを表示し、`--yes` がなければ確認を求める
 
-LLM 校正そのもの（プロンプト・文脈判断）は Claude Code スキルの仕事で、CLI は検証つき適用だけを担う。
+LLM 校正そのもの（プロンプト・文脈判断）は agent skill の仕事で、CLI は検証つき適用だけを担う。
 
 ### 5.4 detect
 
@@ -352,9 +352,9 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 - exit code: `0` 成功 / `1` 使用法・環境エラー / `2` 処理実行の失敗 / `3` 検証 NG（スキーマ不正、ハッシュ不一致、doctor の必須欠如など）
 - 破壊的でない: すべての出力は上書き前に生成し、成功時にアトミックに置き換える。ソース素材には一切書き込まない
 
-## 7. Claude Code 連携（.claude/skills/）
+## 7. Agent連携（Claude Code / Codex）
 
-CLI 本体は AI 非依存。スキルは中間 JSON の読み書きと CLI 呼び出しだけを行う。v1 で用意するスキルは 3 つ（実装はスキル作成時に詰める。ここでは契約のみ定義）:
+CLI 本体は AI 非依存。スキルは中間 JSON の読み書きと CLI 呼び出しだけを行う。スキルの正本は `.claude/skills/` に置き、Codex からは `.agents/skills/` の symlink 経由で同じ実体を読む。v1 のパイプラインスキルは 3 つ（実装はスキル作成時に詰める。ここでは契約のみ定義）:
 
 | スキル | 読む | 書く | 契約 |
 |---|---|---|---|

@@ -122,10 +122,13 @@ that:
 - `vidprep render --preview` burns `telops.json` into `out/preview.mp4` through
   libass, so on-screen captions are checked before they are committed to.
 
-The repository also ships three Claude Code skills for the LLM-assisted parts —
-`correct-transcript`, `review-cuts` and `place-telops`. Each one reads the
-intermediate JSON, writes exactly one artifact and hands it back to the CLI to
-be verified.
+The repository also ships agent skills for the LLM-assisted parts. The three
+pipeline skills — `correct-transcript`, `review-cuts` and `place-telops` — each
+read the intermediate JSON, write exactly one artifact and hand it back to the
+CLI to be verified. `create-pr`, `shipping-issues` and `smart-commit` cover
+repository workflows. The canonical definitions live in `.claude/skills/`,
+and Codex reads the same definitions through generated symlinks in
+`.agents/skills/`.
 
 ## The project directory
 

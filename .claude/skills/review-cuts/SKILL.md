@@ -6,6 +6,8 @@ description: >
   only `status` and `note`, and re-validates through the CLI. Use PROACTIVELY
   when: review cuts, approve cuts, カット候補のレビュー, filler review, cuts.json
   status, decide what to delete, `report --cuts` follow-up.
+metadata:
+  platforms: claude-code, codex
 ---
 
 # Review Cuts
@@ -143,3 +145,7 @@ For the user: how many cuts were approved / rejected / left proposed per reason,
 the total approved seconds, and the notes for every decision that was not
 obvious. Mention the boundary digest (`report/boundary_digest.mp4`) as the way
 to listen to the approved boundaries before rendering.
+
+## Platform notes
+
+詳細は [references/platform-notes.md](references/platform-notes.md) を参照。

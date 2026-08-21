@@ -1,20 +1,19 @@
+<!-- agents-md-sync:begin -->
 @AGENTS.md
+<!-- agents-md-sync:end -->
 
-# Claude Code Specifics
+# Claude Code specifics
 
 Shared, tool-agnostic project instructions live in `AGENTS.md` (imported
-above). This repo additionally ships Claude Code configuration:
+above). This repo additionally ships host-specific configuration:
 
-- `.claude/rules/` — path-scoped conventions (Python, tests, docs,
-  pyproject.toml) that load automatically when matching files are read
-- `.claude/hooks/format.py` — auto-formats every edited `*.py` file
-  (PostToolUse), so do not re-run formatters after each edit
-- `.claude/hooks/guard.py` — blocks writes to `uv.lock`, `.env*`, and
-  `secrets/**` (via Edit/Write or shell commands), `git commit --no-verify`,
-  and plain force-pushes (PreToolUse)
-- `.claude/hooks/stop_check.py` — runs ruff (lint + format check) and mypy
-  before a turn ends when Python files changed (Stop)
-- `.claude/skills/` — `create-pr` and `smart-commit` workflow skills
-- `.claude/settings.json` — shared permission allowlist for local build,
-  lint, and test commands; personal preferences (model, output style, extra
-  permissions) belong in `.claude/settings.local.json`, never here
+- `.claude/skills/` — the canonical skill definitions; the corresponding
+  Codex-visible symlinks are generated under `.agents/skills/`
+- `.claude/settings.json` — the permission allowlist and hook wiring for this
+  host; the generated counterpart for the other supported host is
+  `.codex/hooks.json`
+- `.claude/settings.local.json` — personal preferences (model, output style,
+  and extra permissions); never commit or modify this file
+
+The shared hook scripts live in `.agents/hooks/` and are described in the
+project-wide `Agent hooks` section of `AGENTS.md`.

@@ -1,8 +1,9 @@
-"""The Claude Code skills that drive the CLI (design.md §7).
+"""The agent skills that drive the CLI (design.md §7).
 
 The skills are prose, so what can be checked mechanically is their contract:
-each one is discoverable, ends in a CLI verification command, knows the payload
-the CLI rejects it with, and never tells anyone to edit the package.
+each one is discoverable, declares both supported hosts, ends in a CLI
+verification command, knows the payload the CLI rejects it with, and never
+tells anyone to edit the package.
 """
 
 from __future__ import annotations
@@ -12,6 +13,14 @@ from pathlib import Path
 import pytest
 
 SKILLS_DIR = Path(__file__).resolve().parents[1] / ".claude" / "skills"
+ALL_SKILLS = (
+    "correct-transcript",
+    "create-pr",
+    "place-telops",
+    "review-cuts",
+    "shipping-issues",
+    "smart-commit",
+)
 
 #: The skills of the v1 pipeline (design.md §7).
 PIPELINE_SKILLS = ("correct-transcript", "review-cuts", "place-telops")
@@ -91,6 +100,12 @@ class TestSkillContract:
 
         assert "Use PROACTIVELY when:" in fields["description"]
 
+    def test_frontmatter_declares_both_supported_hosts(self, name):
+        text = read_skill(name)
+
+        assert "metadata:" in text
+        assert "platforms: claude-code, codex" in text
+
     def test_body_runs_the_cli_verification(self, name):
         _, body = parse_frontmatter(read_skill(name))
 
@@ -126,3 +141,11 @@ class TestFrontmatterParser:
     def test_text_without_frontmatter_is_rejected(self):
         with pytest.raises(AssertionError, match="frontmatter"):
             parse_frontmatter("# Body\n")
+
+
+@pytest.mark.parametrize("name", ALL_SKILLS)
+def test_all_agent_skills_declare_both_supported_hosts(name):
+    """Every repository skill is exposed through the shared dual-platform contract."""
+    text = (SKILLS_DIR / name / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "metadata:\n  platforms: claude-code, codex" in text

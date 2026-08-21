@@ -4,10 +4,9 @@ Parses each open issue's Dependencies sections (Depends On / Blocks /
 Can Parallel With), resolves readiness against closed issues, and emits
 a JSON report the orchestrating agent uses to pick the next batch.
 
-Requires the ``gh`` CLI to be authenticated. Run from anywhere inside
-the repository::
+Requires the ``gh`` CLI to be authenticated. Run from the skill directory::
 
-    python3 .claude/skills/shipping-issues/scripts/triage.py
+    python3 scripts/triage.py
 """
 
 from __future__ import annotations

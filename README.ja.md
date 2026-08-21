@@ -115,9 +115,12 @@ vidprep は人間が決めるべきことを決めない。そのための場所
 - `vidprep render --preview` は `telops.json` を libass 経由で `out/preview.mp4` に
   焼き込む。画面上のテロップを確定前に確認できる
 
-LLM を使う部分については Claude Code のスキルを 3 つ同梱している
-（`correct-transcript` / `review-cuts` / `place-telops`）。どれも中間 JSON を読み、
-成果物をちょうど 1 つだけ書き、検証は CLI に委ねる。
+LLM を使う部分についてはエージェントスキルを同梱している。パイプライン用は
+3 つ（`correct-transcript` / `review-cuts` / `place-telops`）で、どれも中間 JSON を
+読み、成果物をちょうど 1 つだけ書き、検証は CLI に委ねる。リポジトリ運用向けに
+`create-pr` / `shipping-issues` / `smart-commit` も用意している。正本は
+`.claude/skills/` に置き、Codex からは `.agents/skills/` の生成 symlink 経由で同じ
+定義を読み込む。
 
 ## プロジェクトディレクトリ
 

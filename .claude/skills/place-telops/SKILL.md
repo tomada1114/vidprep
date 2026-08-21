@@ -6,6 +6,8 @@ description: >
   do the validation. Use PROACTIVELY when: place telops, add captions,
   テロップ配置, telops.json, emphasis text on screen, chapter titles,
   `render --preview` follow-up.
+metadata:
+  platforms: claude-code, codex
 ---
 
 # Place Telops
@@ -146,3 +148,7 @@ Always fix `telops.json` and re-run the verification. Never edit
 List what was placed — how many by `segment_id`, how many by `start`/`duration`,
 which presets were used — and point the user at `out/preview.mp4` to check that
 the text lands on the words it belongs to.
+
+## Platform notes
+
+詳細は [references/platform-notes.md](references/platform-notes.md) を参照。

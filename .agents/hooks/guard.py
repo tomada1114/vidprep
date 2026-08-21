@@ -3,26 +3,26 @@
 # ///
 """PreToolUse hook: block edits to protected files and dangerous git commands.
 
-Permission `deny` rules are advisory in some Claude Code versions
-(anthropics/claude-code#6699), and hooks also fire in bypassPermissions mode,
-so this hook is the enforcement backstop for the rules below.
+Permission rules can be bypassed by some host modes, and hooks also fire in
+those modes, so this hook is the enforcement backstop for the rules below.
 
 Bash commands are split on shell control operators and each segment's argv is
 inspected on its own, so a flag in one command can neither trigger nor excuse
 a block for another. Static inspection stays best-effort: it catches the
 plain spellings an agent falls back to, not every shell construction.
 
-Exit code 2 blocks the tool call and shows the reason to Claude.
+Exit code 2 blocks the tool call and shows the reason to the agent.
 """
 
 from __future__ import annotations
 
-import json
 import re
 import shlex
 import sys
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
+
+from hook_payload import load_event, project_root, relative_to_root
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -166,19 +166,18 @@ def _check_bash(command: str) -> str | None:
 
 def main() -> int:
     """Inspect the pending tool call and block protected operations."""
-    try:
-        payload = json.load(sys.stdin)
-    except json.JSONDecodeError:
+    event = load_event()
+    if event.name != "PreToolUse":
         return 0
 
-    tool_name = payload.get("tool_name", "")
-    tool_input = payload.get("tool_input", {})
-
+    root = project_root()
     reason = None
-    if tool_name in {"Edit", "Write"}:
-        reason = _check_write(tool_input.get("file_path", ""))
-    elif tool_name == "Bash":
-        reason = _check_bash(tool_input.get("command", ""))
+    for file_path in event.files:
+        reason = _check_write(relative_to_root(file_path, event, root))
+        if reason:
+            break
+    if reason is None and event.command:
+        reason = _check_bash(event.command)
 
     if reason:
         sys.stderr.write(f"Blocked: {reason}\n")

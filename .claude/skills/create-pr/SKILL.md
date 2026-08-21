@@ -6,6 +6,8 @@ description: >
   summary/test plan/checklist, and verifies all checklist items pass before
   creating via gh CLI. Use PROACTIVELY when: PR creation, pull request,
   create PR, open PR, submit PR, PR update, review request.
+metadata:
+  platforms: claude-code, codex
 ---
 
 # PR Creation Workflow
@@ -14,14 +16,11 @@ All PR titles, bodies, and commit messages MUST be written in English.
 
 ## Dynamic Context
 
-PR template:
-!cat .github/PULL_REQUEST_TEMPLATE.md
+Before starting the steps below, inspect these three items in the repository:
 
-Commits in this PR:
-!git log main..HEAD --oneline
-
-Changed files:
-!git diff --stat main..HEAD
+- `.github/PULL_REQUEST_TEMPLATE.md`
+- `git log main..HEAD --oneline`
+- `git diff --stat main..HEAD`
 
 ## Step 1: Pre-flight Checks
 
@@ -90,7 +89,7 @@ Generate a title in Conventional Commits format:
 **Examples:**
 - `feat: add JSON export support`
 - `fix(core): handle empty input gracefully`
-- `chore: add .claude/rules and post-edit hook`
+- `chore: configure shared agent hooks`
 
 ## Step 5: Generate PR Body
 
@@ -151,3 +150,7 @@ EOF
 - This skill does NOT create commits — use the `smart-commit` skill for that
 - Abort if attempting to create a PR from the `main` branch
 - When a PR already exists for the current branch, update it with `gh pr edit`
+
+## Platform notes
+
+詳細は [references/platform-notes.md](references/platform-notes.md) を参照。

@@ -7,6 +7,8 @@ description: >
   `vidprep correct --apply-patch`. Use PROACTIVELY when: transcript correction,
   proofread the transcript, LLM 校正, patch.json, fix the ASR output,
   context dictionary entries, `vidprep correct` follow-up.
+metadata:
+  platforms: claude-code, codex
 ---
 
 # Correct Transcript
@@ -174,3 +176,7 @@ recorded with:
 ```bash
 uv run python scripts/cer.py fixtures/expected/golden.reference.txt <hypothesis>
 ```
+
+## Platform notes
+
+詳細は [references/platform-notes.md](references/platform-notes.md) を参照。
