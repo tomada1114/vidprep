@@ -177,6 +177,9 @@ just check     # format, lint, type check, tests
 just docs      # serve the documentation locally
 ```
 
+Before opening a pull request, run `just check` to verify the formatting,
+linting, type checks and test suite together.
+
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — setup and a walk through the stages

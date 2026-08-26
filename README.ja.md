@@ -168,6 +168,8 @@ just check     # フォーマット、lint、型チェック、テスト
 just docs      # ドキュメントをローカルで配信する
 ```
 
+プルリクエストを作成する前に `just check` を実行すると、フォーマット、lint、型チェック、テストをまとめて確認できる。
+
 ## ドキュメント
 
 - [Getting Started](docs/getting-started.md) — セットアップと各段のウォークスルー（英語）
