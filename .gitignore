@@ -31,6 +31,9 @@ site/
 # (recorded content must not be published; see docs/verification-plan.md §2)
 fixtures/
 
+# Local vidprep projects and recorded outputs
+work/
+
 # IDE
 .vscode/
 .idea/
