@@ -2,6 +2,7 @@
   "version": "1",
   "audio": {
     "denoise": "deepfilternet",
+    "deepfilternet_atten_lim_db": 12.0,
     "highpass_hz": 80,
     "loudnorm": {
       "i": -14.0,

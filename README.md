@@ -29,6 +29,10 @@ activity detection in front of whisper.cpp and timestamps everything in
 original-timeline seconds. `detect` takes the silences from auto-editor and the
 filler words from the transcript. `render` applies only what you approved.
 
+For a more natural voice, `profile.json` defaults DeepFilterNet's attenuation
+limit to 12 dB; lower it to leave more of the original voice and background
+ambience, or raise it when stronger denoising is more important.
+
 ## What it refuses to do
 
 The checks are the point, so they are worth stating before the install steps.

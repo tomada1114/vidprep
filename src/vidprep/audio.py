@@ -135,6 +135,7 @@ class Chain:
         denoise: The denoiser that will actually run, after any fallback.
         denoiser_path: Absolute path of the DeepFilterNet binary, when used.
         denoiser_version: Version of that binary, recorded as provenance.
+        deepfilternet_atten_lim_db: Maximum DeepFilterNet attenuation in dB.
         highpass_hz: Corner frequency of the high-pass that follows denoising.
         loudnorm: EBU R128 targets taken from ``profile.json``.
         sample_rate: Sample rate to preserve, from the source material.
@@ -144,6 +145,7 @@ class Chain:
     denoise: str
     denoiser_path: str | None
     denoiser_version: str | None
+    deepfilternet_atten_lim_db: float
     highpass_hz: int
     loudnorm: Loudnorm
     sample_rate: int
@@ -190,6 +192,8 @@ class Chain:
         return [
             self.denoiser_path or doctor.DEEPFILTERNET_BINARIES[0],
             "--compensate-delay",
+            "--atten-lim-db",
+            f"{self.deepfilternet_atten_lim_db:g}",
             "--output-dir",
             str(out_dir),
             str(source),
@@ -644,6 +648,7 @@ def resolve_chain(loaded: Project) -> tuple[Chain, list[str]]:
         denoise=denoise,
         denoiser_path=path,
         denoiser_version=version,
+        deepfilternet_atten_lim_db=settings.deepfilternet_atten_lim_db,
         highpass_hz=settings.highpass_hz,
         loudnorm=settings.loudnorm,
         sample_rate=stream.sample_rate,

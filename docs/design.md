@@ -196,7 +196,8 @@ src/vidprep/
 ```json
 {
   "version": "1",
-  "audio": {"denoise": "deepfilternet", "highpass_hz": 80,
+  "audio": {"denoise": "deepfilternet", "deepfilternet_atten_lim_db": 12.0,
+            "highpass_hz": 80,
             "loudnorm": {"i": -14.0, "tp": -1.0, "lra": 11.0}},
   "asr": {"backend": "whisper.cpp", "model": "large-v3-turbo",
           "language": "ja", "vad": "silero-v5"},
@@ -261,7 +262,7 @@ f(t) = t - removed(t)                       # カット内の t は f(bi) に写
 
 ### 5.1 audio-fix
 
-チェーン: `denoise（DeepFilterNet、無ければ afftdn にフォールバック）→ highpass 80Hz → loudnorm 2 パス（linear モード）`。出力は `audio/processed.wav`（PCM 16bit、ソースのサンプルレート維持）。
+チェーン: `denoise（DeepFilterNet、無ければ afftdn にフォールバック）→ highpass 80Hz → loudnorm 2 パス（linear モード）`。出力は `audio/processed.wav`（PCM 16bit、ソースのサンプルレート維持）。DeepFilterNet の `deepfilternet_atten_lim_db` は原音との混合を残すための抑制上限で、既定値は 12dB とする。
 
 - loudnorm は 1 パス目で measured 値を取得し、2 パス目に `measured_*` を渡す linear モードで実行する（dynamic モードのポンピング回避）
 - 尺を変えてはならない（完了条件: 尺差 ≤ 1ms。verification-plan.md §4）

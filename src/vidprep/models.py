@@ -422,6 +422,7 @@ class AudioProfile(_Strict):
     """Parameters of the ``audio-fix`` chain."""
 
     denoise: str = "deepfilternet"
+    deepfilternet_atten_lim_db: float = Field(default=12.0, ge=0.0, le=100.0)
     highpass_hz: int = Field(default=80, ge=0)
     loudnorm: Loudnorm = Field(default_factory=Loudnorm)
 

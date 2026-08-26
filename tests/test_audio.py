@@ -208,6 +208,7 @@ class TestChainOrder:
         denoise, analysis = plan["commands"][1], plan["commands"][2]
         assert denoise[0] == DEEPFILTERNET_PATH
         assert "--compensate-delay" in denoise
+        assert denoise[denoise.index("--atten-lim-db") + 1] == "12"
         assert analysis[analysis.index("-i") + 1].endswith(
             f"{audio.DENOISED_DIR}/{audio.EXTRACTED_NAME}"
         )
@@ -251,11 +252,15 @@ class TestChainOrder:
         assert render[render.index("-ac") + 1] == "2"
 
     def test_targets_come_from_the_profile(self, tools, loaded):
+        loaded.profile.audio.deepfilternet_atten_lim_db = 6.0
         loaded.profile.audio.highpass_hz = 120
         loaded.profile.audio.loudnorm.i = -16.0
 
-        filters = fake_filters(audio.plan(loaded))[0]
+        plan = audio.plan(loaded)
+        filters = fake_filters(plan)[0]
+        denoise = plan["commands"][1]
 
+        assert denoise[denoise.index("--atten-lim-db") + 1] == "6"
         assert "highpass=f=120" in filters
         assert "loudnorm=I=-16:TP=-1:LRA=11" in filters
 

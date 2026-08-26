@@ -118,6 +118,7 @@ PROFILE_SAMPLE: dict[str, Any] = {
     "version": "1",
     "audio": {
         "denoise": "deepfilternet",
+        "deepfilternet_atten_lim_db": 12.0,
         "highpass_hz": 80,
         "loudnorm": {"i": -14.0, "tp": -1.0, "lra": 11.0},
     },
@@ -188,6 +189,22 @@ class TestDesignSamples:
 
     def test_profile_defaults_match_the_design_table(self):
         assert Profile().model_dump(mode="json") == PROFILE_SAMPLE
+
+    @pytest.mark.parametrize("value", [-0.1, 100.1])
+    def test_deepfilternet_attenuation_limit_rejects_out_of_range_values(self, value):
+        payload = {
+            **PROFILE_SAMPLE,
+            "audio": {
+                **PROFILE_SAMPLE["audio"],
+                "deepfilternet_atten_lim_db": value,
+            },
+        }
+
+        with pytest.raises(
+            ValidationError,
+            match=r"greater than or equal to|less than or equal to",
+        ):
+            Profile.model_validate(payload)
 
     def test_style_presets_accept_the_float_valued_ass_fields(self):
         payload = {
