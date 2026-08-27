@@ -24,9 +24,11 @@
 `audio-fix` は DeepFilterNet（未インストールなら ffmpeg の `afftdn`）でノイズ抑制し、
 80 Hz のハイパスを通し、`loudnorm` の 2 パスで -14 LUFS / true peak -1.0 dBTP に
 合わせる。`transcribe` は whisper.cpp の前に
-Silero の発話区間検出を置き、すべてのタイムスタンプを原尺の秒で記録する。`detect` は
-auto-editor が見つけた無音と、文字起こしから見つけたフィラー語を候補にする。`render` は
-承認したものだけを適用する。
+Silero の発話区間検出を置き、すべてのタイムスタンプを原尺の秒で記録する。`correct` は
+同梱の辞書で ASR の既知の誤変換を直す。複数プロジェクトで辞書を共有したい場合などは
+`--dict <path>` か `profile.json` の `correct.dictionary_path` で差し替えられる。
+`detect` は auto-editor が見つけた無音と、文字起こしから見つけたフィラー語を候補にする。
+`render` は承認したものだけを適用する。
 
 声の自然さを優先するため、DeepFilterNet の抑制上限は既定で 12 dB としている。
 原音や部屋の響きをさらに残したい場合は `profile.json` の

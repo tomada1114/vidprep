@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep correct --dict <path>` and `correct.dictionary_path` in
+  `profile.json`: read the misconversion dictionary from outside the package,
+  so several projects can share one maintained file instead of each forking
+  `dictionaries/asr-dict.json`. `--dict` wins over the profile's
+  `dictionary_path`, which wins over the packaged default; both expand `~`,
+  and a relative `dictionary_path` resolves against the project directory
+  rather than the shell's cwd, since `profile.json` is per-project. A path
+  that does not exist is a usage error naming it rather than a silent
+  fallback to the packaged dictionary, and a schema violation is reported the
+  same way `load_dictionary` already reports one. Both the diff summary and
+  `--json` output name the dictionary that was used, under `dictionary_source`
 - The three agent skills of design.md §7 —
   `.claude/skills/correct-transcript`, `review-cuts` and `place-telops`. Each
   one reads the intermediate JSON, writes exactly one artifact

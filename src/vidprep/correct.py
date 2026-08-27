@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -38,8 +39,6 @@ from .models import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from ._dictionary import AsrDictionary, Hit
     from .models import Segment
     from .project import Project
@@ -145,6 +144,10 @@ class Plan:
         warnings: What degraded, e.g. the reading stage being unavailable.
         checks: Verifications already performed, shown before the confirmation
             prompt so the user knows what "yes" is agreeing to.
+        dictionary_source: Where the dictionary came from — ``"packaged"`` or
+            the path it was read from. ``None`` when there is no such file to
+            name: a patch (``tool="llm"``), or entries handed straight to
+            :func:`plan_dictionary`.
     """
 
     tool: Literal["dict", "llm"]
@@ -154,6 +157,7 @@ class Plan:
     skipped: tuple[Skip, ...] = ()
     warnings: tuple[str, ...] = ()
     checks: tuple[str, ...] = ()
+    dictionary_source: str | None = None
 
     def lines(self, *, verbose: bool = False) -> list[str]:
         """Render the diff summary, one block per changed segment.
@@ -162,6 +166,8 @@ class Plan:
             verbose: Also list the matches that were deliberately skipped.
         """
         reported = [f"⚠ {warning}" for warning in self.warnings]
+        if self.dictionary_source is not None:
+            reported.append(f"dictionary: {self.dictionary_source}")
         if self.checks:
             reported.append("verified: " + ", ".join(self.checks))
         reported += [change.line() for change in self.changes]
@@ -185,6 +191,7 @@ class Plan:
             "segments": [change.to_dict() for change in self.changes],
             "skipped": [skip.to_dict() for skip in self.skipped],
             "warnings": list(self.warnings),
+            "dictionary_source": self.dictionary_source,
         }
 
 
@@ -207,24 +214,75 @@ def load_transcript(loaded: Project) -> Transcript:
     return project_module.load_artifact(path, Transcript)
 
 
+def resolve_dictionary_path(loaded: Project, cli_path: Path | None) -> Path | None:
+    """Work out which dictionary file ``correct`` should read, if any override applies.
+
+    ``--dict`` on the command line wins over ``correct.dictionary_path`` in
+    ``profile.json``, which wins over the packaged dictionary (design.md §3.7).
+    Both expand ``~``. A relative ``--dict`` resolves against the current
+    directory, like any other CLI path argument; a relative
+    ``dictionary_path`` resolves against the project directory, since
+    ``profile.json`` is per-project and must not depend on the shell's cwd.
+
+    Args:
+        loaded: The project; its profile may set ``correct.dictionary_path``.
+        cli_path: ``--dict`` as given on the command line.
+
+    Returns:
+        The resolved, absolute path to read instead of the packaged
+        dictionary, or ``None`` to use the packaged one.
+    """
+    if cli_path is not None:
+        return _expand_path(cli_path, Path.cwd())
+    raw = loaded.profile.correct.dictionary_path
+    if raw is None:
+        return None
+    return _expand_path(Path(raw), loaded.root)
+
+
+def _expand_path(path: Path, base: Path) -> Path:
+    """Expand ``~`` in *path* and resolve it against *base* if it is relative."""
+    expanded = path.expanduser()
+    return expanded if expanded.is_absolute() else base / expanded
+
+
 def plan_dictionary(
     loaded: Project,
     dictionary: AsrDictionary | None = None,
     reader: _dictionary.Reader | None = None,
+    dictionary_path: Path | None = None,
 ) -> Plan:
     """Work out what the misconversion dictionary would change (design.md §3.7).
 
     Args:
         loaded: The project whose transcript is corrected.
-        dictionary: Entries to apply; the packaged dictionary when omitted.
+        dictionary: Entries to apply; loaded from *dictionary_path* (or the
+            packaged dictionary) when omitted.
         reader: Analyser for the reading stage; resolved from the installed
             SudachiDict when omitted.
+        dictionary_path: Read the dictionary from here instead of the
+            packaged one; ignored when *dictionary* is given directly.
 
     Returns:
         The plan, which changes nothing until :func:`apply` is called.
+
+    Raises:
+        UsageError: If *dictionary_path* is given but no file exists there.
+        SchemaInvalidError: If the file at *dictionary_path* violates the
+            dictionary schema.
     """
     transcript = load_transcript(loaded)
-    entries = _dictionary.load_dictionary() if dictionary is None else dictionary
+    dictionary_source: str | None = None
+    if dictionary is not None:
+        entries = dictionary
+    else:
+        if dictionary_path is not None and not dictionary_path.is_file():
+            msg = f"dictionary not found: {dictionary_path}"
+            raise UsageError(msg)
+        entries = _dictionary.load_dictionary(dictionary_path)
+        dictionary_source = (
+            "packaged" if dictionary_path is None else str(dictionary_path)
+        )
     warnings: tuple[str, ...] = ()
     if reader is None:
         reader = _dictionary.default_reader()
@@ -254,6 +312,7 @@ def plan_dictionary(
         changes=tuple(changes),
         skipped=tuple(skipped),
         warnings=warnings,
+        dictionary_source=dictionary_source,
     )
 
 

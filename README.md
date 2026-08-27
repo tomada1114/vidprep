@@ -26,7 +26,10 @@ instead of guessing.
 installed — then applies a high-pass at 80 Hz and a two-pass `loudnorm` to
 -14 LUFS with a true peak of -1.0 dBTP. `transcribe` puts Silero voice
 activity detection in front of whisper.cpp and timestamps everything in
-original-timeline seconds. `detect` takes the silences from auto-editor and the
+original-timeline seconds. `correct` fixes known ASR misconversions with a
+bundled dictionary — swap in your own with `--dict <path>` or
+`correct.dictionary_path` in `profile.json`, e.g. to share one dictionary
+across several projects. `detect` takes the silences from auto-editor and the
 filler words from the transcript. `render` applies only what you approved.
 
 For a more natural voice, `profile.json` defaults DeepFilterNet's attenuation

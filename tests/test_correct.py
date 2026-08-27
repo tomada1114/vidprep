@@ -889,3 +889,266 @@ class TestTranscriptLoading:
 
         with pytest.raises(SchemaInvalidError, match=r"transcript\.json"):
             correct.load_transcript(loaded)
+
+
+EXTERNAL_TRANSCRIPT = {
+    "version": "1",
+    "audio_source": "audio/processed.wav",
+    "asr": {"backend": "whisper.cpp", "model": "large-v3-turbo", "vad": "silero"},
+    "segments": [
+        {"id": "s0001", "start": 0.0, "end": 2.0, "text": "ガイブジショテストです"},
+    ],
+}
+
+#: An entry present only here, never in the packaged dictionary.
+EXTERNAL_DICTIONARY_PAYLOAD = {
+    "version": "1.0.0",
+    "entries": [
+        {
+            "correct": "ExternalDict",
+            "misrecognized": ["ガイブジショテスト"],
+            "yomi": "ガイブジショテスト",
+            "confidence": "always",
+        }
+    ],
+}
+
+#: Same misrecognition as :data:`EXTERNAL_DICTIONARY_PAYLOAD`, different
+#: correction, so a test can tell which of the two files actually applied.
+CONFLICTING_DICTIONARY_PAYLOAD = {
+    "version": "1.0.0",
+    "entries": [
+        {
+            "correct": "FromProfile",
+            "misrecognized": ["ガイブジショテスト"],
+            "yomi": "ガイブジショテスト",
+            "confidence": "always",
+        }
+    ],
+}
+
+
+@pytest.fixture
+def external_dict_project(project_dir: Path) -> Path:
+    """A project whose transcript only the external dictionary can fix."""
+    path = project_dir / "transcript.json"
+    path.write_text(
+        json.dumps(EXTERNAL_TRANSCRIPT, ensure_ascii=False), encoding="utf-8"
+    )
+    return project_dir
+
+
+@pytest.fixture
+def external_dictionary_file(tmp_path: Path) -> Path:
+    """A misconversion dictionary living outside the package."""
+    path = tmp_path / "external" / "dict.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(EXTERNAL_DICTIONARY_PAYLOAD, ensure_ascii=False), encoding="utf-8"
+    )
+    return path
+
+
+def set_profile_dictionary_path(project_dir: Path, raw_path: str) -> None:
+    """Add a ``correct.dictionary_path`` entry to *project_dir*'s profile.json."""
+    path = project_dir / "profile.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["correct"] = {"dictionary_path": raw_path}
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+class TestDictionaryPathOverride:
+    """Reading the misconversion dictionary from outside the package."""
+
+    def test_dict_option_applies_the_external_dictionary(
+        self, run_cli, external_dict_project, external_dictionary_file
+    ):
+        result = run_cli(
+            "correct",
+            "-p",
+            str(external_dict_project),
+            "--dict",
+            str(external_dictionary_file),
+        )
+
+        assert result.exit_code == EXIT_OK
+        texts = [s.text for s in read_transcript(external_dict_project).segments]
+        assert texts == ["ExternalDictです"]
+
+    def test_profile_dictionary_path_applies_the_external_dictionary(
+        self, run_cli, external_dict_project, external_dictionary_file
+    ):
+        set_profile_dictionary_path(
+            external_dict_project, str(external_dictionary_file)
+        )
+
+        result = run_cli("correct", "-p", str(external_dict_project))
+
+        assert result.exit_code == EXIT_OK
+        texts = [s.text for s in read_transcript(external_dict_project).segments]
+        assert texts == ["ExternalDictです"]
+
+    def test_dict_option_wins_over_the_profile(
+        self, run_cli, external_dict_project, external_dictionary_file, tmp_path
+    ):
+        conflicting = tmp_path / "profile-dict.json"
+        conflicting.write_text(
+            json.dumps(CONFLICTING_DICTIONARY_PAYLOAD, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        set_profile_dictionary_path(external_dict_project, str(conflicting))
+
+        result = run_cli(
+            "correct",
+            "-p",
+            str(external_dict_project),
+            "--dict",
+            str(external_dictionary_file),
+        )
+
+        assert result.exit_code == EXIT_OK
+        texts = [s.text for s in read_transcript(external_dict_project).segments]
+        assert texts == ["ExternalDictです"]
+
+    def test_neither_set_uses_the_packaged_dictionary(
+        self, run_cli, transcript_project
+    ):
+        result = run_cli("correct", "-p", str(transcript_project), "--json")
+
+        assert result.exit_code == EXIT_OK
+        payload = json.loads(result.stdout)
+        assert payload["dictionary_source"] == "packaged"
+        texts = [s.text for s in read_transcript(transcript_project).segments]
+        assert texts[0] == "Claude Codeで書きました"
+
+    def test_relative_profile_dictionary_path_resolves_against_project_dir(
+        self, run_cli, external_dict_project, tmp_path, monkeypatch
+    ):
+        nested = external_dict_project / "dictionaries" / "external.json"
+        nested.parent.mkdir()
+        nested.write_text(
+            json.dumps(EXTERNAL_DICTIONARY_PAYLOAD, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        set_profile_dictionary_path(external_dict_project, "dictionaries/external.json")
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+
+        result = run_cli("correct", "-p", str(external_dict_project))
+
+        assert result.exit_code == EXIT_OK
+        texts = [s.text for s in read_transcript(external_dict_project).segments]
+        assert texts == ["ExternalDictです"]
+
+    def test_dict_option_expands_tilde(
+        self, run_cli, external_dict_project, tmp_path, monkeypatch
+    ):
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        (home / "external.json").write_text(
+            json.dumps(EXTERNAL_DICTIONARY_PAYLOAD, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        result = run_cli(
+            "correct", "-p", str(external_dict_project), "--dict", "~/external.json"
+        )
+
+        assert result.exit_code == EXIT_OK
+        texts = [s.text for s in read_transcript(external_dict_project).segments]
+        assert texts == ["ExternalDictです"]
+
+    def test_profile_dictionary_path_expands_tilde(
+        self, run_cli, external_dict_project, tmp_path, monkeypatch
+    ):
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        (home / "external.json").write_text(
+            json.dumps(EXTERNAL_DICTIONARY_PAYLOAD, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        set_profile_dictionary_path(external_dict_project, "~/external.json")
+
+        result = run_cli("correct", "-p", str(external_dict_project))
+
+        assert result.exit_code == EXIT_OK
+        texts = [s.text for s in read_transcript(external_dict_project).segments]
+        assert texts == ["ExternalDictです"]
+
+    def test_missing_dict_file_is_a_usage_error(
+        self, run_cli, transcript_project, tmp_path
+    ):
+        missing = tmp_path / "absent-dict.json"
+        original = (transcript_project / "transcript.json").read_bytes()
+
+        result = run_cli(
+            "correct", "-p", str(transcript_project), "--dict", str(missing)
+        )
+
+        assert result.exit_code == EXIT_USAGE
+        assert str(missing) in result.stderr
+        assert (transcript_project / "transcript.json").read_bytes() == original
+
+    def test_missing_profile_dict_file_is_a_usage_error(
+        self, run_cli, transcript_project
+    ):
+        set_profile_dictionary_path(transcript_project, "no-such-dict.json")
+        original = (transcript_project / "transcript.json").read_bytes()
+
+        result = run_cli("correct", "-p", str(transcript_project))
+
+        assert result.exit_code == EXIT_USAGE
+        assert "no-such-dict.json" in result.stderr
+        assert (transcript_project / "transcript.json").read_bytes() == original
+
+    def test_invalid_dict_schema_propagates_schema_invalid_error(
+        self, run_cli, transcript_project, tmp_path
+    ):
+        bad = tmp_path / "bad-dict.json"
+        bad.write_text(json.dumps({"version": "1.0.0", "entries": [], "extra": 1}))
+
+        result = run_cli("correct", "-p", str(transcript_project), "--dict", str(bad))
+
+        assert result.exit_code == EXIT_VALIDATION
+        assert "extra" in result.stderr
+
+    def test_a_caller_supplied_dictionary_is_not_reported_as_packaged(
+        self, transcript_project
+    ):
+        """A dictionary handed in directly came from nowhere we can name.
+
+        Claiming "packaged" there would put a provenance the run never had
+        into the plan, and into the JSON a caller may keep.
+        """
+        loaded = project_module.load_project(transcript_project)
+
+        plan = correct.plan_dictionary(loaded, EMPTY_DICTIONARY, fake_reader)
+
+        assert plan.dictionary_source is None
+        assert not any(line.startswith("dictionary:") for line in plan.lines())
+
+    def test_dictionary_source_reported_in_human_readable_output(
+        self, run_cli, transcript_project
+    ):
+        result = run_cli("correct", "-p", str(transcript_project))
+
+        assert "dictionary: packaged" in result.stdout
+
+    def test_dictionary_source_reported_for_an_override(
+        self, run_cli, external_dict_project, external_dictionary_file
+    ):
+        result = run_cli(
+            "correct",
+            "-p",
+            str(external_dict_project),
+            "--dict",
+            str(external_dictionary_file),
+            "--json",
+        )
+
+        assert f"dictionary: {external_dictionary_file}" in result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["dictionary_source"] == str(external_dictionary_file)
