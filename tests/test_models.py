@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from vidprep.models import (
+    CorrectProfile,
     Cut,
     Cuts,
     Manifest,
@@ -128,6 +129,7 @@ PROFILE_SAMPLE: dict[str, Any] = {
         "language": "ja",
         "vad": "silero-v5",
     },
+    "correct": {"dictionary_path": None},
     "silence": {
         "threshold": "4%",
         "min_duration": 0.6,
@@ -189,6 +191,19 @@ class TestDesignSamples:
 
     def test_profile_defaults_match_the_design_table(self):
         assert Profile().model_dump(mode="json") == PROFILE_SAMPLE
+
+    def test_a_profile_without_a_correct_section_still_loads(self):
+        payload = {
+            key: value for key, value in PROFILE_SAMPLE.items() if key != "correct"
+        }
+
+        profile = Profile.model_validate(payload)
+
+        assert profile.correct == CorrectProfile()
+
+    def test_correct_profile_rejects_unknown_fields(self):
+        with pytest.raises(ValidationError, match="extra"):
+            CorrectProfile.model_validate({"dictionary_path": None, "extra": 1})
 
     @pytest.mark.parametrize("value", [-0.1, 100.1])
     def test_deepfilternet_attenuation_limit_rejects_out_of_range_values(self, value):

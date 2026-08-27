@@ -443,6 +443,17 @@ class AsrProfile(_Strict):
     vad: Literal["silero-v5"] = "silero-v5"
 
 
+class CorrectProfile(_Strict):
+    """Parameters of the ``correct`` stage.
+
+    ``dictionary_path`` lets the misconversion dictionary live outside the
+    package, e.g. a file shared by several projects; ``--dict`` on the command
+    line takes precedence over it (design.md §3.7).
+    """
+
+    dictionary_path: str | None = None
+
+
 class SilenceProfile(_Strict):
     """Silence detection and padding parameters."""
 
@@ -493,6 +504,7 @@ class Profile(_Strict):
     version: Literal["1"] = "1"
     audio: AudioProfile = Field(default_factory=AudioProfile)
     asr: AsrProfile = Field(default_factory=AsrProfile)
+    correct: CorrectProfile = Field(default_factory=CorrectProfile)
     silence: SilenceProfile = Field(default_factory=SilenceProfile)
     filler: FillerProfile = Field(default_factory=FillerProfile)
     render: RenderProfile = Field(default_factory=RenderProfile)
