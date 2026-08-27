@@ -145,7 +145,9 @@ class Plan:
         checks: Verifications already performed, shown before the confirmation
             prompt so the user knows what "yes" is agreeing to.
         dictionary_source: Where the dictionary came from — ``"packaged"`` or
-            the path it was read from; ``None`` for a patch (``tool="llm"``).
+            the path it was read from. ``None`` when there is no such file to
+            name: a patch (``tool="llm"``), or entries handed straight to
+            :func:`plan_dictionary`.
     """
 
     tool: Literal["dict", "llm"]
@@ -270,6 +272,7 @@ def plan_dictionary(
             dictionary schema.
     """
     transcript = load_transcript(loaded)
+    dictionary_source: str | None = None
     if dictionary is not None:
         entries = dictionary
     else:
@@ -277,7 +280,9 @@ def plan_dictionary(
             msg = f"dictionary not found: {dictionary_path}"
             raise UsageError(msg)
         entries = _dictionary.load_dictionary(dictionary_path)
-    dictionary_source = "packaged" if dictionary_path is None else str(dictionary_path)
+        dictionary_source = (
+            "packaged" if dictionary_path is None else str(dictionary_path)
+        )
     warnings: tuple[str, ...] = ()
     if reader is None:
         reader = _dictionary.default_reader()

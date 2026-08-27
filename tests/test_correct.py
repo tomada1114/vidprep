@@ -1115,6 +1115,21 @@ class TestDictionaryPathOverride:
         assert result.exit_code == EXIT_VALIDATION
         assert "extra" in result.stderr
 
+    def test_a_caller_supplied_dictionary_is_not_reported_as_packaged(
+        self, transcript_project
+    ):
+        """A dictionary handed in directly came from nowhere we can name.
+
+        Claiming "packaged" there would put a provenance the run never had
+        into the plan, and into the JSON a caller may keep.
+        """
+        loaded = project_module.load_project(transcript_project)
+
+        plan = correct.plan_dictionary(loaded, EMPTY_DICTIONARY, fake_reader)
+
+        assert plan.dictionary_source is None
+        assert not any(line.startswith("dictionary:") for line in plan.lines())
+
     def test_dictionary_source_reported_in_human_readable_output(
         self, run_cli, transcript_project
     ):
