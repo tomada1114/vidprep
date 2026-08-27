@@ -63,6 +63,14 @@ PatchOption = Annotated[
     Path | None,
     typer.Option("--apply-patch", help="Apply an LLM correction patch (JSON)."),
 ]
+DictOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--dict",
+        help="Read the misconversion dictionary from this file instead of the "
+        "packaged one.",
+    ),
+]
 YesOption = Annotated[
     bool,
     typer.Option("--yes", help="Apply the patch without asking for confirmation."),
@@ -307,9 +315,10 @@ def detect(
 
 
 @app.command()
-def correct(
+def correct(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
     apply_patch: PatchOption = None,
     yes: YesOption = False,
+    dict_path: DictOption = None,
     project: ProjectOption = None,
     json_output: JsonOption = False,
     dry_run: DryRunOption = False,
@@ -319,16 +328,22 @@ def correct(
     The diff summary is printed before anything is written and, for a patch,
     before the confirmation prompt, so what --yes skips is a decision the user
     could otherwise have made.
+
+    `--dict` reads the dictionary from elsewhere instead of the packaged one;
+    it wins over `correct.dictionary_path` in `profile.json`, which is meant
+    for a dictionary kept and shared outside the project.
     """
     options = CommonOptions(project, json_output, dry_run)
 
     def action() -> Output:
         loaded, stale = _prepare(correct_module.STAGE, options)
-        plan = (
-            correct_module.plan_dictionary(loaded)
-            if apply_patch is None
-            else correct_module.plan_patch(loaded, apply_patch)
-        )
+        if apply_patch is None:
+            dictionary_path = correct_module.resolve_dictionary_path(loaded, dict_path)
+            plan = correct_module.plan_dictionary(
+                loaded, dictionary_path=dictionary_path
+            )
+        else:
+            plan = correct_module.plan_patch(loaded, apply_patch)
         for line in [*stale, *plan.lines(verbose=options.dry_run)]:
             _log(line, options)
         if options.dry_run:
