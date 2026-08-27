@@ -70,6 +70,28 @@ the concatenated regions, so one placed between two of them comes back stranded
 in the original pause — is moved onto the speech it covers and reported as a
 warning; that only happens when most of the segment is inside detected speech.
 
+## Correcting
+
+`correct` fixes the misconversions the dictionary knows about — proper nouns
+and technical terms whisper reliably mishears — and reports the rest for
+`--apply-patch` (an LLM correction) to fix (design.md §3.7).
+
+```bash
+vidprep correct --dry-run   # the diff, nothing written
+vidprep correct             # writes transcript.json in place
+```
+
+The dictionary read is the packaged one unless you point elsewhere: `--dict
+<path>` wins over `correct.dictionary_path` in `profile.json`, which wins over
+the packaged default — useful when the dictionary's source of truth lives
+outside the project and several projects share it. A relative `--dict` path
+resolves against the current directory, like any other CLI path argument; a
+relative `dictionary_path` resolves against the project directory instead,
+since `profile.json` is per-project. Both expand `~`. A path that does not
+exist is refused rather than silently falling back to the packaged
+dictionary, and which dictionary ran is named in the diff summary and in
+`--json` output as `dictionary_source`.
+
 ## Detecting cuts
 
 `detect` writes `cuts.json`: the silences auto-editor found, padded and
