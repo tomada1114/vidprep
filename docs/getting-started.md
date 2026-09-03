@@ -51,6 +51,61 @@ defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
 
     Every stage and every flag of the pipeline is implemented.
 
+## One command for one video
+
+The stages below are separate because each of them is worth stopping at. When
+there is nothing to stop for, `vidprep prep` runs all six over one file and
+puts what comes out beside the recording — the same command whether it is
+installed as a tool or run from inside the checkout as `uv run vidprep prep`:
+
+```bash
+vidprep prep ~/Movies/talk01.mp4
+```
+
+```
+~/Movies/
+├── talk01.mp4          the source; read and hashed, never written
+├── talk01.edited.mp4   silence and filler cut, denoised, -14 LUFS, faded out
+├── talk01.srt          subtitles on the cut timeline
+└── talk01.vidprep/     the project, kept so the next run is cheap
+```
+
+The first run stops after the dictionary pass so the transcript can be
+proofread: `vidprep`'s own CLI stays AI-free (design.md §7), so the LLM work
+belongs to the `correct-transcript` skill, which writes `patch.json` and applies
+it through `vidprep correct --apply-patch`. Running the same command again
+continues from the transcript that left behind — the pause happens only on the
+invocation that produced the transcript, so it never asks twice.
+
+```bash
+cd ~/Movies/talk01.vidprep
+claude                          # then: /correct-transcript
+vidprep prep ~/Movies/talk01.mp4 # continues: detect, render, report, deliver
+```
+
+| Flag | What it changes |
+|---|---|
+| `--yes` | Do not stop for proofreading; run all six stages in one go |
+| `--keep-fillers` | Leave the filler candidates proposed, cutting only the silences |
+| `--no-verify-asr` | Skip reading the finished render back, the slowest part of a run |
+| `--project DIR` | Put the project somewhere other than `<video>.vidprep` |
+| `--dry-run` | List the stages that would run, and what would be delivered |
+
+!!! note
+
+    A stage whose result is already in the project, and whose parameters in
+    `profile.json` have not moved since it ran, is skipped; a stage downstream
+    of one that did run is redone. So tuning a threshold and running the same
+    command again re-does exactly what the change reaches, and nothing before
+    it.
+
+`detect` approves its own silence candidates and leaves the filler ones for a
+human. `vidprep prep` approves those too, because it was asked for something
+publishable without a review pass — but only while `filler.enable_weak` is off.
+The weak tier (「まあ」「なんか」「こう」) is ordinary Japanese, and `cuts.json`
+does not record which tier a candidate came from, so with the weak tier enabled
+the approval is declined rather than guessed at.
+
 ## Transcribing
 
 `transcribe` runs Silero voice activity detection in front of the recogniser

@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vidprep prep <video>` — a composite subcommand that runs the whole pipeline
+  over one file, with what comes out copied next to the recording as
+  `<name>.edited.mp4` and `<name>.srt`. It is the same command whether
+  installed with `uv tool install --force --from . vidprep` or run against the
+  working tree as `uv run vidprep prep`. The project lands beside them as
+  `<name>.vidprep/`, which is what makes a second run cheap: a stage whose
+  result is already there and whose `profile.json` parameters have not moved
+  is skipped, and a stage downstream of one that did run is redone, so tuning
+  a threshold re-does exactly what the change reaches. The run stops once
+  after the dictionary pass — on the invocation that produced the transcript,
+  so never twice — for the `correct-transcript` skill to proofread it, because
+  the CLI itself stays AI-free (design.md §7); `--yes` skips that for an
+  unattended run. The filler candidates `detect` leaves for a reviewer are
+  approved on the reviewer's behalf, since the point of the command is
+  something publishable without a review pass, but only while
+  `filler.enable_weak` is off: the tier a candidate came from is not recorded in
+  `cuts.json`, so with the weak tier enabled there is no way to approve the
+  strong ones alone and the approval is declined instead. `--keep-fillers` cuts
+  only the silences, `--no-verify-asr` drops the second ASR pass, and
+  `--dry-run` lists the stages a run would perform without doing any of them
+
 - `vidprep correct --dict <path>` and `correct.dictionary_path` in
   `profile.json`: read the misconversion dictionary from outside the package,
   so several projects can share one maintained file instead of each forking

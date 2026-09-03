@@ -23,6 +23,10 @@ Without Just: replace `just <cmd>` with the corresponding `uv run` commands
 in the `justfile`. Run a single test with
 `uv run pytest tests/test_<module>.py::test_<name>`.
 
+The whole pipeline over one video is `vidprep prep <video>` — installed via
+`uv tool install --force --from . vidprep`, or `uv run vidprep prep <video>`
+against the working tree without installing.
+
 ## Architecture
 
 ```
@@ -41,6 +45,7 @@ src/vidprep/
 ├── detect.py        # detect: silence and filler cut candidates
 ├── render.py        # render: apply the cuts, write the video and the SRT
 ├── report.py        # report: the review gate and the numbers behind it
+├── prep.py          # prep: the whole pipeline over one file, resumable
 ├── verify.py        # --verify-asr: read the finished render back
 ├── _ffmpeg.py       # The only module allowed to spawn subprocesses
 ├── _asr.py          # whisper.cpp / mlx-whisper behind transcribe

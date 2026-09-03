@@ -3,7 +3,8 @@
 Commands stay thin: they parse the three common flags, run a preamble that
 proves the project is intact, and delegate. Stages that are not built yet are
 present as skeleton subcommands so the interface — and the checks that guard
-it — exist from the start.
+it — exist from the start. One command, ``prep``, is a composite: it calls the
+stage subcommands in order and adds no processing of its own (design.md §6).
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from . import audio as audio_module
 from . import correct as correct_module
 from . import detect as detect_module
 from . import doctor as doctor_module
+from . import prep as prep_module
 from . import project as project_module
 from . import render as render_module
 from . import report as report_module
@@ -27,6 +29,7 @@ from . import verify as verify_module
 from .errors import (
     EXIT_USAGE,
     EXIT_VALIDATION,
+    ExecutionFailedError,
     UsageError,
     VidprepError,
 )
@@ -93,6 +96,30 @@ CutsOption = Annotated[
     bool,
     typer.Option(
         "--cuts", help="List the cut candidates with their transcript context."
+    ),
+]
+PrepProjectOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--project", "-p", help="Project directory (default: <video>.vidprep)."
+    ),
+]
+SkipProofreadingOption = Annotated[
+    bool,
+    typer.Option("--yes", help="Do not stop for LLM proofreading of the transcript."),
+]
+KeepFillersOption = Annotated[
+    bool,
+    typer.Option(
+        "--keep-fillers",
+        help="Leave the filler candidates proposed; cut only the silences.",
+    ),
+]
+PrepVerifyAsrOption = Annotated[
+    bool,
+    typer.Option(
+        "--verify-asr/--no-verify-asr",
+        help="Transcribe the output again and look for lost words.",
     ),
 ]
 
@@ -444,6 +471,82 @@ def report(
         return Output(result.to_dict(), [*stale, *result.lines()])
 
     _run(options, action)
+
+
+@app.command()
+def prep(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
+    video: Annotated[Path, typer.Argument(help="The recording to prepare.")],
+    yes: SkipProofreadingOption = False,
+    keep_fillers: KeepFillersOption = False,
+    verify_asr: PrepVerifyAsrOption = True,
+    project: PrepProjectOption = None,
+    json_output: JsonOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Run the whole pipeline over one file, from audio repair to the report.
+
+    A composite command (design.md §6): it runs `audio-fix`, `transcribe`,
+    `correct` (the dictionary pass), `detect`, `render` and `report`, in that
+    order, adding no processing of its own. The project directory is what
+    makes a second run cheap — a stage whose result is already there and
+    whose relevant `profile.json` parameters have not moved is skipped, and a
+    stage downstream of one that did run is redone regardless of its own
+    parameters, so tuning a threshold and running the command again re-does
+    exactly what the change reaches.
+
+    The run stops once, after the dictionary pass, for the `correct-transcript`
+    skill to proofread `transcript.json` — the CLI itself stays AI-free
+    (design.md §7). Running the same command again continues from there;
+    `--yes` skips the pause for an unattended run.
+
+    `detect` leaves filler candidates for a human to review; this command
+    approves them on the reviewer's behalf so long as `filler.enable_weak` is
+    off — the tier a candidate came from is not recorded in `cuts.json`, so
+    with the weak tier enabled there is no way to approve the strong ones
+    alone and the whole approval is declined instead. `--keep-fillers` leaves
+    every proposal alone, cutting only the silences.
+
+    The finished video and its subtitles are copied beside `video` as
+    `<name>.edited.mp4` and `<name>.srt`; the project lands beside them as
+    `<name>.vidprep` unless `--project` says otherwise.
+    """
+    options = CommonOptions(project, json_output, dry_run)
+
+    def action() -> Output:
+        prep_options = prep_module.build_options(
+            video,
+            project,
+            yes=yes,
+            keep_fillers=keep_fillers,
+            no_verify_asr=not verify_asr,
+        )
+        if options.dry_run:
+            result_plan = prep_module.plan(prep_options)
+            lines = _plan_lines(result_plan)
+            if result_plan["paused"]:
+                lines.append("  would stop for LLM proofreading of transcript.json")
+            return Output(result_plan, lines)
+        try:
+            result = prep_module.run_prep(
+                prep_options, lambda line: _log(line, options)
+            )
+        except VidprepError:
+            raise
+        except Exception as error:
+            # vidprep does not model, which still needs a mapped exit code
+            msg = f"{type(error).__name__}: {error}"
+            raise ExecutionFailedError(msg) from error
+        return Output(result.to_dict(), ())
+
+    output = _run(options, action)
+    rendered = output.result.get("render")
+    verified = rendered.get("verify_asr") if isinstance(rendered, dict) else None
+    if (
+        isinstance(verified, dict)
+        and verified["mode"] == verify_module.GATE
+        and verified["near_boundary_flags"]
+    ):
+        raise typer.Exit(EXIT_VALIDATION)
 
 
 def _parameter_error_reporter(error: Exception) -> Callable[[], None] | None:

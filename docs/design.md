@@ -345,11 +345,25 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 
 ## 6. CLI 仕様
 
-サブコマンド: `init | doctor | audio-fix | transcribe | correct | detect | render | report`
+ステージサブコマンド: `init | doctor | audio-fix | transcribe | correct | detect | render | report`
+
+複合サブコマンド: `prep`
+
+- ステージサブコマンドは §5 と 1:1。`prep` は動画 1 本を位置引数に取り、
+  audio-fix → transcribe → correct → detect → render → report の順に呼ぶだけ
+  で、独自の処理は持たない。`--project` の既定が cwd ではなく `<video>.vidprep`
+  （素材の隣）になる点だけ他のサブコマンドと異なる
+- `prep` はユーザーに代わって 2 つの判断を下す: 文字起こし直後に 1 度だけ停止
+  して `correct-transcript` スキルでの校正を促す（`--yes` で省略可）ことと、
+  `detect` が人間向けに残したフィラー候補を `filler.enable_weak` が off の間
+  だけ承認する（`--keep-fillers` で無効化可）こと。どちらも実行上の既定値で
+  あり、CLI 本体が AI 依存になるわけではない（§7 の原則はそのまま）
 
 共通仕様:
 
-- `--project/-p <dir>`（既定 cwd）、`--json`（結果 JSON を stdout、人間向けログは stderr）、`--dry-run`（実行計画の表示のみ。外部コマンド列を含む）
+- `--project/-p <dir>`（既定 cwd。`prep` のみ既定 `<video>.vidprep`）、`--json`
+  （結果 JSON を stdout、人間向けログは stderr）、`--dry-run`（実行計画の表示
+  のみ。外部コマンド列を含む）
 - exit code: `0` 成功 / `1` 使用法・環境エラー / `2` 処理実行の失敗 / `3` 検証 NG（スキーマ不正、ハッシュ不一致、doctor の必須欠如など）
 - 破壊的でない: すべての出力は上書き前に生成し、成功時にアトミックに置き換える。ソース素材には一切書き込まない
 

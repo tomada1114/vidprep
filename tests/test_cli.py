@@ -25,6 +25,7 @@ SUBCOMMANDS = (
     "detect",
     "render",
     "report",
+    "prep",
 )
 OVERLAPPING_CUTS = {
     "version": "1",
@@ -52,7 +53,7 @@ OVERLAPPING_CUTS = {
 
 
 class TestInterface:
-    """REQ-020 / REQ-021: eight subcommands, three common flags on each."""
+    """REQ-020 / REQ-021: nine subcommands, three common flags on each."""
 
     def test_help_lists_every_subcommand(self, run_cli):
         result = run_cli("--help")

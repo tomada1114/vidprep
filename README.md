@@ -117,6 +117,46 @@ Every subcommand takes `--project/-p`, `--json` and `--dry-run`. `detect` can be
 re-run as often as you like: it updates the intervals of candidates you already
 judged, keeps their status and notes, and never reuses an identifier.
 
+## One command for one video
+
+The stages above are separate because each of them is worth stopping at. When
+there is nothing to stop for, `vidprep prep` runs all six over one file and
+puts what comes out beside the recording — the same command whether it is
+installed as a tool or run from inside the checkout:
+
+```bash
+vidprep prep ~/Movies/talk01.mp4
+```
+
+```
+~/Movies/
+├── talk01.mp4          the source; read and hashed, never written
+├── talk01.edited.mp4   silence and filler cut, denoised, -14 LUFS, faded out
+├── talk01.srt          subtitles on the cut timeline
+└── talk01.vidprep/     the project, kept so the next run is cheap
+```
+
+The project directory is what makes the second run cheap: a stage whose result
+is already there, and whose parameters in `profile.json` have not moved since,
+is skipped, and a stage downstream of one that did run is redone. Tuning a
+threshold and running the same command again re-does exactly what the change
+reaches.
+
+The first run stops after the dictionary pass so the transcript can be
+proofread by an LLM — `vidprep`'s own CLI stays AI-free, so that work belongs to
+the `correct-transcript` skill, which writes `patch.json` and applies it through
+`vidprep correct --apply-patch`. Running the same command again continues from
+the transcript that left behind; `--yes` skips the pause for an unattended run.
+
+`detect` approves its own silence candidates and leaves the filler ones for a
+human, and `vidprep prep` approves those too, because it was asked for
+something publishable without a review pass — but only while
+`filler.enable_weak` is off, since the tier a candidate came from is not
+recorded in `cuts.json` and there is then no way to approve the strong ones
+alone. `--keep-fillers` turns that off and cuts only the silences;
+`--no-verify-asr` drops the second ASR pass over the finished render, which is
+the slowest thing in the run.
+
 ## Where the review happens
 
 vidprep decides nothing that a human should decide. Three places are built for
