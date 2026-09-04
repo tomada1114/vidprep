@@ -75,6 +75,8 @@ LOUDNORM_REPORT = {
 
 VIDEO_TRIM = re.compile(r"\[0:v\]trim=start=([\d.]+):end=([\d.]+)")
 AUDIO_TRIM = re.compile(r"\[1:a\]atrim=start=([\d.]+):end=([\d.]+)")
+HELD = re.compile(r"tpad=stop_mode=clone:stop_duration=([\d.]+)")
+FADE_OUT = re.compile(r"(?<!a)fade=t=out:st=([\d.]+):d=([\d.]+)")
 
 
 class FakeFfmpeg:
@@ -113,6 +115,16 @@ class FakeFfmpeg:
         """The intervals the graph keeps, read back from its video trims."""
         return [(float(a), float(b)) for a, b in VIDEO_TRIM.findall(self.graph)]
 
+    def held(self) -> float:
+        """How long the graph holds the last frame on past the kept material."""
+        return sum(float(seconds) for seconds in HELD.findall(self.graph))
+
+    def closing_fade(self) -> tuple[float, float]:
+        """The ``(start, duration)`` of the graph's closing fade to black."""
+        found = FADE_OUT.findall(self.graph)
+        assert len(found) == 1, f"expected one closing fade, got {found}"
+        return float(found[0][0]), float(found[0][1])
+
     def run(self, args: list[str], timeout: float = 0.0) -> str:
         """Write what ffmpeg would write, or answer what ffprobe would answer."""
         self.commands.append(list(args))
@@ -120,7 +132,7 @@ class FakeFfmpeg:
             graph = args[args.index("-filter_complex") + 1]
             self.rendered = sum(
                 float(end) - float(start) for start, end in VIDEO_TRIM.findall(graph)
-            )
+            ) + sum(float(seconds) for seconds in HELD.findall(graph))
             if self.error is not None:
                 raise self.error
             Path(args[-1]).write_bytes(b"rendered mp4")
@@ -303,6 +315,158 @@ class TestRenderer:
         ):
             assert start >= was_start
             assert end <= was_end
+
+
+# --------------------------------------------------------------------------- #
+#  How the video ends
+# --------------------------------------------------------------------------- #
+
+#: What the cuts leave: 298.92s of source less the 42s two approved cuts take.
+CUT_DURATION = DURATION - REMOVED
+
+#: A transcript whose last word lands on the last frame of the material, so
+#: nothing of the recording is left for the closing fade to happen over.
+SPEAKS_TO_THE_END = (*SEGMENTS[:-1], ("s0005", 290.0, DURATION, "ではまた"))
+
+
+def set_fade_out(root: Path, seconds: float) -> None:
+    """Rewrite the project's ``render.fade_out``."""
+    loaded = project_module.load_project(root)
+    changed = loaded.profile
+    changed.render.fade_out = seconds
+    project_module.write_json(root / "profile.json", changed)
+
+
+class TestClosingFade:
+    """The video ends on a fade to black, and never fades over a word."""
+
+    def test_the_output_ends_on_a_fade_to_black(self, tools, loaded):
+        render_module.run_render(loaded)
+
+        start, span = tools.closing_fade()
+        assert span == pytest.approx(Profile().render.fade_out)
+        assert start + span == pytest.approx(CUT_DURATION)
+
+    def test_the_sound_fades_with_the_picture(self, tools, loaded):
+        render_module.run_render(loaded)
+
+        start, span = tools.closing_fade()
+        assert f"afade=t=out:st={start:.6f}:d={span:.6f}" in tools.graph
+
+    def test_material_left_after_the_last_word_is_what_the_fade_uses(
+        self, tools, loaded
+    ):
+        render_module.run_render(loaded)
+
+        # s0005 ends at 141.0, which the 42s of cuts put at 99.0: far more than
+        # two seconds of the recording are left, so none is manufactured.
+        assert tools.held() == 0.0
+        assert tools.closing_fade()[0] == pytest.approx(CUT_DURATION - 2.0)
+
+    def test_a_recording_that_ends_on_the_last_word_holds_the_last_frame(
+        self, tools, prepared
+    ):
+        write_transcript(prepared, SPEAKS_TO_THE_END)
+
+        result = render_module.run_render(project_module.load_project(prepared))
+
+        assert tools.held() == pytest.approx(2.0)
+        assert "apad=pad_dur=2.000000" in tools.graph
+        assert result.rendered.duration == pytest.approx(CUT_DURATION + 2.0)
+
+    def test_the_rate_is_pinned_before_a_frame_is_held(self, tools, prepared):
+        """``tpad`` behind a ``concat`` adds nothing without it (ffmpeg 7.1.1)."""
+        write_transcript(prepared, SPEAKS_TO_THE_END)
+
+        render_module.run_render(project_module.load_project(prepared))
+
+        assert f"fps={FPS},tpad=" in tools.graph
+
+    def test_only_the_missing_part_of_the_tail_is_manufactured(self, tools, prepared):
+        # 1.5s of the recording runs on past the last word; 0.5s is missing,
+        # which is 12.5 frames and so rounds up to the 13 tpad can add.
+        write_transcript(
+            prepared, (*SEGMENTS[:-1], ("s0005", 290.0, DURATION - 1.5, "ではまた"))
+        )
+
+        render_module.run_render(project_module.load_project(prepared))
+
+        assert tools.held() == pytest.approx(13 * FRAME)
+
+    def test_the_held_tail_is_a_whole_number_of_frames(self, tools, prepared):
+        # Rounded here rather than left to tpad, so the length the output is
+        # checked against is the length the file really gets.
+        write_transcript(
+            prepared, (*SEGMENTS[:-1], ("s0005", 290.0, DURATION - 1.5, "ではまた"))
+        )
+
+        result = render_module.run_render(project_module.load_project(prepared))
+
+        assert result.rendered.expected_duration == pytest.approx(
+            CUT_DURATION + 13 * FRAME
+        )
+        assert result.rendered.delta_ms == pytest.approx(0.0)
+        assert result.rendered.av_delta_ms == pytest.approx(0.0)
+
+    def test_the_fade_never_starts_before_the_last_word(self, tools, prepared):
+        write_transcript(prepared, SPEAKS_TO_THE_END)
+
+        render_module.run_render(project_module.load_project(prepared))
+
+        # The last word ends where the cut material does, and the fade starts
+        # there — on the held frame, not on the sentence.
+        assert tools.closing_fade()[0] == pytest.approx(CUT_DURATION)
+
+    def test_a_manufactured_tail_is_reported_as_a_warning(self, tools, prepared):
+        write_transcript(prepared, SPEAKS_TO_THE_END)
+
+        result = render_module.run_render(project_module.load_project(prepared))
+
+        assert result.to_dict()["closing"] == {"fade_sec": 2.0, "held_sec": 2.0}
+        assert any("holds the last frame" in line for line in result.lines())
+
+    def test_a_fade_over_the_recording_itself_is_reported_without_a_warning(
+        self, tools, loaded
+    ):
+        result = render_module.run_render(loaded)
+
+        assert result.to_dict()["closing"] == {"fade_sec": 2.0, "held_sec": 0.0}
+        assert any("fade to black" in line for line in result.lines())
+        assert not any(line.startswith("⚠") for line in result.lines())
+
+    def test_fade_out_at_zero_leaves_the_graph_as_it_was(self, tools, prepared):
+        set_fade_out(prepared, 0.0)
+
+        result = render_module.run_render(project_module.load_project(prepared))
+
+        assert FADE_OUT.search(tools.graph) is None
+        assert "tpad" not in tools.graph
+        assert "[outv][outa]" in tools.graph
+        assert result.rendered.duration == pytest.approx(CUT_DURATION)
+
+    def test_the_verified_length_accounts_for_the_held_frames(self, tools, prepared):
+        write_transcript(prepared, SPEAKS_TO_THE_END)
+
+        result = render_module.run_render(project_module.load_project(prepared))
+
+        assert result.rendered.expected_duration == pytest.approx(CUT_DURATION + 2.0)
+        assert result.rendered.delta_ms == pytest.approx(0.0)
+
+    def test_a_fade_longer_than_the_output_covers_all_of_it(self):
+        closing = _reencode.Closing.plan(fade_out=2.0, tail=0.5)
+
+        chains = closing.chains(1.0, FPS)
+
+        assert "fade=t=out:st=0.000000:d=1.000000" in chains[0]
+
+    def test_a_transcript_with_no_segments_fades_over_the_end_as_it_is(
+        self, tools, prepared
+    ):
+        write_transcript(prepared, ())
+
+        render_module.run_render(project_module.load_project(prepared))
+
+        assert tools.held() == 0.0
 
 
 # --------------------------------------------------------------------------- #

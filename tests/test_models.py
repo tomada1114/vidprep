@@ -136,12 +136,14 @@ PROFILE_SAMPLE: dict[str, Any] = {
         "pad_pre": 0.3,
         "pad_post": 0.3,
         "min_cut_duration": 0.4,
+        "tail_pad": 2.0,
     },
     "filler": {"enable_weak": False, "require_adjacent_silence": 0.2},
     "render": {
         "crf": 18,
         "preset": "slow",
         "boundary_fade": 0.010,
+        "fade_out": 2.0,
         "verify_asr_mode": "gate",
     },
     "subtitle": {

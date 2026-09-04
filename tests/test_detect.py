@@ -263,7 +263,7 @@ class TestSilenceConversion:
     def test_exactly_min_cut_duration_survives_and_a_millisecond_less_does_not(self):
         silence = Profile().silence
         gaps = [Span(10.0, 11.0), Span(20.0, 20.999)]
-        kept, dropped = _autoeditor.pad_spans(gaps, silence)
+        kept, dropped = _autoeditor.pad_spans(gaps, silence, DURATION)
         assert [(span.start, span.end) for span in kept] == [(10.3, 10.7)]
         assert dropped == 1
 
@@ -280,12 +280,33 @@ class TestSilenceConversion:
         intervals = [(item.start, item.end) for item in read_cuts(detectable).cuts]
         assert intervals == [(9.3, 29.7)]
 
-    def test_trailing_silence_runs_to_the_end_of_the_material(
+    def test_the_closing_silence_is_cut_to_the_very_end_of_the_material(
         self, auto_editor, detectable
     ):
         auto_editor.output = timeline_json(((0.0, 100.0),))
         run(detectable)
-        assert read_cuts(detectable).cuts[-1].end == pytest.approx(DURATION - 0.3)
+        closing = read_cuts(detectable).cuts[-1]
+        # Nothing is stranded behind it: pad_post protects a following word,
+        # and after the last one there is none.
+        assert closing.end == pytest.approx(DURATION)
+
+    def test_the_closing_silence_leaves_tail_pad_behind_for_the_fade(
+        self, auto_editor, detectable
+    ):
+        auto_editor.output = timeline_json(((0.0, 100.0),))
+        run(detectable)
+        closing = read_cuts(detectable).cuts[-1]
+        assert closing.start == pytest.approx(100.0 + Profile().silence.tail_pad)
+
+    def test_a_closing_silence_shorter_than_tail_pad_is_left_alone(
+        self, auto_editor, detectable
+    ):
+        # 1.0s of quiet: over min_duration, under the 2.0s tail_pad wants.
+        auto_editor.output = timeline_json(((0.0, DURATION - 1.0),))
+        result = run(detectable)
+        assert result.silence_detected == 1
+        assert result.silence_dropped == 1
+        assert read_cuts(detectable).cuts == []
 
     def test_silence_candidates_are_approved_from_the_start(
         self, auto_editor, detectable

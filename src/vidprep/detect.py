@@ -551,7 +551,9 @@ def _silence_candidates(
         loaded.manifest.source.duration,
         silence.min_duration,
     )
-    cuttable, dropped = _autoeditor.pad_spans(detected, silence)
+    cuttable, dropped = _autoeditor.pad_spans(
+        detected, silence, loaded.manifest.source.duration
+    )
     return cuttable, len(detected), dropped
 
 

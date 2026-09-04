@@ -144,6 +144,10 @@ class Result:
                 "actual": round(produced.duration, SECONDS_DECIMALS),
                 "delta_ms": round(produced.delta_ms, SECONDS_DECIMALS),
             },
+            "closing": {
+                "fade_sec": round(produced.closing.fade, SECONDS_DECIMALS),
+                "held_sec": round(produced.closing.pad, SECONDS_DECIMALS),
+            },
             "streams": {
                 "video_sec": round(produced.video_duration, SECONDS_DECIMALS),
                 "audio_sec": round(produced.audio_duration, SECONDS_DECIMALS),
@@ -165,6 +169,19 @@ class Result:
             **verified,
         }
 
+    def _closing_lines(self) -> list[str]:
+        """Say how the video ends, and whether any of that end was manufactured."""
+        closing = self.rendered.closing
+        if closing.fade <= 0:
+            return []
+        if closing.pad <= 0:
+            return [f"✔ closes on a {closing.fade:.1f}s fade to black"]
+        return [
+            f"⚠ closes on a {closing.fade:.1f}s fade to black, of which "
+            f"{closing.pad:.1f}s holds the last frame — the recording ends "
+            f"less than {closing.fade:.1f}s after the last word"
+        ]
+
     def lines(self) -> list[str]:
         """Render the result for a human."""
         produced = self.rendered
@@ -179,6 +196,7 @@ class Result:
             f"{subtitles.count('min_display')} under min_display, "
             f"{subtitles.count('max_cps')} over max_cps, "
             f"{subtitles.count('line_overflow')} over max_chars_per_line)",
+            *self._closing_lines(),
             *([] if self.preview is None else self.preview.lines()),
             *([] if self.verified is None else self.verified.lines()),
         ]
@@ -271,14 +289,17 @@ def _renderer(loaded: Project) -> ReencodeRenderer:
     return ReencodeRenderer(fps=loaded.manifest.source.video.fps)
 
 
-def _job(loaded: Project, timeline: Timeline, audio: Path) -> _reencode.RenderJob:
-    """Describe the rendering of *timeline* for ``--dry-run`` to read back."""
+def _job(
+    loaded: Project, timeline: Timeline, audio: Path, mapped: _Mapped
+) -> _reencode.RenderJob:
+    """Describe the rendering of *timeline*, closing fade included."""
     return _reencode.RenderJob(
         source=loaded.source_path,
         keep=timeline.keeps,
         audio=audio,
         profile=loaded.profile,
         out=loaded.root / VIDEO_NAME,
+        tail=_closing_tail(timeline, mapped.segments),
     )
 
 
@@ -304,6 +325,31 @@ def _map_transcript(loaded: Project, timeline: Timeline) -> _Mapped:
         min_display=loaded.profile.subtitle.min_display,
     )
     return _Mapped(transcript, tuple(mapped), tuple(warnings))
+
+
+def _closing_tail(timeline: Timeline, segments: Sequence[TimedSegment]) -> float:
+    """Return how long the cut timeline runs on after the last word, in seconds.
+
+    This is what the closing fade is allowed to cover. The renderer cannot work
+    it out for itself: it is handed kept intervals, and nothing in an interval
+    says which part of it is somebody talking. The transcript does, and its
+    segments are already on the cut timeline by the time this is asked.
+
+    A recogniser that overran the last segment makes the answer too small,
+    which lengthens the manufactured tail rather than fading over speech — the
+    error that matters is the other one, and it is the one this rounds away
+    from.
+
+    Args:
+        timeline: The cut plan the output is being built from.
+        segments: Every transcript segment, mapped onto that timeline.
+
+    Returns:
+        The seconds between the end of the last mapped segment and the end of
+        the output; the whole output when there is nothing spoken in it.
+    """
+    spoken = max((segment.end for segment in segments), default=0.0)
+    return max(0.0, timeline.cut_duration - spoken)
 
 
 def _build_subtitles(loaded: Project, mapped: _Mapped) -> Subtitles:
@@ -446,13 +492,14 @@ def plan(
     _transcript_path(loaded)
     cuts = _load_cuts(loaded)
     timeline = _timeline(loaded, cuts)
+    mapped = _map_transcript(loaded, timeline)
     renderer = _renderer(loaded)
-    commands = renderer.commands(_job(loaded, timeline, audio))
+    commands = renderer.commands(_job(loaded, timeline, audio, mapped))
     writes = [str(loaded.root / VIDEO_NAME), str(loaded.root / SUBTITLES_NAME)]
     if no_wrap:
         writes.append(str(loaded.root / NOWRAP_NAME))
     if preview:
-        _resolve_telops(loaded, timeline, _map_transcript(loaded, timeline))
+        _resolve_telops(loaded, timeline, mapped)
         commands += _preview.commands(
             loaded.root / VIDEO_NAME,
             loaded.root / TELOPS_ASS_NAME,
@@ -534,13 +581,7 @@ def run_render(
     # cuts without re-encoding (design.md §8) drops in here unchanged.
     encoder = _renderer(loaded)
     renderer: Renderer = encoder
-    rendered = renderer.render(
-        loaded.source_path,
-        timeline.keeps,
-        audio,
-        loaded.profile,
-        loaded.root / VIDEO_NAME,
-    )
+    rendered = renderer.render(_job(loaded, timeline, audio, mapped))
     outputs = [str(VIDEO_NAME), *_write_subtitles(loaded, subtitles, no_wrap=no_wrap)]
     drawn = None
     if telops is not None:

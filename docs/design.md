@@ -22,6 +22,7 @@ design-input.md の未決事項 7 件と、本設計セッションで追加し�
 | 7 | プロジェクト構造 | **1 動画 = 1 作業ディレクトリ、場所は任意**。`vidprep init` で作成、各コマンドは cwd または `--project` で指定 | ツールが置き場所を強制しない。§3.1 参照 |
 | 8 | カット候補の初期ステータス | 無音 = `approved`、フィラー = `proposed` | 無音検出は誤爆が少ない。レビューの注意をフィラーに集中させる |
 | 9 | 境界のぶつ切り対策 | クロスフェード（重なり）ではなく**境界フェード in/out（既定 10ms、尺不変）** | acrossfade は境界ごとに尺が縮み、原尺→カット後の写像関数が壊れる。クリック防止目的はフェードで足りる。design-input の「マイクロクロスフェード 20〜50ms」からの変更点 |
+| 9b | 動画の終わり方 | 末尾無音は**素材の最後まで**カットし、最後の発話の後に `silence.tail_pad` 秒（既定 2.0）を残す。その残り全体に `render.fade_out` 秒（既定 2.0）の**暗転**をかける。素材が足りないときは最終フレームを保持（`tpad=stop_mode=clone`）して不足分を作る | 末尾に `pad_post` を効かせると素材末尾の 0.3 秒だけが飛び地として残り、ハードカットで終わる。フェードは「最後の発話より後」からしか始めない（発話中に画が暗くなるのを避ける）ため、フェード長 = 残す余白長を既定とする。黒フレーム挿入ではなく最終フレーム保持にするのは、一瞬で真っ黒に切り替わらないようにするため |
 | 10 | スキーマ実装 | **pydantic v2** | 中間 JSON が設計の核でありバリデーションが本質的。mypy strict とも親和 |
 | 11 | 検証素材 | `fixtures/raw/VID_20260507_144024.mp4`（ゴールデンサンプル、git 管理外） | verification-plan.md §2 参照 |
 
@@ -202,10 +203,11 @@ src/vidprep/
   "asr": {"backend": "whisper.cpp", "model": "large-v3-turbo",
           "language": "ja", "vad": "silero-v5"},
   "silence": {"threshold": "4%", "min_duration": 0.6,
-              "pad_pre": 0.3, "pad_post": 0.3, "min_cut_duration": 0.4},
+              "pad_pre": 0.3, "pad_post": 0.3, "min_cut_duration": 0.4,
+              "tail_pad": 2.0},
   "filler": {"enable_weak": false, "require_adjacent_silence": 0.2},
   "render": {"crf": 18, "preset": "slow", "boundary_fade": 0.010,
-             "verify_asr_mode": "gate"},
+             "fade_out": 2.0, "verify_asr_mode": "gate"},
   "subtitle": {"max_chars_per_line": 20, "max_lines": 2,
                "min_display": 0.8, "max_cps": 8.0}
 }
@@ -214,6 +216,8 @@ src/vidprep/
 - `asr.vad` は値が 1 つしかない（`silero-v5`）。VAD はスキップ不可なので、profile でも CLI でも無効化できないことをスキーマで保証する（§5.2）
 - `render.verify_asr_mode` は `render --verify-asr`（再文字起こし照合）の扱い。`gate`（既定）は境界欠落フラグ 1 件でも exit 3。`advisory` は同じフラグを警告として報告し exit code を変えない。#11 の導入時は `advisory` が既定で、#32 の再現性実測（同一 render に 3 回照合してフラグ 0 件・報告値全一致、誤検知 通算 0/364 境界）を経て `gate` へ昇格した（verification-plan.md §8.1）
 - `pad_pre/pad_post` は「発話側に残す余白」。カット区間を両端からこの分だけ縮める。保守的（長め）から始め、ゴールデンサンプルでの試聴で詰める（verification-plan.md §7）
+- `silence.tail_pad` は末尾無音だけに効く。素材の最後に届く無音には `pad_post` を適用せず（後続の語がないため守る対象がない）、カットを素材末尾まで走らせたうえで最後の発話の後に `tail_pad` 秒だけ残す。これが `render.fade_out` の暗転が乗る土台なので、既定では両者を同じ 2.0 秒に揃えている
+- `render.fade_out` は末尾の暗転長。`0` にすると素材が終わった瞬間に動画も終わる（#39 以前の挙動）
 - `subtitle` の既定は YouTube 想定。Netflix 準拠（13 全角/行・4 文字/秒）はプロファイルの値変更で選べる
 - 時刻・秒値はすべて **float 秒・小数 3 桁（ms）丸め**で統一
 
@@ -303,6 +307,7 @@ LLM 校正そのもの（プロンプト・文脈判断）は agent skill の仕
 - フィラー辞書（profile とは別にリポジトリ同梱、プロジェクトで追記可）:
   - strong（既定で候補化）: えー、えーと、えっと、あのー、そのー、うーん
   - weak（`enable_weak: true` のときのみ候補化）: まあ、なんか、こう
+- 末尾に届く無音は例外扱い: `[gap.start + tail_pad, 素材尺]` をカットする。`pad_post` を効かせると素材末尾の `pad_post` 秒が飛び地として残り、除去区間をまたいでクリックと画の飛びになる
 - 出力は §3.4 のマージ規則で既存 cuts.json に統合する
 
 実装時に確定した詳細（auto-editor 29.3.1 実測）:
@@ -319,11 +324,22 @@ LLM 校正そのもの（プロンプト・文脈判断）は agent skill の仕
 
 ```python
 class Renderer(Protocol):
-    def render(self, source: Path, keep: list[Interval],
-               audio: Path, profile: Profile, out: Path) -> RenderResult: ...
+    def render(self, job: RenderJob) -> RenderResult: ...
 ```
 
 v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタで連結し、映像 CRF 18 / preset slow / 元解像度・fps 維持、音声は processed.wav の対応区間 + 境界フェード（`afade` 10ms、尺不変）で AAC 320kbps に再エンコード。smart cut は将来 `SmartCutRenderer` として同一プロトコルで差し替える。
+
+末尾の暗転（§1 判断 9b）は concat の後段に付ける。`RenderJob.tail` は「カット後タイムラインで最後の発話が終わってから出力が終わるまでの秒数」で、render が transcript の写像済みセグメントから測って渡す（keep 区間だけを見てもどこまでが発話かは分からないため）。`Closing` はそこから `pad = max(0, fade_out - tail)` を決める:
+
+- `tail >= fade_out`（通常）: 素材の無音の上に `fade` / `afade` を乗せるだけ。尺は変わらない
+- `tail < fade_out`（話し終わってすぐ録画を止めた素材）: `tpad=stop_mode=clone` / `apad` で不足分だけ最終フレームと無音を継ぎ足してから暗転する。**尺を変える唯一の処理**なので、`expected_duration = Σkeep + pad` として §8 の尺検証に織り込む
+
+フェード開始位置は常に「最後の発話の終わり」以降になるため、発話が暗転や音量低下に巻き込まれることはない（`--verify-asr` の再文字起こしと loudnorm 実測値もこれで動かない）。
+
+実装時に確定した詳細（ffmpeg 7.1.1 実測）:
+
+- **`tpad` の前に `fps` でレートを固定する**。`tpad` は与えられたストリームのフレーム長から追加フレーム数を求めるが、`concat` の出力はそれが読めず、`concat` の後段に置いた `tpad` は**何も追加せず、何も言わない**。音声側の `apad` だけが効いて映像と 1.5 秒ずれた出力になる。出力に強制するのと同じレートを `fps` で先に噛ませると意図どおり保持される
+- **保持長はフレーム単位に切り上げてから渡す**。`tpad` は整数フレームしか足せないので自分で切り上げる。こちらで先に丸めておけば `expected_duration = Σkeep + pad` が実ファイル尺と一致し（§8 の 1 フレーム許容を消費しない）、映像と音声に同じ値を渡すので AV 差も出ない
 
 - `subtitles.srt`: §4 の写像で生成（BudouX + `max_chars_per_line` で行分割した版。`--no-wrap` で改行なし版も出せる）
 - `--preview`: telops.json + styles.json から ASS を組み、libass 焼き込みの preview.mp4 を出す

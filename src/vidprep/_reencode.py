@@ -13,6 +13,10 @@ subtitle timed by it — wrong by an amount that grows with the number of cuts.
 ``afade`` changes no length at all, which is why the output length can be
 checked against arithmetic afterwards.
 
+The one thing here that does change a length is the closing fade to black
+(:class:`Closing`), and it changes it by a number the stage states in advance,
+so the check survives.
+
 Rendering goes through :class:`Renderer` so the cut-without-re-encoding
 implementation planned for later (design.md §8) can take its place without the
 stage noticing.
@@ -49,6 +53,13 @@ AUDIO_BITRATE = "320k"
 VIDEO_STREAM = "v"
 AUDIO_STREAM = "a"
 
+#: Filtergraph labels. ``concat`` writes the finished streams under ``FINAL``
+#: unless a :class:`Closing` follows it, in which case it hands them over under
+#: ``JOINED`` and the closing writes ``FINAL`` — so what is mapped to the file
+#: is named the same either way.
+FINAL = "out"
+JOINED = "join"
+
 WORKSPACE_PREFIX = ".render-"
 MS_PER_SECOND = 1000.0
 
@@ -68,15 +79,102 @@ DEFAULT_FRAME_MS = 40.0
 ALIGNMENT_DECIMALS = 6
 
 
+#: Holds the last frame instead of inserting a black one, so a padded output
+#: darkens from the picture it ended on rather than cutting to black.
+FREEZE_MODE = "clone"
+
+#: ``tpad`` works out how many frames to add from the frame duration of what it
+#: is given, and ``concat`` hands it a stream it cannot read one from: measured
+#: against ffmpeg 7.1.1, ``tpad`` behind a ``concat`` adds nothing at all and
+#: says nothing about it, leaving the audio padded and the video not. Pinning
+#: the rate first — to the same one the encoder is told to write — makes the
+#: hold happen.
+RATE_FILTER = "fps"
+
+
+@dataclass(frozen=True, slots=True)
+class Closing:
+    """The fade to black an output ends on, and the material it needs.
+
+    The fade may not start while somebody is still talking, so it is measured
+    back from the end of a tail the caller has already checked is silent: the
+    ``tail`` given to :meth:`plan` is how long the kept material runs past the
+    last word. Where that is shorter than the fade — a recording stopped the
+    moment the sentence did — the difference is made up by holding the last
+    frame, because a recording cannot be asked for footage it does not have
+    and a hard cut to black is the thing the fade exists to avoid.
+
+    Attributes:
+        fade: How long the fade lasts, in seconds; ``0`` disables both.
+        pad: How much material to hold on after the last kept interval, in
+            seconds, so the fade has somewhere to happen.
+    """
+
+    fade: float = 0.0
+    pad: float = 0.0
+
+    @classmethod
+    def plan(cls, fade_out: float, tail: float) -> Closing:
+        """Return the closing for material running *tail* seconds past the last word."""
+        if fade_out <= 0:
+            return cls()
+        return cls(fade=fade_out, pad=max(0.0, fade_out - max(tail, 0.0)))
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether this closing leaves the joined streams alone."""
+        return self.fade <= 0 and self.pad <= 0
+
+    def chains(self, total: float, fps: str) -> list[str]:
+        """Return the filter chains that close an output *total* seconds long.
+
+        Empty when there is nothing to do, which is what keeps the graph of a
+        project with ``fade_out`` at ``0`` exactly what it was before.
+
+        Args:
+            total: How long the output is once this closing is applied.
+            fps: Frame rate to normalise to before holding a frame; see
+                :data:`RATE_FILTER`.
+        """
+        if self.is_empty:
+            return []
+        span = min(self.fade, total)
+        start = max(0.0, total - span)
+        video: list[str] = []
+        audio: list[str] = []
+        if self.pad > 0:
+            video.append(f"{RATE_FILTER}={fps}")
+            video.append(
+                f"tpad=stop_mode={FREEZE_MODE}:stop_duration={_seconds(self.pad)}"
+            )
+            audio.append(f"apad=pad_dur={_seconds(self.pad)}")
+        if span > 0:
+            video.append(f"fade=t=out:st={_seconds(start)}:d={_seconds(span)}")
+            audio.append(f"afade=t=out:st={_seconds(start)}:d={_seconds(span)}")
+        return [
+            f"[{JOINED}{VIDEO_STREAM}]{','.join(video)}[{FINAL}{VIDEO_STREAM}]",
+            f"[{JOINED}{AUDIO_STREAM}]{','.join(audio)}[{FINAL}{AUDIO_STREAM}]",
+        ]
+
+
+#: A closing that does nothing, so ``filtergraph`` can default to one.
+NO_CLOSING = Closing()
+
+
 @dataclass(frozen=True, slots=True)
 class RenderJob:
-    """One rendering: what to keep from where, and where to put it."""
+    """One rendering: what to keep from where, and where to put it.
+
+    ``tail`` is how long the kept material runs past the last spoken word, in
+    seconds; it decides how much of the closing fade has to be manufactured.
+    """
 
     source: Path
     keep: tuple[Interval, ...]
     audio: Path
     profile: Profile
     out: Path
+    tail: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +190,7 @@ class RenderResult:
     audio_duration: float
     integrated_lufs: float
     true_peak_dbtp: float
+    closing: Closing = NO_CLOSING
 
     @property
     def delta_ms(self) -> float:
@@ -107,18 +206,11 @@ class RenderResult:
 class Renderer(Protocol):
     """How the kept intervals of a source become a file (design.md §5.5)."""
 
-    def render(
-        self,
-        source: Path,
-        keep: Sequence[Interval],
-        audio: Path,
-        profile: Profile,
-        out: Path,
-    ) -> RenderResult:
-        """Write the *keep* intervals of *source* to *out*, and measure them.
+    def render(self, job: RenderJob) -> RenderResult:
+        """Write the kept intervals of *job* to its output, and measure them.
 
-        The implementation is expected to publish *out* atomically and to leave
-        any previous version of it untouched when anything goes wrong.
+        The implementation is expected to publish the output atomically and to
+        leave any previous version of it untouched when anything goes wrong.
         """
         ...
 
@@ -183,12 +275,31 @@ class ReencodeRenderer:
         rate = float(Fraction(self.fps))
         return MS_PER_SECOND / rate if rate > 0 else DEFAULT_FRAME_MS
 
-    def filtergraph(self, keep: Sequence[Interval], fade: float) -> str:
+    def closing(self, job: RenderJob) -> Closing:
+        """Return how *job* ends, held frames snapped onto the frame grid.
+
+        ``tpad`` can only add whole frames, so it rounds a duration up on its
+        own; rounding it here instead means the arithmetic the output is
+        checked against is the length the file really gets, rather than one up
+        to a frame short of it — and the picture and the sound are padded by
+        the same number rather than drifting apart by the rounding.
+        """
+        closing = Closing.plan(job.profile.render.fade_out, job.tail)
+        rate = Fraction(self.fps)
+        if closing.pad <= 0 or rate <= 0:
+            return closing
+        frames = math.ceil(round(closing.pad * rate, ALIGNMENT_DECIMALS))
+        return replace(closing, pad=float(frames / rate))
+
+    def filtergraph(
+        self, keep: Sequence[Interval], fade: float, closing: Closing = NO_CLOSING
+    ) -> str:
         """Return the ``trim``/``atrim`` + ``concat`` graph for *keep*.
 
         Each kept interval is faded in and out over *fade* seconds without
         changing its length; an interval too short to hold two fades gets
-        shorter ones rather than overlapping ones.
+        shorter ones rather than overlapping ones. *closing* is appended to the
+        joined streams and is the only thing here that changes a length.
         """
         chains: list[str] = []
         labels: list[str] = []
@@ -207,11 +318,14 @@ class ReencodeRenderer:
                 f"[a{index}]"
             )
             labels.append(f"[v{index}][a{index}]")
+        total = sum(end - start for start, end in keep) + closing.pad
+        tail = closing.chains(total, self.fps)
+        joined = JOINED if tail else FINAL
         chains.append(
             f"{''.join(labels)}concat=n={len(keep)}:v=1:a=1"
-            f"[out{VIDEO_STREAM}][out{AUDIO_STREAM}]"
+            f"[{joined}{VIDEO_STREAM}][{joined}{AUDIO_STREAM}]"
         )
-        return ";".join(chains)
+        return ";".join([*chains, *tail])
 
     def encode_command(self, job: RenderJob) -> list[str]:
         """Return the single ffmpeg invocation that produces ``job.out``."""
@@ -224,11 +338,11 @@ class ReencodeRenderer:
             "-i",
             str(job.audio),
             "-filter_complex",
-            self.filtergraph(job.keep, render.boundary_fade),
+            self.filtergraph(job.keep, render.boundary_fade, self.closing(job)),
             "-map",
-            f"[out{VIDEO_STREAM}]",
+            f"[{FINAL}{VIDEO_STREAM}]",
             "-map",
-            f"[out{AUDIO_STREAM}]",
+            f"[{FINAL}{AUDIO_STREAM}]",
             "-c:v",
             VIDEO_CODEC,
             "-crf",
@@ -258,24 +372,7 @@ class ReencodeRenderer:
             audio_module.measurement_command(job.out, job.profile.audio.loudnorm),
         ]
 
-    def render(
-        self,
-        source: Path,
-        keep: Sequence[Interval],
-        audio: Path,
-        profile: Profile,
-        out: Path,
-    ) -> RenderResult:
-        """Re-encode *keep* into *out*, verified before it replaces anything.
-
-        Raises:
-            InvariantViolationError: If the file that came out does not match
-                the arithmetic (verification-plan.md §8); *out* keeps whatever
-                it held before in that case.
-        """
-        return self.run(RenderJob(source, tuple(keep), audio, profile, out))
-
-    def run(self, job: RenderJob) -> RenderResult:
+    def render(self, job: RenderJob) -> RenderResult:
         """Encode *job* inside a workspace, verify it, then publish it.
 
         The file is built next to its destination and moved there in one step,
@@ -283,7 +380,10 @@ class ReencodeRenderer:
         previous render in place (design.md §6).
 
         Raises:
-            InvariantViolationError: If the result fails verification.
+            InvariantViolationError: If the result fails verification, or if the
+                file that came out does not match the arithmetic
+                (verification-plan.md §8); the output keeps whatever it held
+                before in that case.
         """
         job.out.parent.mkdir(parents=True, exist_ok=True)
         workspace = Path(tempfile.mkdtemp(dir=job.out.parent, prefix=WORKSPACE_PREFIX))
@@ -301,16 +401,18 @@ class ReencodeRenderer:
         """Read back what was written: lengths, and the loudness it kept."""
         targets = job.profile.audio.loudnorm
         measured = audio_module.measure(job.out, targets)
+        closing = self.closing(job)
         return RenderResult(
             renderer=self.NAME,
             output=job.out,
             target_lufs=targets.i,
-            expected_duration=sum(end - start for start, end in job.keep),
+            expected_duration=sum(end - start for start, end in job.keep) + closing.pad,
             duration=_ffmpeg.duration(job.out),
             video_duration=_ffmpeg.stream_duration(job.out, VIDEO_STREAM),
             audio_duration=_ffmpeg.stream_duration(job.out, AUDIO_STREAM),
             integrated_lufs=measured.integrated_lufs,
             true_peak_dbtp=measured.true_peak_dbtp,
+            closing=closing,
         )
 
 

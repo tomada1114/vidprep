@@ -160,13 +160,26 @@ def silence_spans(
     ]
 
 
-def pad_spans(spans: Iterable[Span], silence: SilenceProfile) -> tuple[list[Span], int]:
+def pad_spans(
+    spans: Iterable[Span], silence: SilenceProfile, duration: float
+) -> tuple[list[Span], int]:
     """Shrink each silence by the padding and drop what is then too short.
+
+    The silence that reaches ``duration`` is padded differently: ``pad_post``
+    exists to keep a cut off the word that follows it, and after the last one
+    there is no word to keep off. Ending that cut ``pad_post`` short of the
+    material would leave the recording's final fraction of a second stranded
+    behind the removed stretch — audible as a click and visible as a jump — so
+    the closing cut runs to the very end instead, and what it leaves behind is
+    ``tail_pad`` seconds of the recording's own quiet for ``render.fade_out``
+    to fade over.
 
     Args:
         spans: The detected silences, unpadded.
-        silence: The profile section holding ``pad_pre``, ``pad_post`` and
-            ``min_cut_duration``.
+        silence: The profile section holding ``pad_pre``, ``pad_post``,
+            ``tail_pad`` and ``min_cut_duration``.
+        duration: Length of the material, in seconds; a silence ending here is
+            the closing one.
 
     Returns:
         The cuttable intervals, and how many were dropped for being shorter
@@ -175,7 +188,10 @@ def pad_spans(spans: Iterable[Span], silence: SilenceProfile) -> tuple[list[Span
     kept: list[Span] = []
     dropped = 0
     for span in spans:
-        padded = Span(span.start + silence.pad_pre, span.end - silence.pad_post)
+        if to_ms(span.end) >= to_ms(duration):
+            padded = Span(span.start + silence.tail_pad, span.end)
+        else:
+            padded = Span(span.start + silence.pad_pre, span.end - silence.pad_post)
         if to_ms(padded.duration) >= to_ms(silence.min_cut_duration):
             kept.append(padded)
         else:

@@ -455,13 +455,21 @@ class CorrectProfile(_Strict):
 
 
 class SilenceProfile(_Strict):
-    """Silence detection and padding parameters."""
+    """Silence detection and padding parameters.
+
+    ``tail_pad`` replaces ``pad_pre``/``pad_post`` on the one silence that
+    reaches the end of the material: there is no next word to protect there,
+    so the cut runs to the very end and leaves ``tail_pad`` seconds of the
+    recording's own quiet behind the last one (design.md §5.4). It is what
+    ``render.fade_out`` fades over, so the two are meant to match.
+    """
 
     threshold: str = "4%"
     min_duration: Seconds = 0.6
     pad_pre: Seconds = 0.3
     pad_post: Seconds = 0.3
     min_cut_duration: Seconds = 0.4
+    tail_pad: Seconds = 2.0
 
 
 class FillerProfile(_Strict):
@@ -473,6 +481,11 @@ class FillerProfile(_Strict):
 
 class RenderProfile(_Strict):
     """Re-encode parameters, the boundary fade, and how strict verification is.
+
+    ``fade_out`` is the closing fade to black, and it is the whole of what the
+    output shows after the last word: ``silence.tail_pad`` leaves that much
+    quiet behind, and the fade runs over it. ``0`` ends the video the moment
+    the material does, which is what versions before it did.
 
     ``verify_asr_mode`` is ``gate``: one boundary flag fails the run. It was
     introduced as ``advisory`` — a recogniser run twice over the same audio was
@@ -486,6 +499,7 @@ class RenderProfile(_Strict):
     crf: int = Field(default=18, ge=0, le=51)
     preset: str = "slow"
     boundary_fade: Seconds = 0.010
+    fade_out: Seconds = 2.0
     verify_asr_mode: VerifyAsrMode = "gate"
 
 

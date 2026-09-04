@@ -32,6 +32,15 @@ bundled dictionary — swap in your own with `--dict <path>` or
 across several projects. `detect` takes the silences from auto-editor and the
 filler words from the transcript. `render` applies only what you approved.
 
+The video does not stop dead when the talking does. `detect` leaves
+`silence.tail_pad` seconds of the recording behind the last word instead of
+stranding its final fraction of a second behind the removed silence, and
+`render` fades that tail to black over `render.fade_out` seconds — two seconds
+of each by default. A recording that was stopped the moment the sentence ended
+has no tail to fade, so the render holds its last frame for the missing part
+and darkens from there rather than cutting to black; it says so when it does.
+Set `render.fade_out` to `0` to end the video the moment the material does.
+
 For a more natural voice, `profile.json` defaults DeepFilterNet's attenuation
 limit to 12 dB; lower it to leave more of the original voice and background
 ambience, or raise it when stronger denoising is more important.

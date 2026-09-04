@@ -30,6 +30,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only the silences, `--no-verify-asr` drops the second ASR pass, and
   `--dry-run` lists the stages a run would perform without doing any of them
 
+- A closing fade to black, and a tail for it to happen over. `detect` now cuts
+  the silence that reaches the end of the material all the way to that end
+  rather than stopping `pad_post` short of it — after the last word there is no
+  following word for `pad_post` to protect, and stopping short left the
+  recording's final fraction of a second stranded on the far side of the
+  removed stretch — and leaves `silence.tail_pad` seconds of quiet behind the
+  last word instead. `render` fades that tail to black, picture and sound, over
+  `render.fade_out` seconds. Both default to `2.0`, so the fade covers the tail
+  exactly and never starts while somebody is still talking. A recording stopped
+  the moment the sentence ended has no tail to fade: the render holds its last
+  frame (`tpad=stop_mode=clone`) for the missing part and darkens from the
+  picture it ended on rather than cutting to black, reports the held seconds
+  under `closing.held_sec`, and says so in the human output. The held frames
+  are the only thing in the renderer that changes a length: they are rounded up
+  to a whole frame and counted into the length check of verification-plan.md
+  §8, and the frame rate is pinned with `fps` before them, because `tpad`
+  behind a `concat` adds nothing at all and reports nothing about it
+  (ffmpeg 7.1.1) — which would have padded the sound and not the picture. Set
+  `render.fade_out` to `0` for the previous behaviour, where the video ends the
+  moment the material does
+
 - `vidprep correct --dict <path>` and `correct.dictionary_path` in
   `profile.json`: read the misconversion dictionary from outside the package,
   so several projects can share one maintained file instead of each forking
@@ -234,3 +255,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is decided on. `noise_floor.output` keeps the absolute and level-matched
   floor of the finished audio as reference figures. The statistics document is
   version `2`
+
+### Changed
+
+- `Renderer.render` takes a `RenderJob` instead of the five arguments that
+  built one, which is how the closing fade reaches it
