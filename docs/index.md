@@ -27,7 +27,7 @@ vidprep audio-fix --stats
 vidprep transcribe
 vidprep detect
 vidprep report --cuts   # decide the status of each candidate in cuts.json
-vidprep render          # out/output.mp4 + out/subtitles.srt
+vidprep render          # out/output.mp4 + out/subtitles.srt + out/transcript.txt
 ```
 
 ## Next Steps

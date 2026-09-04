@@ -55,7 +55,7 @@ src/vidprep/
 ├── _intervals.py    # Interval arithmetic detection and rendering share
 ├── _fillers.py      # Filler scanning and the cuts it justifies
 ├── _reencode.py     # The renderer protocol and the v1 re-encode
-├── _subtitles.py    # Line breaking, readability limits, the SRT file
+├── _subtitles.py    # Line breaking, readability limits, the SRT and text files
 ├── _ass.py          # Telops as an ASS subtitle track (design.md §3.5)
 ├── _preview.py      # Burning the telop track into the preview video
 ├── _boundaries.py   # Waveform stills and the boundary digest video

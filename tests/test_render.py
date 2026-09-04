@@ -706,6 +706,21 @@ class TestSubtitles:
         assert parsed.to_string("srt") == original
 
 
+class TestTranscriptText:
+    def test_the_text_file_is_written_and_named_in_the_outputs(self, tools, loaded):
+        result = render_module.run_render(loaded)
+
+        assert str(render_module.TEXT_NAME) in result.outputs
+        text = (loaded.root / render_module.TEXT_NAME).read_text("utf-8")
+        assert text == result.subtitles.to_text()
+
+    def test_the_dry_run_lists_the_text_file(self, run_cli, prepared, tools):
+        result = run_cli("render", "-p", str(prepared), "--dry-run", "--json")
+
+        writes = json.loads(result.stdout)["writes"]
+        assert str(prepared / render_module.TEXT_NAME) in writes
+
+
 class TestLineBreaking:
     @pytest.mark.parametrize(
         ("text", "expected"),
@@ -783,7 +798,11 @@ class TestStage:
             "actual": round(DURATION - REMOVED, 3),
             "delta_ms": 0.0,
         }
-        assert result["outputs"] == ["out/output.mp4", "out/subtitles.srt"]
+        assert result["outputs"] == [
+            "out/output.mp4",
+            "out/subtitles.srt",
+            "out/transcript.txt",
+        ]
 
     def test_a_project_with_no_approved_cuts_is_re_encoded_whole(self, tools, loaded):
         write_cuts(loaded.root, (("c0002", 20.0, 20.5, "proposed"),))

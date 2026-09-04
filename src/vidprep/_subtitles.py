@@ -15,6 +15,12 @@ Nothing is ever truncated. Text that will not fit ``max_lines`` lines of
 ``max_chars_per_line`` is packed into the last line and reported, because a
 subtitle missing its ending is a defect a viewer cannot recover from, while an
 overlong one is a judgement call the reader of the report can make.
+
+:meth:`Subtitles.to_text` builds a second reading of the same entries: prose
+grouped into paragraphs instead of a subtitle box's short-lived lines. vidprep
+has no notion of where a topic turns, so a paragraph ends only on signals
+already in the data — the recogniser's own sentence-ending punctuation, or a
+pause that survived the cut — never on interpretation.
 """
 
 from __future__ import annotations
@@ -31,7 +37,7 @@ from budoux import load_default_japanese_parser
 from .models import to_ms
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
     from budoux import Parser
 
@@ -49,6 +55,31 @@ FULL_WIDTH = 1.0
 HALF_WIDTH = 0.5
 
 CPS_DECIMALS = 2
+
+#: Punctuation :func:`_paragraphs` treats as the end of a sentence: the
+#: ideographic and full-width marks a Japanese transcript uses, and their ASCII
+#: forms for a non-Japanese ``asr.language``.
+SENTENCE_ENDINGS = (
+    "。",  # ideographic full stop
+    "．",  # noqa: RUF001 — full-width full stop
+    "！",  # noqa: RUF001 — full-width exclamation mark
+    "？",  # noqa: RUF001 — full-width question mark
+    "!",
+    "?",
+)
+
+#: A paragraph never breaks before this many full-width characters — the
+#: minimum that keeps ``to_text`` reading as prose rather than the SRT again.
+MIN_PARAGRAPH_WIDTH = 100
+
+#: A paragraph always breaks at this many full-width characters, signal or not.
+MAX_PARAGRAPH_WIDTH = 300
+
+#: A gap to the next entry this long, in seconds, ends a paragraph on its own.
+PARAGRAPH_PAUSE = 0.6
+
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = 3600
 
 WarningKind = Literal["dropped_by_cut", "min_display", "max_cps", "line_overflow"]
 
@@ -131,6 +162,20 @@ class Subtitles:
             )
         return subs.to_string(SRT_FORMAT)
 
+    def to_text(self) -> str:
+        """Render the entries as timestamped prose, grouped into paragraphs.
+
+        Where ``to_srt`` keeps every entry on its own timing, this joins
+        consecutive entries into a paragraph and drops the line breaking, so
+        the result reads as a document rather than a sequence of captions. Each
+        paragraph starts a new ``[timestamp] `` line, timed on its first entry.
+        See :func:`_paragraphs` for where a paragraph ends.
+        """
+        paragraphs = [
+            f"[{_timestamp(start)}] {text}" for start, text in _paragraphs(self.entries)
+        ]
+        return "\n\n".join(paragraphs) + "\n" if paragraphs else ""
+
     def count(self, kind: WarningKind) -> int:
         """Return how many warnings of *kind* were raised."""
         return sum(1 for warning in self.warnings if warning.kind == kind)
@@ -176,6 +221,81 @@ def wrap(text: str, max_chars_per_line: int, max_lines: int) -> tuple[str, ...]:
         else:
             lines[-1] += phrase
     return tuple(lines)
+
+
+def _append(text: str, addition: str) -> str:
+    """Join *addition* onto a paragraph's accumulated *text*.
+
+    Two full-width (Japanese) entries concatenate directly, the way BudouX
+    lines do; a half-width one — a non-Japanese ``asr.language``, or a stray
+    ASCII word — gets a space at the join so words do not run together, but
+    only when both sides of the join are half-width, since a full-width side
+    already carries no notion of a word boundary to protect.
+    """
+    if not text or not addition:
+        return text + addition
+    boundary_is_half_width = (
+        unicodedata.east_asian_width(text[-1]) not in WIDE_CLASSES
+        and unicodedata.east_asian_width(addition[0]) not in WIDE_CLASSES
+    )
+    return f"{text} {addition}" if boundary_is_half_width else f"{text}{addition}"
+
+
+def _breaks(text: str, gap: float | None) -> bool:
+    """Say whether a paragraph ends after the entry that brought it to *text*.
+
+    Args:
+        text: The paragraph's accumulated text, this entry included.
+        gap: Seconds to the next entry's start, or ``None`` past the last
+            entry, which always ends the paragraph regardless of this rule.
+
+    A paragraph never breaks under :data:`MIN_PARAGRAPH_WIDTH`: doing so on
+    every signal would give one- or two-sentence paragraphs, which is the SRT
+    again. Past that it breaks on a sentence-ending mark or a pause of at least
+    :data:`PARAGRAPH_PAUSE`, and past :data:`MAX_PARAGRAPH_WIDTH` it breaks
+    regardless, so a transcript with neither signal still reads as paragraphs.
+    """
+    width = text_width(text)
+    if width >= MAX_PARAGRAPH_WIDTH:
+        return True
+    if width < MIN_PARAGRAPH_WIDTH:
+        return False
+    # Compared in milliseconds, like every other timing in this module: `gap`
+    # is a difference of two floats already rounded to milliseconds upstream,
+    # and comparing it to PARAGRAPH_PAUSE in seconds can land a hair under a
+    # boundary that is exactly equal at millisecond precision.
+    return text.endswith(SENTENCE_ENDINGS) or (
+        gap is not None and to_ms(gap) >= to_ms(PARAGRAPH_PAUSE)
+    )
+
+
+def _paragraphs(entries: Sequence[Entry]) -> Iterator[tuple[float, str]]:
+    """Group *entries* into paragraphs, breaking only on signals already in the data.
+
+    Yields:
+        ``(start, text)`` pairs, ``start`` being the first grouped entry's
+        start and ``text`` its and its successors' text joined by
+        :func:`_append`.
+    """
+    start: float | None = None
+    text = ""
+    last = len(entries) - 1
+    for index, entry in enumerate(entries):
+        text = entry.text if start is None else _append(text, entry.text)
+        start = entry.start if start is None else start
+        gap = entries[index + 1].start - entry.end if index < last else None
+        if index == last or _breaks(text, gap):
+            yield start, text
+            start, text = None, ""
+
+
+def _timestamp(seconds: float) -> str:
+    """Return *seconds* as ``MM:SS``, or ``H:MM:SS`` from an hour onward."""
+    hours, remainder = divmod(int(seconds), SECONDS_PER_HOUR)
+    minutes, secs = divmod(remainder, SECONDS_PER_MINUTE)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
 
 
 def _mapping_warning(warning: SegmentWarning) -> SubtitleWarning:

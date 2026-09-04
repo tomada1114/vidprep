@@ -9,15 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `out/transcript.txt`, a readable counterpart to `out/subtitles.srt`: the same
+  cut-timeline entries as `[MM:SS] body` paragraphs (`[H:MM:SS]` past an hour)
+  instead of individually-timed captions. `render` writes it unconditionally,
+  next to the video and the SRT, and `vidprep prep` delivers it beside the
+  source as `<name>.txt`, so no flag is needed either way. Paragraph breaks are
+  a mechanical rule over what the data already carries — vidprep stays
+  AI-free, so it cannot tell where a topic turns — never under 100 full-width
+  characters, then a sentence-ending mark or a pause of 0.6s or more, and
+  always at 300 characters regardless of either signal.
+
 - `vidprep prep <video>` — a composite subcommand that runs the whole pipeline
   over one file, with what comes out copied next to the recording as
-  `<name>.edited.mp4` and `<name>.srt`. It is the same command whether
-  installed with `uv tool install --force --from . vidprep` or run against the
-  working tree as `uv run vidprep prep`. The project lands beside them as
-  `<name>.vidprep/`, which is what makes a second run cheap: a stage whose
-  result is already there and whose `profile.json` parameters have not moved
-  is skipped, and a stage downstream of one that did run is redone, so tuning
-  a threshold re-does exactly what the change reaches. The run stops once
+  `<name>.edited.mp4`, `<name>.srt` and `<name>.txt`. It is the same command
+  whether installed with `uv tool install --force --from . vidprep` or run
+  against the working tree as `uv run vidprep prep`. The project lands beside
+  them as `<name>.vidprep/`, which is what makes a second run cheap: a stage
+  whose result is already there and whose `profile.json` parameters have not
+  moved is skipped, and a stage downstream of one that did run is redone, so
+  tuning a threshold re-does exactly what the change reaches. The run stops once
   after the dictionary pass — on the invocation that produced the transcript,
   so never twice — for the `correct-transcript` skill to proofread it, because
   the CLI itself stays AI-free (design.md §7); `--yes` skips that for an

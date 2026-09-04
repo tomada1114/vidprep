@@ -19,7 +19,7 @@ instead of guessing.
 | Transcription | `vidprep transcribe` | `transcript.json`, `report/vad.json` |
 | Correction | `vidprep correct` | `transcript.json` (in place) |
 | Cut detection | `vidprep detect` | `cuts.json` |
-| Render | `vidprep render` | `out/output.mp4`, `out/subtitles.srt` |
+| Render | `vidprep render` | `out/output.mp4`, `out/subtitles.srt`, `out/transcript.txt` |
 | Report | `vidprep report` | `report/stats.json`, waveforms, cut digest |
 
 `audio-fix` denoises with DeepFilterNet — or ffmpeg's `afftdn` when it is not
@@ -115,7 +115,7 @@ vidprep detect              # silence + filler candidates -> cuts.json
 vidprep report --cuts       # what each candidate deletes, with the transcript around it
 # edit the `status` of each candidate in cuts.json: approved / rejected
 
-vidprep render              # approved cuts -> out/output.mp4 + out/subtitles.srt
+vidprep render              # approved cuts -> out/output.mp4 + out/subtitles.srt + out/transcript.txt
 vidprep report              # stats.json + boundary waveforms + boundary_digest.mp4
 ```
 
@@ -142,6 +142,7 @@ vidprep prep ~/Movies/talk01.mp4
 ├── talk01.mp4          the source; read and hashed, never written
 ├── talk01.edited.mp4   silence and filler cut, denoised, -14 LUFS, faded out
 ├── talk01.srt          subtitles on the cut timeline
+├── talk01.txt          the same transcript as timestamped, paragraphed prose
 └── talk01.vidprep/     the project, kept so the next run is cheap
 ```
 
@@ -199,6 +200,7 @@ work/talk01/
 ├── out/
 │   ├── output.mp4
 │   ├── subtitles.srt  # and subtitles.nowrap.srt with --no-wrap
+│   ├── transcript.txt # the same entries as timestamped, paragraphed prose
 │   ├── telops.ass     # with --preview
 │   └── preview.mp4    # with --preview
 └── report/

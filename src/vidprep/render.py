@@ -13,8 +13,10 @@ at, and a ``rejected`` one somebody has, both stay in the recording
 a second, quieter one.
 
 What is written: ``out/output.mp4``, ``out/subtitles.srt`` and, with
-``--no-wrap``, ``out/subtitles.nowrap.srt``. ``--preview`` adds the telop track
-``out/telops.ass`` and ``out/preview.mp4``, the render with it burned in.
+``--no-wrap``, ``out/subtitles.nowrap.srt``, plus ``out/transcript.txt`` — the
+same entries as prose, timestamped and grouped into paragraphs
+(:meth:`vidprep._subtitles.Subtitles.to_text`). ``--preview`` adds the telop
+track ``out/telops.ass`` and ``out/preview.mp4``, the render with it burned in.
 
 ``--verify-asr`` adds a read-only pass over the finished file: it is
 transcribed a second time and compared with what the kept segments say it
@@ -66,6 +68,7 @@ OUT_DIR = Path("out")
 VIDEO_NAME = OUT_DIR / "output.mp4"
 SUBTITLES_NAME = OUT_DIR / "subtitles.srt"
 NOWRAP_NAME = OUT_DIR / "subtitles.nowrap.srt"
+TEXT_NAME = OUT_DIR / "transcript.txt"
 TELOPS_ASS_NAME = OUT_DIR / "telops.ass"
 PREVIEW_NAME = OUT_DIR / "preview.mp4"
 
@@ -196,6 +199,7 @@ class Result:
             f"{subtitles.count('min_display')} under min_display, "
             f"{subtitles.count('max_cps')} over max_cps, "
             f"{subtitles.count('line_overflow')} over max_chars_per_line)",
+            f"✔ {TEXT_NAME}",
             *self._closing_lines(),
             *([] if self.preview is None else self.preview.lines()),
             *([] if self.verified is None else self.verified.lines()),
@@ -408,6 +412,18 @@ def _write_subtitles(
     return [str(name) for name in written]
 
 
+def _write_transcript_text(loaded: Project, subtitles: Subtitles) -> str:
+    """Write the entries as prose.
+
+    No read-back: it is derived from *subtitles*, which
+    :func:`_write_subtitles` has already verified against the SRT.
+    """
+    path = loaded.root / TEXT_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    project_module.atomic_write_text(path, subtitles.to_text())
+    return str(TEXT_NAME)
+
+
 @dataclass(frozen=True, slots=True)
 class _Telops:
     """The telops of ``telops.json``, placed and ready to be drawn."""
@@ -495,7 +511,11 @@ def plan(
     mapped = _map_transcript(loaded, timeline)
     renderer = _renderer(loaded)
     commands = renderer.commands(_job(loaded, timeline, audio, mapped))
-    writes = [str(loaded.root / VIDEO_NAME), str(loaded.root / SUBTITLES_NAME)]
+    writes = [
+        str(loaded.root / VIDEO_NAME),
+        str(loaded.root / SUBTITLES_NAME),
+        str(loaded.root / TEXT_NAME),
+    ]
     if no_wrap:
         writes.append(str(loaded.root / NOWRAP_NAME))
     if preview:
@@ -582,7 +602,11 @@ def run_render(
     encoder = _renderer(loaded)
     renderer: Renderer = encoder
     rendered = renderer.render(_job(loaded, timeline, audio, mapped))
-    outputs = [str(VIDEO_NAME), *_write_subtitles(loaded, subtitles, no_wrap=no_wrap)]
+    outputs = [
+        str(VIDEO_NAME),
+        *_write_subtitles(loaded, subtitles, no_wrap=no_wrap),
+        _write_transcript_text(loaded, subtitles),
+    ]
     drawn = None
     if telops is not None:
         drawn = _write_preview(loaded, telops, encoder.frame_ms)

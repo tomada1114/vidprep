@@ -18,7 +18,7 @@
 | 文字起こし | `vidprep transcribe` | `transcript.json`、`report/vad.json` |
 | 辞書校正 | `vidprep correct` | `transcript.json`（上書き） |
 | カット候補検出 | `vidprep detect` | `cuts.json` |
-| カット適用 | `vidprep render` | `out/output.mp4`、`out/subtitles.srt` |
+| カット適用 | `vidprep render` | `out/output.mp4`、`out/subtitles.srt`、`out/transcript.txt` |
 | レポート | `vidprep report` | `report/stats.json`、境界波形、カットダイジェスト |
 
 `audio-fix` は DeepFilterNet（未インストールなら ffmpeg の `afftdn`）でノイズ抑制し、
@@ -107,7 +107,7 @@ vidprep detect              # 無音 + フィラーのカット候補 → cuts.j
 vidprep report --cuts       # 候補ごとに「消える発話 + 前後の文脈」を表示
 # cuts.json の各候補の `status` を編集する: approved / rejected
 
-vidprep render              # approved カットを適用 → out/output.mp4 + out/subtitles.srt
+vidprep render              # approved カットを適用 → out/output.mp4 + out/subtitles.srt + out/transcript.txt
 vidprep report              # stats.json + 境界波形 PNG + boundary_digest.mp4
 ```
 
@@ -134,6 +134,7 @@ vidprep prep ~/Movies/talk01.mp4
 ├── talk01.mp4          素材。読み取りとハッシュのみ、書き換えはしない
 ├── talk01.edited.mp4   無音とフィラーを削り、ノイズを抑え、-14 LUFS、末尾フェードつき
 ├── talk01.srt          カット後のタイムラインに乗った字幕
+├── talk01.txt          同じ文字起こしをタイムスタンプつき段落のプレーンテキストで
 └── talk01.vidprep/     プロジェクト。次回の実行を安くするために残る
 ```
 
@@ -187,6 +188,7 @@ work/talk01/
 ├── out/
 │   ├── output.mp4
 │   ├── subtitles.srt  # --no-wrap で subtitles.nowrap.srt も
+│   ├── transcript.txt # 同じエントリをタイムスタンプつき段落のプレーンテキストで
 │   ├── telops.ass     # --preview 時
 │   └── preview.mp4    # --preview 時
 └── report/

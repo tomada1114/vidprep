@@ -8,6 +8,7 @@ thing that gets uploaded sit in the same folder::
     talk01.mp4            the source; read and hashed, never written
     talk01.edited.mp4     silence and filler cut, denoised, -14 LUFS, faded out
     talk01.srt            subtitles on the cut timeline
+    talk01.txt            the same transcript as timestamped, paragraphed prose
     talk01.vidprep/       the project: every intermediate JSON, kept for re-runs
 
 The project directory is what makes a second run cheap. A stage whose result is
@@ -56,9 +57,12 @@ PROJECT_SUFFIX = ".vidprep"
 
 #: What is copied out of the project, and the extension it lands under. The
 #: video is renamed rather than kept as ``output.mp4`` so that a folder holding
-#: several recordings still says which one each render came from.
+#: several recordings still says which one each render came from. The
+#: transcript needs no such renaming — a folder holds one recording's worth of
+#: it — so it lands as plainly as the source's own extension is replaced.
 EDITED_SUFFIX = ".edited.mp4"
 SUBTITLE_SUFFIX = ".srt"
+TEXT_SUFFIX = ".txt"
 
 #: The ``reason`` of the candidates this command may approve (design.md §3.4).
 FILLER_REASON = "filler"
@@ -289,7 +293,7 @@ def _approve_fillers(project: Path, ran: set[str], log: Callable[[str], None]) -
 def _deliver(
     project: Path, video: Path, log: Callable[[str], None]
 ) -> tuple[Path, ...]:
-    """Copy the render and its subtitles next to the source material.
+    """Copy the render, its subtitles and its transcript next to the source.
 
     Returns:
         The files that were written, in the order they were copied.
@@ -303,11 +307,15 @@ def _deliver(
             project / render.SUBTITLES_NAME,
             video.with_name(video.stem + SUBTITLE_SUFFIX),
         ),
+        (project / render.TEXT_NAME, video.with_name(video.stem + TEXT_SUFFIX)),
     )
     written = []
     for produced, target in pairs:
         if not produced.is_file():
-            msg = f"{produced} was never written; nothing to deliver"
+            msg = (
+                f"{produced} was never written; nothing to deliver "
+                "— run `vidprep render` first"
+            )
             raise UsageError(msg)
         replaced = " (replaced)" if target.exists() else ""
         shutil.copyfile(produced, target)
@@ -425,6 +433,7 @@ def plan(options: Options) -> dict[str, Any]:
         writes += [
             str(options.video.with_name(options.video.stem + EDITED_SUFFIX)),
             str(options.video.with_name(options.video.stem + SUBTITLE_SUFFIX)),
+            str(options.video.with_name(options.video.stem + TEXT_SUFFIX)),
         ]
     return {
         "project": str(options.project),

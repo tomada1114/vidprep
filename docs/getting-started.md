@@ -67,6 +67,7 @@ vidprep prep ~/Movies/talk01.mp4
 ├── talk01.mp4          the source; read and hashed, never written
 ├── talk01.edited.mp4   silence and filler cut, denoised, -14 LUFS, faded out
 ├── talk01.srt          subtitles on the cut timeline
+├── talk01.txt          the same transcript as timestamped, paragraphed prose
 └── talk01.vidprep/     the project, kept so the next run is cheap
 ```
 
@@ -171,7 +172,7 @@ is refused rather than written if one would.
 video and the subtitles from the same cut plan, so the two cannot drift apart.
 
 ```bash
-vidprep render              # out/output.mp4 + out/subtitles.srt
+vidprep render              # out/output.mp4 + out/subtitles.srt + out/transcript.txt
 vidprep render --no-wrap    # and out/subtitles.nowrap.srt, without line breaks
 vidprep render --preview    # and out/telops.ass + out/preview.mp4
 vidprep render --verify-asr # and transcribe the result again to look for lost words
@@ -194,6 +195,13 @@ Subtitles are broken at BudouX phrase boundaries into at most `max_lines`
 lines of `max_chars_per_line` full-width characters. Nothing is truncated:
 text that does not fit, entries shown for less than `min_display` and entries
 read faster than `max_cps` are reported in the result rather than changed.
+
+`out/transcript.txt` is the same entries as prose instead of captions:
+`[MM:SS] body` paragraphs (`[H:MM:SS]` past an hour), timed on the cut
+timeline. There is no notion of a topic boundary here — vidprep is AI-free —
+so a paragraph breaks only on signals already in the data: never under 100
+full-width characters, then on a sentence-ending mark or a pause of 0.6s or
+more, and always at 300 characters regardless of either.
 
 ## Telops
 

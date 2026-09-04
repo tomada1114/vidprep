@@ -96,7 +96,7 @@ src/vidprep/
 ├── transcript.json
 ├── cuts.json
 ├── telops.json          # 任意
-├── out/                 # output.mp4 / subtitles.srt / preview.mp4
+├── out/                 # output.mp4 / subtitles.srt / transcript.txt / preview.mp4
 └── report/              # stats.json / boundaries/*.png / boundary_digest.mp4
 ```
 
@@ -342,6 +342,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 - **保持長はフレーム単位に切り上げてから渡す**。`tpad` は整数フレームしか足せないので自分で切り上げる。こちらで先に丸めておけば `expected_duration = Σkeep + pad` が実ファイル尺と一致し（§8 の 1 フレーム許容を消費しない）、映像と音声に同じ値を渡すので AV 差も出ない
 
 - `subtitles.srt`: §4 の写像で生成（BudouX + `max_chars_per_line` で行分割した版。`--no-wrap` で改行なし版も出せる）
+- `transcript.txt`: 同じ写像済みエントリを `[MM:SS] 本文`（1 時間以降は `[H:MM:SS]`）の段落に組んだプレーンテキスト。vidprep は話題境界を判定できないため、段落の区切りはデータに既にある信号だけで決める機械的な規則: 累積幅が `MIN_PARAGRAPH_WIDTH`（全角 100 字）未満では区切らず、以降は文末記号（`。．！？!?`）かエントリ間の間が `PARAGRAPH_PAUSE`（0.6 秒）以上あれば区切り、`MAX_PARAGRAPH_WIDTH`（全角 300 字）に達したら信号の有無に関わらず区切る。しきい値は `_subtitles.py` の名前付き定数で、`profile.json` には出さない — render が params_sha256 に含めるのは `render` / `subtitle` セクションで、そこに段落しきい値を足すとテキストの折り返し調整だけで動画の全再エンコードが走ってしまうため
 - `--preview`: telops.json + styles.json から ASS を組み、libass 焼き込みの preview.mp4 を出す
 - render は開始前に cuts.json の不変条件と、transcript / cuts の元になった素材ハッシュの一致を検証する
 - `--verify-asr`: レンダリング後に出力を再 ASR し、カット境界での語の欠落を照合する（仕様は verification-plan.md §8.1）
@@ -368,7 +369,9 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 - ステージサブコマンドは §5 と 1:1。`prep` は動画 1 本を位置引数に取り、
   audio-fix → transcribe → correct → detect → render → report の順に呼ぶだけ
   で、独自の処理は持たない。`--project` の既定が cwd ではなく `<video>.vidprep`
-  （素材の隣）になる点だけ他のサブコマンドと異なる
+  （素材の隣）になる点だけ他のサブコマンドと異なる。レンダーが終わった実行では
+  `render` が出した `output.mp4` / `subtitles.srt` / `transcript.txt`（§5.5）を
+  素材の隣に `<video>.edited.mp4` / `<video>.srt` / `<video>.txt` としてコピーする
 - `prep` はユーザーに代わって 2 つの判断を下す: 文字起こし直後に 1 度だけ停止
   して `correct-transcript` スキルでの校正を促す（`--yes` で省略可）ことと、
   `detect` が人間向けに残したフィラー候補を `filler.enable_weak` が off の間

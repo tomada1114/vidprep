@@ -152,6 +152,7 @@ def _render(ran: list[str], verified: Any = None) -> Callable[..., FakeRender]:
         for name, text in (
             (render.VIDEO_NAME, "encoded"),
             (render.SUBTITLES_NAME, "1\n00:00:00,000 --> 00:00:01,000\nhi\n"),
+            (render.TEXT_NAME, "[00:00] hi\n"),
         ):
             target = loaded.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -379,6 +380,7 @@ class TestDelivery:
 
         assert (video.with_name(f"{video.stem}.edited.mp4")).is_file()
         assert (video.with_name(f"{video.stem}.srt")).read_text(encoding="utf-8")
+        assert (video.with_name(f"{video.stem}.txt")).read_text(encoding="utf-8")
 
     def test_a_second_run_replaces_what_the_first_delivered(
         self, run: Callable[..., CliResult], video: Path, stages: list[str]
@@ -407,6 +409,31 @@ class TestDelivery:
         )
 
         assert run(video, "--yes").exit_code == EXIT_USAGE
+
+    def test_a_render_missing_only_the_transcript_is_reported(
+        self,
+        run: Callable[..., CliResult],
+        video: Path,
+        stages: list[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def _run(loaded: Project, **_: Any) -> FakeRender:
+            for name, text in (
+                (render.VIDEO_NAME, "encoded"),
+                (render.SUBTITLES_NAME, "1\n00:00:00,000 --> 00:00:01,000\nhi\n"),
+            ):
+                target = loaded.root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(text, encoding="utf-8")
+            project_module.record_stage(loaded, render.STAGE)
+            return FakeRender()
+
+        monkeypatch.setattr(render, "run_render", _run)
+
+        result = run(video, "--yes")
+
+        assert result.exit_code == EXIT_USAGE
+        assert "vidprep render" in result.stderr
 
 
 class TestVerifyAsrGate:
@@ -512,3 +539,4 @@ class TestDryRun:
         assert result.exit_code == EXIT_OK
         assert "would run" not in result.stdout
         assert "would write" in result.stdout
+        assert f"{video.stem}.txt" in result.stdout
