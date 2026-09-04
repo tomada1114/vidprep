@@ -12,7 +12,10 @@ the second pass never heard, within two seconds of a boundary.
 :func:`missing_subtitle_entries` reads ``out/subtitles.srt`` back and checks
 every entry the mapping produced is really in the file (verification-plan.md §9).
 
-The check is a gate: one flag fails the run. It began as advisory, on the
+The check is a gate: one flag fails the run, except for a hunk made only of
+interjections, which is reported and not counted — see
+:data:`vidprep._retranscribe.NEGLIGIBLE_TOKENS` for why a dropped 「はい」 says
+nothing about whether speech was clipped. It began as advisory, on the
 assumption that a recogniser run twice does not return the same string twice,
 and was promoted once that assumption had been measured — three comparisons of
 one render returned identical numbers, and no normal boundary has been flagged
@@ -108,9 +111,19 @@ class VerifyResult:
     elapsed_seconds: float
 
     @property
+    def gating_flags(self) -> tuple[BoundaryFlag, ...]:
+        """The flags a gate fails on: everything but dropped interjections.
+
+        A hunk of pure interjections is still reported — it is in ``flags`` and
+        in the ``--json`` output — but it does not fail the run. See
+        :data:`vidprep._retranscribe.NEGLIGIBLE_TOKENS`.
+        """
+        return tuple(flag for flag in self.flags if not flag.negligible)
+
+    @property
     def passed(self) -> bool:
         """Whether no difference could be blamed on a cut (REQ-006)."""
-        return not self.flags
+        return not self.gating_flags
 
     @property
     def false_positive_rate(self) -> float | None:
@@ -134,6 +147,7 @@ class VerifyResult:
             "reasr_chars": self.reasr_chars,
             "missing_hunks": self.missing_hunks,
             "near_boundary_flags": len(self.flags),
+            "gating_flags": len(self.gating_flags),
             "boundaries": self.boundaries,
             "flags": [flag.to_dict() for flag in self.flags],
             "global_cer": round(self.global_cer, CER_DECIMALS),
@@ -143,14 +157,19 @@ class VerifyResult:
     def lines(self) -> list[str]:
         """Render the comparison for a human, flag by flag."""
         mark = "✔" if self.passed else "⚠"
+        ignored = len(self.flags) - len(self.gating_flags)
+        counted = f"{len(self.gating_flags)} boundary flags"
+        if ignored:
+            counted += f" ({ignored} interjection-only, ignored)"
         reported = [
-            f"{mark} verify-asr ({self.mode}): {len(self.flags)} boundary flags, "
+            f"{mark} verify-asr ({self.mode}): {counted}, "
             f"{self.missing_hunks} missing hunks, "
             f"CER {self.global_cer * 100:.2f}% "
             f"({self.backend} {self.model}, {self.elapsed_seconds:.1f}s)"
         ]
         reported += [
             f"  {flag.cut_id} @ {flag.src_time:.3f}s: {flag.missing!r} missing"
+            + (" (interjection, ignored)" if flag.negligible else "")
             for flag in self.flags
         ]
         return reported

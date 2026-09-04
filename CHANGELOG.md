@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A correction applied between two `prep` runs no longer misses the output.
+  `correct --apply-patch` rewrites `transcript.json` without running a pipeline
+  stage, so nothing landed in the invocation's ran-set and no `profile.json`
+  value moved: `prep` reported `render: up to date` and delivered subtitles and
+  `transcript.txt` with the old wording, silently and with a zero exit code.
+  Stage records now carry `inputs_sha256`, the digests of the artifacts the
+  stage read, and a stage whose inputs have moved runs again. Records written
+  before this change carry no digests and are read as fresh, so an existing
+  project does not re-run every stage once on upgrade.
+
+- `doctor`'s remedy for a missing SudachiDict now names the interpreter to
+  install into. A bare `uv pip install sudachidict_core` lands the dictionary in
+  whatever environment is active, which is not the one an installed `vidprep`
+  runs from, so the check kept failing after following its own advice.
+
+- The `skipped` list of the dictionary pass reports one entry per decision. A
+  katakana spelling that is also its own reading — every model name in a real
+  dictionary — matched in both the surface and the reading stage and was listed
+  twice, doubling the work list the `correct-transcript` skill reads.
+
+### Changed
+
+- `--verify-asr` no longer fails the run on a missing hunk made only of
+  interjections. A 「はい」 spoken into the pause before a clause abuts the next
+  words once that pause is cut, and the second pass may fold it in rather than
+  emit a token for it — the audio is still in the render, so this is a false
+  positive, and a gate that fires on it teaches the reviewer to override the
+  gate. Such flags are still reported, marked `negligible` in `--json` and
+  `(interjection, ignored)` in the log; `near_boundary_flags` still counts every
+  flag and the new `gating_flags` counts the ones that fail the run.
+
 ### Added
 
 - `out/transcript.txt`, a readable counterpart to `out/subtitles.srt`: the same

@@ -385,6 +385,110 @@ class TestContextEntries:
         )
 
 
+class TestSkippedIsOneEntryPerDecision:
+    """The skipped list is a work list, so a decision appears on it once.
+
+    A katakana spelling is matched by the surface stage and again by the
+    reading stage, because the spelling is its own reading. Both produce an
+    unapplied hit for the same term in the same segment; they are one decision
+    for the reader to make.
+    """
+
+    #: A ``context`` entry whose katakana spelling is also its reading, which is
+    #: what every model name in a real dictionary looks like (Opus, Sonnet,
+    #: Haiku). Both stages match it, and both leave it alone.
+    BOTH_STAGES = AsrDictionary.model_validate(
+        {
+            "version": "1.0.0",
+            "entries": [
+                {
+                    "correct": "Opus",
+                    "misrecognized": ["オーパス"],
+                    "yomi": "オーパス",
+                    "confidence": "context",
+                },
+                {
+                    "correct": "Cursor",
+                    "misrecognized": ["カーソル"],
+                    "yomi": "カーソル",
+                    "confidence": "context",
+                },
+            ],
+        }
+    )
+
+    @pytest.fixture
+    def both_stages_project(
+        self, project_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> Path:
+        """A project whose transcript trips both dictionary stages at once."""
+        document = {
+            **TRANSCRIPT,
+            "segments": [
+                {"id": "s0001", "start": 0.0, "end": 2.5, "text": "オーパスとカーソル"},
+            ],
+        }
+        (project_dir / "transcript.json").write_text(
+            json.dumps(document, ensure_ascii=False), encoding="utf-8"
+        )
+        readings = {"オーパス": "オーパス", "カーソル": "カーソル"}
+
+        def reader(text: str) -> Sequence[ReadingToken]:
+            tokens = []
+            index = 0
+            while index < len(text):
+                for surface, reading in readings.items():
+                    if text.startswith(surface, index):
+                        tokens.append(
+                            ReadingToken(
+                                index,
+                                index + len(surface),
+                                surface,
+                                normalise_reading(reading),
+                            )
+                        )
+                        index += len(surface)
+                        break
+                else:
+                    tokens.append(ReadingToken(index, index + 1, text[index], ""))
+                    index += 1
+            return tokens
+
+        monkeypatch.setattr(
+            _dictionary, "load_dictionary", lambda _path=None: self.BOTH_STAGES
+        )
+        monkeypatch.setattr(_dictionary, "default_reader", lambda: reader)
+        return project_dir
+
+    def test_a_context_term_matched_by_both_stages_is_listed_once(
+        self, both_stages_project
+    ):
+        loaded = project_module.load_project(both_stages_project)
+
+        plan = correct.plan_dictionary(loaded)
+
+        assert [(skip.id, skip.hit.matched) for skip in plan.skipped] == [
+            ("s0001", "オーパス"),
+            ("s0001", "カーソル"),
+        ]
+
+    def test_the_surviving_entry_still_names_a_stage_that_found_it(
+        self, both_stages_project
+    ):
+        loaded = project_module.load_project(both_stages_project)
+
+        plan = correct.plan_dictionary(loaded)
+
+        assert plan.skipped[0].hit.stage in {"surface", "yomi"}
+
+    def test_the_terms_are_still_left_in_the_text(self, both_stages_project):
+        loaded = project_module.load_project(both_stages_project)
+
+        plan = correct.plan_dictionary(loaded)
+
+        assert plan.corrected.segments[0].text == "オーパスとカーソル"
+
+
 class TestSudachiReader:
     """The real analyser, so the fake one cannot drift away from it."""
 

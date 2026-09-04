@@ -435,7 +435,7 @@ def render(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
     if (
         isinstance(verified, dict)
         and verified["mode"] == verify_module.GATE
-        and verified["near_boundary_flags"]
+        and verified["gating_flags"]
     ):
         raise typer.Exit(EXIT_VALIDATION)
 
@@ -544,7 +544,7 @@ def prep(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
     if (
         isinstance(verified, dict)
         and verified["mode"] == verify_module.GATE
-        and verified["near_boundary_flags"]
+        and verified["gating_flags"]
     ):
         raise typer.Exit(EXIT_VALIDATION)
 

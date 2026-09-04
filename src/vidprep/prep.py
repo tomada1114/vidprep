@@ -201,10 +201,18 @@ def _needs_run(loaded: Project, stage: str, ran: set[str]) -> bool:
     """Say whether *stage* has work to do, or may be skipped as up to date.
 
     A stage runs when something it reads was rebuilt in this invocation, when
-    it has never run, or when the ``profile.json`` sections it is sensitive to
+    it has never run, when the ``profile.json`` sections it is sensitive to
     have changed since it last did — which is what its recorded
-    ``params_sha256`` is for. A stage that records nothing is recognised by the
-    file it writes instead (:data:`UNRECORDED_OUTPUT`).
+    ``params_sha256`` is for — or when an artifact it reads has been rewritten
+    since, which is what its recorded ``inputs_sha256`` is for. A stage that
+    records nothing is recognised by the file it writes instead
+    (:data:`UNRECORDED_OUTPUT`).
+
+    The input check is what makes a correction applied between two runs reach
+    the output. ``correct --apply-patch`` rewrites ``transcript.json`` without
+    running a pipeline stage, so nothing lands in *ran* and no profile value
+    moves; without it the render is skipped as up to date and the subtitles
+    keep the old wording, silently and with a zero exit code.
     """
     if any(upstream in ran for upstream in project_module.STAGE_UPSTREAM[stage]):
         return True
@@ -213,7 +221,9 @@ def _needs_run(loaded: Project, stage: str, ran: set[str]) -> bool:
         output = UNRECORDED_OUTPUT.get(stage)
         return output is None or not (loaded.root / output).is_file()
     current = project_module.stage_params_sha256(loaded.profile, stage)
-    return record.params_sha256 != current
+    if record.params_sha256 != current:
+        return True
+    return bool(project_module.stale_inputs(loaded, stage))
 
 
 def _due(

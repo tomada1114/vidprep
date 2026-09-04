@@ -116,12 +116,16 @@ src/vidprep/
     "audio": {"codec": "aac", "sample_rate": 44100, "channels": 2}
   },
   "stages": {
-    "audio_fix": {"done_at": "...", "params_sha256": "...", "tool_versions": {"ffmpeg": "7.x"}}
+    "audio_fix": {"done_at": "...", "params_sha256": "...", "inputs_sha256": {}, "tool_versions": {"ffmpeg": "7.x"}},
+    "render": {"done_at": "...", "params_sha256": "...", "inputs_sha256": {"transcript.json": "...", "cuts.json": "..."}, "tool_versions": {}}
   }
 }
 ```
 
 - `stages` は各コマンドが完了時に記録する（入力パラメータのハッシュとツールバージョン）。下流コマンドは上流の記録と現在の profile を突き合わせ、**古い成果物の上で動くときは警告する**（ブロックはしない）
+- `inputs_sha256` は、そのステージが**読んだ成果物**の完了時点でのダイジェスト（`STAGE_INPUTS`）。`prep` はこれを現在の内容と突き合わせ、違えばそのステージを再実行する。これがないと `correct --apply-patch` のようにパイプラインの外で `transcript.json` を書き換えたとき、profile もステージ実行記録も動かないので render が「最新」と判定され、**字幕が古い文言のまま、終了コード 0 で配られる**。ステージではなく成果物を追うので、誰がどう書き換えても捕まり、何も変わっていなければ何も再実行しない
+  - 対象は小さな JSON 成果物のみ。`audio/processed.wav` の変化は必ず `audio_fix` の実行を伴い、それは実行記録側で捕まるため、毎回数百 MB をハッシュする価値はない
+  - ダイジェストを持たない古い記録は「陳腐化なし」として扱う。既存プロジェクトを更新しただけで全ステージが再実行されるのを避けるため
 - source の sha256 は各コマンド開始時に検証する（素材差し替え事故の防止）
 
 ### 3.3 transcript.json

@@ -15,7 +15,7 @@ from vidprep.errors import (
     SchemaInvalidError,
     UsageError,
 )
-from vidprep.models import Profile
+from vidprep.models import Cut, Cuts, Profile
 
 from .conftest import SAMPLE_DURATION
 
@@ -256,6 +256,72 @@ class TestStageRecords:
         loaded = project.load_project(project_dir)
 
         assert project.stale_upstream_warnings(loaded, "render") == []
+
+
+class TestStaleInputs:
+    """A stage notices an artifact it read being rewritten behind its back."""
+
+    @staticmethod
+    def _write_cuts(project_dir: Path, end: float) -> None:
+        """Put a one-cut ``cuts.json`` in the project, varying by *end*."""
+        project.write_json(
+            project_dir / "cuts.json",
+            Cuts(
+                cuts=[
+                    Cut(
+                        id="c0001",
+                        start=1.0,
+                        end=end,
+                        reason="silence",
+                        status="approved",
+                    )
+                ]
+            ),
+        )
+
+    def test_an_input_rewritten_after_the_stage_ran_is_reported(self, project_dir):
+        self._write_cuts(project_dir, 3.0)
+        project.record_stage(project.load_project(project_dir), "report")
+
+        self._write_cuts(project_dir, 4.0)
+
+        reloaded = project.load_project(project_dir)
+        assert project.stale_inputs(reloaded, "report") == ["cuts.json"]
+
+    def test_an_untouched_input_is_not_reported(self, project_dir):
+        self._write_cuts(project_dir, 3.0)
+        project.record_stage(project.load_project(project_dir), "report")
+
+        reloaded = project.load_project(project_dir)
+        assert project.stale_inputs(reloaded, "report") == []
+
+    def test_a_stage_that_never_ran_reports_nothing(self, project_dir):
+        self._write_cuts(project_dir, 3.0)
+
+        loaded = project.load_project(project_dir)
+        assert project.stale_inputs(loaded, "report") == []
+
+    def test_a_record_written_before_input_hashing_reports_nothing(self, project_dir):
+        # An upgraded project carries records with no digests. Reading that as
+        # staleness would re-run every stage of every existing project once.
+        self._write_cuts(project_dir, 3.0)
+        loaded = project.record_stage(project.load_project(project_dir), "report")
+        record = loaded.manifest.stages["report"].model_copy(
+            update={"inputs_sha256": {}}
+        )
+        manifest = loaded.manifest.model_copy(update={"stages": {"report": record}})
+        project.write_json(project_dir / project.MANIFEST_NAME, manifest)
+        self._write_cuts(project_dir, 4.0)
+
+        reloaded = project.load_project(project_dir)
+        assert project.stale_inputs(reloaded, "report") == []
+
+    def test_the_recorded_digests_are_the_artifacts_the_stage_reads(self, project_dir):
+        self._write_cuts(project_dir, 3.0)
+
+        loaded = project.record_stage(project.load_project(project_dir), "report")
+
+        assert set(loaded.manifest.stages["report"].inputs_sha256) == {"cuts.json"}
 
 
 class TestSubprocessIsolation:

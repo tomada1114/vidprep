@@ -332,6 +332,108 @@ class TestBoundaryWindow:
         )
 
 
+class TestNegligibleHunks:
+    """A hunk of pure interjections is reported but does not fail the gate.
+
+    A 「はい」 spoken into the pause before a clause abuts the next words once
+    that pause is cut, and the second pass may fold it in rather than emit a
+    token. The audio is still there; only the transcription of it changed.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        ["はい", "はい、", "はーい", "うん", "えーと", "えーーと", "はいはい", ""],
+        ids=[
+            "plain",
+            "punctuated",
+            "stretched",
+            "nod",
+            "filler",
+            "stretched-filler",
+            "repeated",
+            "empty",
+        ],
+    )
+    def test_interjections_are_negligible(self, text):
+        assert _retranscribe.is_negligible(text)
+
+    @pytest.mark.parametrize(
+        "text",
+        ["はいそうしましたら", "ください", "はいと言った", "16.3"],
+        ids=["with-clause", "content-word", "quoting", "number"],
+    )
+    def test_anything_carrying_content_is_not(self, text):
+        assert not _retranscribe.is_negligible(text)
+
+    def test_a_negligible_hunk_is_still_flagged_and_reported(self):
+        cut = Cut(id="c0001", start=10.0, end=20.0, reason="silence", status="approved")
+        text = "あ" * 9000
+        expected = ExpectedText(
+            (ExpectedSegment("s0001", text, 0.0, 90.0),), text, (0,)
+        )
+
+        (flag,) = _retranscribe.flag_boundaries(
+            expected,
+            [MissingHunk("はい", 800)],
+            Timeline([(10.0, 20.0)], 100.0),
+            [cut],
+        )
+
+        assert flag.negligible
+        assert flag.to_dict()["negligible"] is True
+
+    @staticmethod
+    def _result(*flags: _retranscribe.BoundaryFlag) -> verify.VerifyResult:
+        return verify.VerifyResult(
+            mode="gate",
+            backend="whisper.cpp",
+            model="large-v3-turbo",
+            vad="silero",
+            expected_chars=100,
+            reasr_chars=98,
+            missing_hunks=len(flags),
+            flags=flags,
+            boundaries=2,
+            global_cer=0.02,
+            elapsed_seconds=1.0,
+        )
+
+    def test_only_negligible_flags_pass_the_gate(self):
+        result = self._result(
+            _retranscribe.BoundaryFlag("c0001", 5.0, "はい", negligible=True)
+        )
+
+        assert result.passed
+        assert result.gating_flags == ()
+        assert result.to_dict()["gating_flags"] == 0
+
+    def test_a_real_flag_alongside_one_still_fails(self):
+        result = self._result(
+            _retranscribe.BoundaryFlag("c0001", 5.0, "はい", negligible=True),
+            _retranscribe.BoundaryFlag("c0002", 9.0, "ください", negligible=False),
+        )
+
+        assert not result.passed
+        assert result.to_dict()["gating_flags"] == 1
+
+    def test_an_ignored_flag_is_still_shown_to_the_reader(self):
+        result = self._result(
+            _retranscribe.BoundaryFlag("c0001", 5.0, "はい", negligible=True)
+        )
+
+        rendered = "\n".join(result.lines())
+
+        assert "interjection-only, ignored" in rendered
+        assert "'はい' missing (interjection, ignored)" in rendered
+
+    def test_the_total_flag_count_still_reports_every_flag(self):
+        result = self._result(
+            _retranscribe.BoundaryFlag("c0001", 5.0, "はい", negligible=True)
+        )
+
+        assert result.to_dict()["near_boundary_flags"] == 1
+
+
 # --------------------------------------------------------------------------- #
 #  The stage
 # --------------------------------------------------------------------------- #

@@ -154,10 +154,19 @@ class Source(_Strict):
 
 
 class StageRecord(_Strict):
-    """Provenance of one finished stage (design.md §3.2)."""
+    """Provenance of one finished stage (design.md §3.2).
+
+    ``inputs_sha256`` maps each artifact the stage read to its digest at the
+    moment the stage finished, which is what lets a later run notice that
+    something rewrote an input behind its back — ``correct --apply-patch``
+    editing ``transcript.json`` after a render, above all. It is empty on
+    records written before input hashing existed, and on stages that read no
+    hashed artifact.
+    """
 
     done_at: AwareDatetime
     params_sha256: str = Field(pattern=SHA256_PATTERN)
+    inputs_sha256: dict[str, str] = Field(default_factory=dict)
     tool_versions: dict[str, str] = Field(default_factory=dict)
 
 

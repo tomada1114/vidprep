@@ -49,7 +49,11 @@ class FakeVerified:
         self.flags = ("boundary",) if flagged else ()
 
     def to_dict(self) -> dict[str, Any]:
-        return {"mode": self.mode, "near_boundary_flags": len(self.flags)}
+        return {
+            "mode": self.mode,
+            "near_boundary_flags": len(self.flags),
+            "gating_flags": len(self.flags),
+        }
 
 
 class FakeRender(FakeStage):
@@ -293,6 +297,44 @@ class TestResuming:
         run(video, "--yes")
 
         assert stages == [render.STAGE, report.STAGE]
+
+
+class TestEditsBetweenRunsReachTheOutput:
+    """An artifact rewritten between two runs is not left out of the render.
+
+    Exercised here with ``cuts.json``, which is what the faked pipeline
+    produces; ``transcript.json`` takes the same path and is the case that
+    motivates it. ``correct --apply-patch`` and a hand-edited cut status both
+    run outside the pipeline: no stage lands in the invocation's ran-set and no
+    profile value moves, so before inputs were hashed the render was skipped as
+    up to date and the delivered subtitles kept the old wording — silently,
+    with a zero exit code.
+    """
+
+    def test_an_artifact_edited_between_runs_re_renders(
+        self, run: Callable[..., CliResult], video: Path, stages: list[str]
+    ) -> None:
+        run(video, "--yes")
+        write_cuts(
+            prep.project_for(video),
+            make_cuts(("c0001", 1.0, 3.5, "silence", "approved")),
+        )
+        stages.clear()
+
+        result = run(video, "--yes")
+
+        assert result.exit_code == EXIT_OK
+        assert render.STAGE in stages
+
+    def test_an_untouched_project_re_runs_nothing(
+        self, run: Callable[..., CliResult], video: Path, stages: list[str]
+    ) -> None:
+        run(video, "--yes")
+        stages.clear()
+
+        run(video, "--yes")
+
+        assert stages == []
 
 
 class TestFillerApproval:

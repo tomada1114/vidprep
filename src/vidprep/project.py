@@ -71,6 +71,29 @@ STAGE_PROFILE_SECTIONS: Mapping[str, tuple[str, ...]] = {
     "report": (),
 }
 
+#: Artifacts a stage reads whose *content* decides its output, hashed into the
+#: stage's record so a later run can tell they moved.
+#:
+#: This is what covers ``correct``, which is deliberately not an edge in
+#: :data:`STAGE_UPSTREAM`: it rewrites ``transcript.json`` in place rather than
+#: producing an output of its own, and it is reachable outside a pipeline run
+#: as ``correct --apply-patch``. Tracking the artifact rather than the stage
+#: catches the edit whoever made it, and re-runs nothing when a pass changed
+#: nothing.
+#:
+#: Only the small JSON artifacts are listed. A changed ``audio/processed.wav``
+#: always arrives with ``audio_fix`` having run, which an invocation already
+#: tracks, so hashing hundreds of megabytes on every staleness check would cost
+#: far more than it catches.
+STAGE_INPUTS: Mapping[str, tuple[str, ...]] = {
+    "audio_fix": (),
+    "transcribe": (),
+    "correct": ("transcript.json",),
+    "detect": ("transcript.json",),
+    "render": ("transcript.json", "cuts.json"),
+    "report": ("cuts.json",),
+}
+
 #: Stages whose output a given stage consumes, checked for staleness.
 STAGE_UPSTREAM: Mapping[str, tuple[str, ...]] = {
     "audio_fix": (),
@@ -313,6 +336,41 @@ def stage_params_sha256(profile: Profile, stage: str) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def stage_inputs_sha256(project: Project, stage: str) -> dict[str, str]:
+    """Hash the artifacts *stage* reads, as they stand on disk right now.
+
+    An input that does not exist is left out rather than recorded as absent, so
+    a stage that ran before an optional artifact appeared does not read as
+    stale once it does.
+    """
+    digests = {}
+    for name in STAGE_INPUTS.get(stage, ()):
+        path = project.root / name
+        if path.is_file():
+            digests[name] = sha256_file(path)
+    return digests
+
+
+def stale_inputs(project: Project, stage: str) -> list[str]:
+    """Return the recorded inputs of *stage* whose content has since changed.
+
+    Empty when the stage has never run, and empty when its record predates
+    input hashing: an older manifest carries no digests, and treating that
+    absence as staleness would re-run every stage of every existing project on
+    upgrade. Such a record heals itself the next time the stage runs for any
+    other reason.
+    """
+    record = project.manifest.stages.get(stage)
+    if record is None or not record.inputs_sha256:
+        return []
+    current = stage_inputs_sha256(project, stage)
+    return sorted(
+        name
+        for name, digest in record.inputs_sha256.items()
+        if current.get(name) != digest
+    )
+
+
 def stale_upstream_warnings(project: Project, stage: str) -> list[str]:
     """Return warnings for upstream artifacts built with a different profile.
 
@@ -345,6 +403,7 @@ def record_stage(
     record = StageRecord(
         done_at=datetime.now(tz=UTC).astimezone(),
         params_sha256=stage_params_sha256(project.profile, stage),
+        inputs_sha256=stage_inputs_sha256(project, stage),
         tool_versions=dict(tool_versions or {}),
     )
     manifest = project.manifest.model_copy(

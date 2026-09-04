@@ -109,11 +109,14 @@ class BoundaryFlag:
         cut_id: The nearest cut boundary's cut.
         src_time: Where the hunk sits on the original timeline, in seconds.
         missing: The characters that went missing.
+        negligible: Whether the hunk is only interjections, which are reported
+            but do not fail the gate. See :data:`NEGLIGIBLE_TOKENS`.
     """
 
     cut_id: str
     src_time: float
     missing: str
+    negligible: bool = False
 
     def to_dict(self) -> dict[str, object]:
         """Render the flag as it appears in ``--json`` output (REQ-006)."""
@@ -122,6 +125,7 @@ class BoundaryFlag:
             "src_time": round(self.src_time, SECONDS_DECIMALS),
             "missing": self.missing,
             "len": len(self.missing),
+            "negligible": self.negligible,
         }
 
 
@@ -304,6 +308,47 @@ def boundaries(approved: Sequence[Cut]) -> list[tuple[str, float]]:
     return edges
 
 
+#: Interjections whose presence in a second recognition pass is not reliable.
+#:
+#: A response particle spoken into the pause before a clause — 「はい」 above
+#: all — is a fraction of a second long, and once the pause is cut it abuts the
+#: next words closely enough that the recogniser may fold it in rather than emit
+#: a token for it. The audio is still in the render; what changed is the
+#: transcription of it. Flagging that as a word lost at a boundary is a false
+#: positive, and a gate that fires on it teaches the reviewer to override the
+#: gate, which is worse than not having one.
+#:
+#: Only interjections belong here. Anything that could be a content word stays
+#: out, however short: the check exists to catch clipped speech.
+NEGLIGIBLE_TOKENS: frozenset[str] = frozenset(
+    {"はい", "はーい", "ええ", "うん", "あー", "おー", "ん"}
+)
+
+
+def is_negligible(text: str) -> bool:
+    """Whether *text* is nothing but interjections and fillers.
+
+    Matched against the normalised form, longest token first, so punctuation
+    and a stretched vowel do not decide the answer. Empty text is negligible:
+    there is no speech in it to have lost.
+    """
+    remaining = _fillers.normalise(text)
+    tokens = sorted(
+        {_fillers.normalise(word) for word in NEGLIGIBLE_TOKENS}
+        | {_fillers.normalise(word) for word in _fillers.packaged_dictionary().strong},
+        key=len,
+        reverse=True,
+    )
+    while remaining:
+        for token in tokens:
+            if token and remaining.startswith(token):
+                remaining = remaining[len(token) :]
+                break
+        else:
+            return False
+    return True
+
+
 def flag_boundaries(
     expected: ExpectedText,
     hunks: Sequence[MissingHunk],
@@ -316,6 +361,10 @@ def flag_boundaries(
     on the original timeline with the inverse mapping of design.md §4 — the same
     interval table the video was cut with — so "near a boundary" is measured in
     the seconds the reviewer will seek to (REQ-005).
+
+    Every flag is returned. Those made only of interjections are marked
+    ``negligible`` rather than dropped, so the report still shows them and only
+    the gate ignores them.
     """
     edges = boundaries(approved)
     if not edges or not expected.segments:
@@ -327,5 +376,7 @@ def flag_boundaries(
         source = timeline.inverse(min(max(cut_time, 0.0), timeline.cut_duration))
         cut_id, edge = min(edges, key=lambda item: abs(item[1] - source))
         if to_ms(abs(edge - source)) <= limit:
-            flags.append(BoundaryFlag(cut_id, source, hunk.text))
+            flags.append(
+                BoundaryFlag(cut_id, source, hunk.text, is_negligible(hunk.text))
+            )
     return flags

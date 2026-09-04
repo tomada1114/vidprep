@@ -39,6 +39,8 @@ from .models import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from ._dictionary import AsrDictionary, Hit
     from .models import Segment
     from .project import Project
@@ -298,7 +300,7 @@ def plan_dictionary(
     skipped: list[Skip] = []
     for segment in transcript.segments:
         text, hits = _dictionary.correct_text(segment.text, entries, reader)
-        skipped += [Skip(segment.id, hit) for hit in hits if not hit.applied]
+        skipped += _pending(segment.id, hits)
         if text == segment.text:
             segments.append(segment)
             continue
@@ -314,6 +316,28 @@ def plan_dictionary(
         warnings=warnings,
         dictionary_source=dictionary_source,
     )
+
+
+def _pending(segment_id: str, hits: Sequence[Hit]) -> list[Skip]:
+    """Return one :class:`Skip` per decision *segment_id* leaves to the reader.
+
+    The two dictionary stages match independently, so a katakana spelling whose
+    surface form is also its reading — which is most of them — produces an
+    identical unapplied hit twice, once from ``surface`` and once from ``yomi``.
+    They are one decision, and the skipped list is a work list, so the second
+    is dropped. Genuinely different terms in one segment are all kept.
+    """
+    pending: list[Skip] = []
+    seen: set[tuple[str, str]] = set()
+    for hit in hits:
+        if hit.applied:
+            continue
+        key = (hit.matched, hit.correct)
+        if key in seen:
+            continue
+        seen.add(key)
+        pending.append(Skip(segment_id, hit))
+    return pending
 
 
 def plan_patch(loaded: Project, path: Path) -> Plan:

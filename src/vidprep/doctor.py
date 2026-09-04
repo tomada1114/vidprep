@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
@@ -415,7 +416,14 @@ _REMEDIES = {
         f"optional: install DeepFilterNet, or accept the {DEEPFILTERNET_FALLBACK} "
         "fallback in audio-fix"
     ),
-    "sudachipy": "`uv pip install sudachidict_core`",
+    # Naming the interpreter is the whole point: a bare `uv pip install` lands
+    # the dictionary in whatever environment happens to be active, which is not
+    # the one an installed `vidprep` runs from, and the check keeps failing.
+    "sudachipy": (
+        f"`uv pip install --python {sys.executable} sudachidict_core` "
+        "— it has to land in the environment vidprep itself runs from, "
+        "which is not necessarily the active virtualenv"
+    ),
 }
 
 
