@@ -400,6 +400,14 @@ CLI 本体は AI 非依存。スキルは中間 JSON の読み書きと CLI 呼�
 | review-cuts | cuts.json, `report --cuts` 出力, transcript.json | cuts.json（status のみ） | 区間・id の変更禁止。判断根拠を `note` に書く |
 | place-telops | transcript.json, styles.json | telops.json | 検証は `render --preview` のスキーマ検証に委ねる |
 
+この 3 つに加えて `.claude/skills/` にはもう一種類、知識スキル（knowledge skill）が
+存在する。パイプラインスキルのように JSON を読み書きして CLI を呼ぶものではなく、
+このリポジトリの規約・設計判断・アンチパターンを保持し、該当パス（`src/vidprep/*.py`、
+`tests/**`、CI 設定など）を触ったときに条件付きで読み込まれるプロンプトである。
+AGENTS.md には常時読まれる不変条件だけを残し、その根拠・具体例・境界事例は知識スキル
+側に置く方針を取っている。索引は AGENTS.md の `## Skills` セクション、各スキルの
+責務分担は `.claude/skills/authoring-skills/SKILL.md` を参照。
+
 ## 8. 拡張ポイント（v1 では作らないが壊さない）
 
 - **smart cut**: `Renderer` プロトコル差し替え（§5.5）。cuts.json・写像仕様は変更不要

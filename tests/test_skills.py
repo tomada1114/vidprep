@@ -13,14 +13,9 @@ from pathlib import Path
 import pytest
 
 SKILLS_DIR = Path(__file__).resolve().parents[1] / ".claude" / "skills"
-ALL_SKILLS = (
-    "correct-transcript",
-    "create-pr",
-    "place-telops",
-    "review-cuts",
-    "shipping-issues",
-    "smart-commit",
-)
+#: Every skill directory that actually carries a SKILL.md — a directory without one
+#: (e.g. a stub with only an assets/ folder) is not a skill and is excluded here.
+ALL_SKILLS = tuple(sorted(path.parent.name for path in SKILLS_DIR.glob("*/SKILL.md")))
 
 #: The skills of the v1 pipeline (design.md §7).
 PIPELINE_SKILLS = ("correct-transcript", "review-cuts", "place-telops")

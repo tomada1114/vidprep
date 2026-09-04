@@ -8,7 +8,11 @@ Shared, tool-agnostic project instructions live in `AGENTS.md` (imported
 above). This repo additionally ships host-specific configuration:
 
 - `.claude/skills/` — the canonical skill definitions; the corresponding
-  Codex-visible symlinks are generated under `.agents/skills/`
+  Codex-visible symlinks are generated under `.agents/skills/`. Six are workflow
+  skills (`correct-transcript`, `create-pr`, `place-telops`, `review-cuts`,
+  `shipping-issues`, `smart-commit`); the rest are knowledge skills that own a body
+  of convention and load on demand — see AGENTS.md's `## Skills` index for which
+  path loads which one
 - `.claude/settings.json` — the permission allowlist and hook wiring for this
   host; the generated counterpart for the other supported host is
   `.codex/hooks.json`

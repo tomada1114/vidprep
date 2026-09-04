@@ -47,7 +47,7 @@ src/vidprep/
 ├── report.py        # report: the review gate and the numbers behind it
 ├── prep.py          # prep: the whole pipeline over one file, resumable
 ├── verify.py        # --verify-asr: read the finished render back
-├── _ffmpeg.py       # The only module allowed to spawn subprocesses
+├── _ffmpeg.py       # ffmpeg/ffprobe subprocess wrapper (doctor.py is the other sanctioned spawner)
 ├── _asr.py          # whisper.cpp / mlx-whisper behind transcribe
 ├── _dictionary.py   # The misconversion dictionary and its two passes
 ├── _text.py         # The comparison form text measurements share
@@ -69,7 +69,43 @@ src/vidprep/
 - Keep the public API surface small — export via `__init__.py.__all__`
 - Internal modules can use a leading underscore (`_internal.py`)
 - Separate concerns: one module per logical unit
-- Update `docs/reference.md` and README examples whenever you change the public API
+- Update `__all__` and the new symbol's docstring whenever you change the public API —
+  `docs/reference.md` renders straight from `__all__` via mkdocstrings and needs no
+  manual edit; see `public-api-contract`
+
+## Skills
+
+`.claude/skills/` holds two kinds of skill. **Workflow skills** drive a procedure end
+to end: `correct-transcript`, `create-pr`, `place-telops`, `review-cuts`,
+`shipping-issues`, `smart-commit`. **Knowledge skills** own a body of convention and
+carry the reasoning, boundary cases, and anti-patterns this file states only as bare
+rules — load the matching one before changing that layer.
+
+| Touching | Load |
+|---|---|
+| `src/vidprep/**/*.py`, `scripts/**/*.py` general style | `writing-python` |
+| any test | `writing-tests`, `placing-tests` |
+| an error class or an exit code | `designing-errors` |
+| `__init__.py`'s `__all__` | `public-api-contract` |
+| `docs/**`, `README*.md` | `updating-docs` |
+| CI workflows, `.agents/hooks/**`, `justfile`, gate config in `pyproject.toml` | `changing-gates` |
+| `pyproject.toml` dependency tables, `uv.lock` | `managing-dependencies` |
+| whether a change is breaking, `CHANGELOG.md`, a PR title | `release-impact` |
+| a GitHub issue | `triaging-issues` |
+| a `SKILL.md` | `authoring-skills` |
+| `_ffmpeg.py`, `doctor.py`'s subprocess boundary | `running-subprocesses` |
+| `cli.py` | `writing-cli-commands` |
+| `project.py`, the manifest, staleness | `managing-the-project-dir` |
+| `models.py`, an artifact JSON schema | `modelling-artifacts` |
+| `timeline.py` | `mapping-timelines` |
+| `dictionaries/`, `profiles/`, `styles/` | `packaging-data-files` |
+| `audio.py` | `processing-audio` |
+| `transcribe.py`, `_asr.py` | `transcribing-speech` |
+| `correct.py`, `_dictionary.py` | `correcting-transcripts` |
+| `detect.py`, `_autoeditor.py`, `_fillers.py`, `_intervals.py` | `detecting-cuts` |
+| `render.py`, `_reencode.py`, `_subtitles.py`, `_ass.py`, `_preview.py` | `rendering-output` |
+| `report.py`, `verify.py`, `_retranscribe.py`, `tests/fault_injection/`, `just golden` | `verifying-renders` |
+| finishing any change | `reviewing-changes` |
 
 ## Review Checklist
 
@@ -111,12 +147,19 @@ loaded, and review the hook definitions when the host asks for trust.
 
 ## Documentation conventions: `docs/**/*.md`, `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`
 
+Depth: `updating-docs` (which doc surface a change lands on, the README/README.ja.md
+parity rule, and the mkdocs nav vs. `--strict` build).
+
 - Document non-obvious behavior, architecture decisions, and trade-offs
 - Do NOT document what is obvious from the code or already expressed by the type system
 - Code examples in docs must be valid Python that works with the current API
 - Use admonitions (note, warning, tip) for important callouts in MkDocs pages
 
 ## Project configuration conventions: `pyproject.toml`
+
+Depth: `managing-dependencies` (whether a package may enter at all, the two ranges-vs-pins
+rule, and the `exclude-newer` bump procedure), `changing-gates` (the ruff/mypy/coverage
+tables this section's gate-related rules protect).
 
 - Runtime dependencies go under `[project] dependencies`
 - Dev dependencies go under `[dependency-groups] dev`; docs under `[dependency-groups] docs`
@@ -147,17 +190,28 @@ Procedure:
 
 ## Python conventions: `src/**/*.py`, `scripts/**/*.py`
 
+Depth: `writing-python` (typing, value-object shape, the size triggers, docstrings,
+performance and Pythonic idioms), `designing-errors` (the exception hierarchy and how a
+domain error becomes an exit code), `public-api-contract` (what may be exported).
+
 ### Design
 
-- Keep modules under 300 lines; one logical concern per module
-- Keep functions under 40 lines; prefer 3 or fewer parameters (group related params with dataclass or TypedDict)
-- Google-style docstrings (Args/Returns/Raises) on all public functions; document *why*, not what the type signature already says; don't document obvious code
+- A module past 300 lines or a function past 40 lines is a trigger to consider a split,
+  not a hard cap — most of `src/vidprep/` already exceeds 300 lines, so treat this as a
+  review prompt rather than a rule to enforce literally
+- Prefer 3 or fewer parameters (group related params with dataclass or TypedDict); typer
+  CLI commands are the sanctioned exception (`# noqa: PLR0913`), since one parameter per
+  flag is typer's own contract
+- Google-style docstrings (Args/Returns/Raises) on all public functions; document *why*,
+  not what the type signature already says; don't document obvious code
 
 ### Error Handling
 
-- Define a package-level base exception; derive all specific errors from it
+- Define a package-level base exception (`VidprepError`); derive all specific errors from it
 - Catch the most specific exception possible
-- Use `logging.exception()` in catch blocks (auto-includes traceback), never `logger.error(str(e))`
+- There is no `logging` module in `src/vidprep/`; a recoverable failure is caught into a
+  reusable exception tuple and turned into a user-visible warning string, never logged
+  and dropped
 - Never swallow exceptions silently; if catching, handle meaningfully or re-raise
 - Never use exceptions for control flow
 - Return `None` or a sentinel only when the caller expects it; prefer raising for true errors
@@ -186,7 +240,10 @@ Procedure:
 - EAFP (try/except) over LBYL (if-check) when dealing with duck typing or I/O
 - Use context managers (`with`) for all resource management (files, connections, locks)
 - Prefer comprehensions over `map()`/`filter()` for readability
-- Use `enum.Enum` for fixed sets of values instead of string constants
+- Use a pydantic `Literal` field for a fixed set of values that lives on a schema
+  (`Cut.status: Literal["proposed","approved","rejected"]`), paired with a
+  module-level string constant for each value; `enum.Enum` is not used anywhere in
+  `src/vidprep/` and there's no reason to introduce it
 - Use `walrus operator` (:=) for assign-and-test when it improves clarity
 - Use structural pattern matching (`match/case`) for complex dispatch
 - Use `*args` unpacking and `**kwargs` deliberately; avoid passing them blindly through call chains
@@ -199,16 +256,25 @@ Procedure:
 ### Constants and Naming
 
 - Use `UPPER_SNAKE_CASE` named constants instead of magic numbers/strings
-- Boolean variables/params: prefix with `is_`, `has_`, `can_`, `should_`
+- Boolean parameters are keyword-only (`*, with_stats: bool = False`) rather than
+  prefixed with `is_`/`has_`/`can_`/`should_` — this codebase has no such prefixes and
+  relies on the keyword-only call site to stay self-documenting instead
 - Private helpers: prefix with `_`; reserve `__` (name mangling) only for avoiding conflicts in subclass hierarchies
 
 ## Test conventions: `tests/**/*.py`
 
+Depth: `writing-tests` (naming, what to assert, fakes over mocks, the `conftest.py`
+fixtures), `placing-tests` (where a test file goes and which command runs it).
+
 ### Structure and Organization
 
-- File structure mirrors source: `tests/test_<module>.py`
+- File structure mirrors source: `tests/test_<module>.py`, with a `_private.py` module
+  usually folded into the test file of the public module that exercises it rather than
+  getting its own file — see `placing-tests` for when a private module earns one
 - Shared fixtures go in `tests/conftest.py`; use the narrowest fixture scope possible
-- Function names: `test_<what>_<scenario>_<expected_result>` (e.g., `test_parse_config_empty_string_raises_value_error`)
+- Test names are a prose sentence describing the expected behaviour, grouped inside a
+  `class TestX:` (e.g. `test_a_stream_without_a_duration_is_reported`), not the
+  `test_<what>_<scenario>_<expected_result>` template — see `writing-tests`
 - Follow Arrange-Act-Assert: set up data, execute the behavior, verify the outcome
 - One logical assertion per test; multiple `assert` statements are fine if they verify one behavior
 
