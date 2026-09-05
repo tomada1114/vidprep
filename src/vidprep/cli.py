@@ -60,7 +60,10 @@ DryRunOption = Annotated[
 ]
 StatsOption = Annotated[
     bool,
-    typer.Option("--stats", help="Measure loudness and noise floor before and after."),
+    typer.Option(
+        "--stats/--no-stats",
+        help="Measure loudness and noise floor before and after (default: on).",
+    ),
 ]
 PatchOption = Annotated[
     Path | None,
@@ -274,13 +277,13 @@ def audio_fix(
     project: ProjectOption = None,
     json_output: JsonOption = False,
     dry_run: DryRunOption = False,
-    stats: StatsOption = False,
+    stats: StatsOption = True,
 ) -> None:
-    """Denoise, high-pass and loudness-normalise the audio."""
+    """Denoise, high-pass and loudness-normalise the audio, with stats by default."""
     options = CommonOptions(project, json_output, dry_run)
 
     def action() -> Output:
-        loaded, stale = _prepare("audio_fix", options)
+        loaded, stale = _prepare(audio_module.STAGE, options)
         if options.dry_run:
             plan = audio_module.plan(loaded, with_stats=stats)
             warned = [f"⚠ {warning}" for warning in plan["warnings"]]

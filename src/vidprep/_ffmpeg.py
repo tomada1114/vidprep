@@ -35,6 +35,10 @@ QUIET = ("-nostdin", "-hide_banner", "-nostats")
 #: tail of a failure, and every such file is written inside a working directory.
 WRITING = (*QUIET, "-v", "error", "-y")
 
+#: A writing command whose filter report must remain visible on stderr. The
+#: loudnorm pass-2 report is emitted at info level even though it writes a file.
+ANALYSIS_WRITING = (*QUIET, "-v", "info", "-y")
+
 
 @dataclass(frozen=True, slots=True)
 class ProbeResult:
@@ -95,11 +99,12 @@ def run(args: Sequence[str], timeout: float = DEFAULT_TIMEOUT_SECONDS) -> str:
 
 
 def run_analysis(args: Sequence[str], timeout: float = DEFAULT_TIMEOUT_SECONDS) -> str:
-    """Run an ffmpeg measurement pass and return its stderr.
+    """Run an ffmpeg command and return the filter report on its stderr.
 
     ffmpeg filters that report numbers — ``loudnorm``, ``silencedetect``,
-    ``astats`` — print them to stderr along with the rest of the log, so an
-    analysis pass is read from there rather than from stdout.
+    ``astats`` — print them to stderr along with the rest of the log, so a
+    filter report is read from there rather than from stdout. The command may
+    also write a file when it uses a writing output instead of ``-f null``.
     """
     return _execute(args, timeout).stderr
 

@@ -1,10 +1,12 @@
 """The ``audio-fix`` stage: denoise, high-pass, loudness normalisation.
 
-The chain is ``denoise -> highpass 80Hz -> loudnorm`` in two passes, run in
+The chain is ``denoise -> highpass 80Hz -> loudnorm`` in two passes, requesting
 linear mode so the gain applied is constant and the recording does not pump
-(design.md §5.1). Everything downstream — ASR and render alike — reads the
-``audio/processed.wav`` this produces, so the stage guarantees two things: the
-source material is only ever read, and the length does not change.
+(design.md §5.1). If the targets cannot be met with constant gain, loudnorm
+reports a dynamic fallback and the stage warns instead of hiding it. Everything
+downstream — ASR and render alike — reads the ``audio/processed.wav`` this
+produces, so the stage guarantees two things: the source material is only ever
+read, and the length does not change.
 
 Length invariance needs help from the chain rather than luck, because two of
 its steps quietly move the end of the recording: DeepFilterNet compensates its
@@ -14,11 +16,12 @@ timestamps and padding back to the source length undoes both without shifting
 the timeline the transcript will be built on; the result is then re-probed, so
 the guarantee is verified rather than assumed.
 
-``--stats`` writes a second, much smaller thing: ``report/noise_floor.json``,
-the noise floor before and after denoising. It is written here rather than
-measured by ``report`` because the audio it describes — denoised, not yet
-normalised — exists only while this stage is running, and that is the only
-point of the chain where the effect of denoising can be seen at all (#33).
+A stats-enabled run writes a second, much smaller thing:
+``report/noise_floor.json``, the noise floor before and after denoising. It is
+written here rather than measured by ``report`` because the audio it describes
+— denoised, not yet normalised — exists only while this stage is running, and
+that is the only point of the chain where the effect of denoising can be seen
+at all (#33).
 """
 
 from __future__ import annotations
@@ -46,7 +49,7 @@ if TYPE_CHECKING:
 STAGE = "audio_fix"
 OUTPUT_NAME = Path("audio") / "processed.wav"
 
-#: Where ``--stats`` records the REQ-007 comparison, for ``report`` to quote.
+#: Where a stats-enabled run records the REQ-007 comparison, for ``report`` to quote.
 NOISE_FLOOR_NAME = Path("report") / "noise_floor.json"
 
 DEEPFILTERNET = "deepfilternet"
@@ -97,6 +100,8 @@ MEASURED_KEYS = {
     "measured_thresh": "input_thresh",
     "offset": "target_offset",
 }
+#: The normalization mode requested for the constant-gain second pass.
+LINEAR_NORMALIZATION = "linear"
 
 #: What ``--dry-run`` prints where only a real run can supply a number.
 PLACEHOLDERS = {option: f"<{option}>" for option in MEASURED_KEYS}
@@ -225,7 +230,7 @@ class Chain:
         length = seconds if isinstance(seconds, str) else f"{seconds:.6f}"
         return [
             _ffmpeg.FFMPEG,
-            *_ffmpeg.WRITING,
+            *_ffmpeg.ANALYSIS_WRITING,
             "-i",
             str(source),
             "-map",
@@ -464,6 +469,17 @@ def _measured_options(report: Mapping[str, str]) -> dict[str, str]:
         msg = f"the loudnorm analysis is missing {', '.join(missing)}"
         raise ExecutionFailedError(msg)
     return {option: report[key] for option, key in MEASURED_KEYS.items()}
+
+
+def _normalization_warning(report: Mapping[str, str]) -> str | None:
+    """Return a warning when pass 2 did not use the requested linear mode."""
+    actual = report.get("normalization_type")
+    if actual == LINEAR_NORMALIZATION:
+        return None
+    return (
+        "loudnorm used "
+        f"{actual or 'unknown'} normalization instead of requested linear mode"
+    )
 
 
 def _loudness(report: Mapping[str, str]) -> tuple[float, float, float]:
@@ -745,7 +761,11 @@ def _produce(
     analysis = _ffmpeg.run_analysis(chain.analysis_command(denoised))
     measured = _measured_options(_loudnorm_report(analysis))
     rendered = workspace / RENDERED_NAME
-    _ffmpeg.run(chain.render_command(denoised, rendered, measured, seconds))
+    render_report = _loudnorm_report(
+        _ffmpeg.run_analysis(
+            chain.render_command(denoised, rendered, measured, seconds)
+        )
+    )
 
     produced = _ffmpeg.duration(rendered)
     _check_duration(seconds, produced)
@@ -753,9 +773,12 @@ def _produce(
     before = after = None
     floor = None
     warnings: list[str] = []
+    if warning := _normalization_warning(render_report):
+        warnings.append(warning)
     if with_stats:
         stages = Stages(extracted, denoised, rendered)
-        before, after, floor, warnings = _compare(chain, stages, seconds)
+        before, after, floor, stats_warnings = _compare(chain, stages, seconds)
+        warnings.extend(stats_warnings)
     project_module.atomic_replace(rendered, loaded.root / OUTPUT_NAME)
     _publish_floor(loaded, floor)
     return Result(

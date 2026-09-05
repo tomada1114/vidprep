@@ -133,6 +133,7 @@ class FakeTools:
         self.silence = SILENCE_LOG
         self.rendered_seconds = RENDERED_SECONDS
         self.digest_seconds = DIGEST_SECONDS
+        self.loudness = dict(LOUDNESS)
         #: Output paths whose command should fail, by file name.
         self.failing: set[str] = set()
 
@@ -175,7 +176,7 @@ class FakeTools:
             return self.silence
         if "astats" in filters:
             return astats_log(NOISE_FLOOR[name])
-        return loudnorm_log(LOUDNESS[name])
+        return loudnorm_log(self.loudness[name])
 
 
 @pytest.fixture
@@ -360,6 +361,29 @@ class TestStats:
             "target": -14.0,
             "tolerance": 0.5,
         }
+
+    def test_a_source_needing_exactly_twelve_decibels_gets_no_level_warning(
+        self, fake_tools, loaded
+    ):
+        fake_tools.loudness[SOURCE_NAME] = "-26.00"
+
+        result = report.run_report(loaded)
+
+        assert not any(
+            "recording level is unusually low" in warning for warning in result.warnings
+        )
+
+    def test_a_quiet_source_is_called_out_with_the_gain_it_needs(
+        self, fake_tools, loaded
+    ):
+        fake_tools.loudness[SOURCE_NAME] = "-26.01"
+
+        result = report.run_report(loaded)
+
+        assert result.warnings == (
+            "source is -26.01 LUFS; reaching the -14.0 LUFS target needs +12.01 dB "
+            "of gain, so the recording level is unusually low",
+        )
 
     def test_req_007_is_judged_on_what_audio_fix_measured_before_loudnorm(
         self, fake_tools, loaded

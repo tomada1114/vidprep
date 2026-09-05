@@ -514,6 +514,19 @@ class TestOutputVerification:
         with pytest.raises(InvariantViolationError, match=r"-14\.51 LUFS"):
             render_module.run_render(loaded)
 
+    def test_true_peak_at_the_profile_limit_passes(self, tools, loaded):
+        tools.report["input_tp"] = "-1.00"
+
+        result = render_module.run_render(loaded)
+
+        assert result.to_dict()["loudness"]["true_peak_dbtp"] == -1.0
+
+    def test_true_peak_above_the_profile_limit_fails(self, tools, loaded):
+        tools.report["input_tp"] = "-0.99"
+
+        with pytest.raises(InvariantViolationError, match=r"-0\.99 dBTP"):
+            render_module.run_render(loaded)
+
     def test_a_rejected_output_never_replaces_the_previous_one(self, tools, loaded):
         target = loaded.root / render_module.VIDEO_NAME
         target.parent.mkdir(parents=True)

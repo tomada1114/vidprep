@@ -184,6 +184,7 @@ class RenderResult:
     renderer: str
     output: Path
     target_lufs: float
+    target_tp: float
     expected_duration: float
     duration: float
     video_duration: float
@@ -406,6 +407,7 @@ class ReencodeRenderer:
             renderer=self.NAME,
             output=job.out,
             target_lufs=targets.i,
+            target_tp=targets.tp,
             expected_duration=sum(end - start for start, end in job.keep) + closing.pad,
             duration=_ffmpeg.duration(job.out),
             video_duration=_ffmpeg.stream_duration(job.out, VIDEO_STREAM),
@@ -419,14 +421,15 @@ class ReencodeRenderer:
 def _verify(result: RenderResult, frame_ms: float) -> None:
     """Check the completion conditions of verification-plan.md §8.
 
-    All three are checked before any of them is reported, because a render is
+    All checks are performed before any of them is reported, because a render is
     expensive enough that "and this is also wrong" is worth knowing in one go.
 
     Raises:
         InvariantViolationError: If the length drifted by more than a frame,
             the two streams disagree by more than
-            :data:`MAX_AV_DELTA_MS`, or loudness normalisation did not survive
-            the cuts. The work is discarded rather than published.
+            :data:`MAX_AV_DELTA_MS`, loudness normalisation did not survive the
+            cuts, or the true peak exceeds its target. The work is discarded
+            rather than published.
     """
     problems: list[str] = []
     if round(result.delta_ms, DELTA_DECIMALS) > round(frame_ms, DELTA_DECIMALS):
@@ -447,6 +450,13 @@ def _verify(result: RenderResult, frame_ms: float) -> None:
             f"the output measures {result.integrated_lufs:.2f} LUFS against a "
             f"target of {result.target_lufs:.1f} "
             f"(off by {drift:.2f} > {LOUDNESS_TOLERANCE_LUFS:g})"
+        )
+    if round(result.true_peak_dbtp, LUFS_DECIMALS) > round(
+        result.target_tp, LUFS_DECIMALS
+    ):
+        problems.append(
+            f"the output true peak is {result.true_peak_dbtp:.2f} dBTP against "
+            f"a maximum of {result.target_tp:.1f} dBTP"
         )
     if problems:
         msg = f"{'; '.join(problems)}; {result.output.name} was left untouched"

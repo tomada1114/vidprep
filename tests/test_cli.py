@@ -72,6 +72,12 @@ class TestInterface:
         # "-p" alone would also match inside "--project"
         assert re.search(r"--project\s+-p\b", result.stdout)
 
+    def test_audio_fix_exposes_both_stats_switches(self, run_cli):
+        result = run_cli("audio-fix", "--help")
+
+        assert "--stats" in result.stdout
+        assert "--no-stats" in result.stdout
+
     def test_unknown_option_is_a_usage_error(self, run_cli):
         result = run_cli("detect", "--nope")
 

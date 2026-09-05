@@ -132,6 +132,8 @@ class FakeTools:
     def run_analysis(self, args: list[str], timeout: float = 0.0) -> str:
         """Answer a measurement pass with the log its filters would print."""
         self.commands.append(list(args))
+        if "-t" in args:
+            self._write(Path(args[-1]))
         filters = args[args.index("-af") + 1]
         key = self._key(self._input(args))
         if "silencedetect" in filters:
@@ -345,6 +347,30 @@ class TestRun:
         assert "measured_I=-22.10" in filters
         assert "offset=0.30" in filters
         assert "linear=true" in filters
+
+    def test_second_pass_leaves_the_loudnorm_report_visible(self, tools, loaded):
+        audio.run_audio_fix(loaded)
+
+        render = next(
+            args
+            for args in tools.commands
+            if "-af" in args and "measured_I" in args[args.index("-af") + 1]
+        )
+
+        assert render[render.index("-v") + 1] == "info"
+
+    def test_a_dynamic_second_pass_is_reported_as_a_warning(self, tools, loaded):
+        tools.reports[audio.DENOISED_DIR] = {
+            **CHAIN_REPORT,
+            "normalization_type": "dynamic",
+        }
+
+        result = audio.run_audio_fix(loaded, with_stats=True)
+
+        assert result.warnings == (
+            "loudnorm used dynamic normalization instead of requested linear mode",
+        )
+        assert result.to_dict()["warnings"] == list(result.warnings)
 
     def test_the_source_material_is_never_written(self, tools, loaded, source_video):
         before = source_video.read_bytes()
@@ -703,6 +729,22 @@ class TestStats:
 
 
 class TestCli:
+    def test_stats_are_enabled_by_default(self, tools, run_cli, project_dir):
+        result = run_cli("audio-fix", "-p", str(project_dir), "--json")
+
+        assert result.exit_code == EXIT_OK
+        payload = json.loads(result.stdout)
+        assert "before" in payload
+        assert (project_dir / audio.NOISE_FLOOR_NAME).is_file()
+
+    def test_stats_can_be_disabled_explicitly(self, tools, run_cli, project_dir):
+        result = run_cli("audio-fix", "-p", str(project_dir), "--no-stats", "--json")
+
+        assert result.exit_code == EXIT_OK
+        payload = json.loads(result.stdout)
+        assert "before" not in payload
+        assert not (project_dir / audio.NOISE_FLOOR_NAME).exists()
+
     def test_reports_the_result_as_json(self, tools, run_cli, project_dir):
         result = run_cli("audio-fix", "-p", str(project_dir), "--stats", "--json")
 

@@ -19,6 +19,7 @@ the exit code stays ``0``.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -60,6 +61,9 @@ STATUSES = ("approved", "proposed", "rejected")
 
 #: How far the integrated loudness may sit from the target (verification-plan.md §4).
 LOUDNESS_TOLERANCE = 0.5
+
+#: Warn when the source needs more than this much normalisation gain.
+QUIET_SOURCE_GAIN_DB = 12.0
 
 SECONDS_DECIMALS = 3
 RATIO_DECIMALS = 3
@@ -271,6 +275,20 @@ def _integrated(measurement: Measurement | None) -> float | None:
     return round(measurement.integrated_lufs, LEVEL_DECIMALS)
 
 
+def _source_level_warning(source: Measurement | None, targets: Loudnorm) -> str | None:
+    """Warn when a measurable source is unusually far below the target."""
+    if source is None or not math.isfinite(source.integrated_lufs):
+        return None
+    gain = targets.i - source.integrated_lufs
+    if gain <= QUIET_SOURCE_GAIN_DB:
+        return None
+    return (
+        f"source is {source.integrated_lufs:.2f} LUFS; reaching the "
+        f"{targets.i:.1f} LUFS target needs {gain:+.2f} dB of gain, so the "
+        "recording level is unusually low"
+    )
+
+
 def _output_floor(measurement: Measurement | None) -> dict[str, float] | None:
     """Return the floor of the finished audio, absolute and level-matched.
 
@@ -443,6 +461,8 @@ def _levels(loaded: Project, inputs: Inputs) -> tuple[Levels, list[str]]:
     """
     targets = loaded.profile.audio.loudnorm
     source, warnings = _measure(loaded.source_path, targets, ())
+    if warning := _source_level_warning(source, targets):
+        warnings.append(warning)
     processed = None
     if inputs.audio is not None:
         intervals, detected = _silence(loaded)
