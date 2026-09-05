@@ -59,8 +59,8 @@ The checks are the point, so they are worth stating before the install steps.
   drift apart.
 - **The output is measured before it replaces anything.** Its length must match
   the cut list to within one frame, its streams must agree to within 50 ms and
-  its loudness must still be on target. A failed render leaves the previous
-  `out/output.mp4` in place.
+  its loudness and true peak must still be on target. A failed render leaves
+  the previous `out/output.mp4` in place.
 - **`render --verify-asr` reads the finished file back.** It transcribes
   `out/output.mp4` a second time with the same backend, model and detector — so
   both passes make the same mistakes and those mistakes cancel out — and reports
@@ -107,7 +107,7 @@ uv tool install --from . vidprep
 vidprep doctor          # check the external tools first
 vidprep init ./work/talk01 --source ~/Movies/talk01.mp4
 
-vidprep audio-fix --stats   # denoise -> high-pass 80 Hz -> loudnorm, before/after numbers
+vidprep audio-fix          # denoise -> high-pass 80 Hz -> loudnorm, with stats
 vidprep transcribe          # Silero VAD -> ASR -> transcript.json (original timeline)
 vidprep correct --dry-run   # the misconversion dictionary's diff, nothing written
 vidprep detect              # silence + filler candidates -> cuts.json
@@ -125,6 +125,10 @@ modified, and only copied into the project if you ask with `--copy-source`.
 Every subcommand takes `--project/-p`, `--json` and `--dry-run`. `detect` can be
 re-run as often as you like: it updates the intervals of candidates you already
 judged, keeps their status and notes, and never reuses an identifier.
+
+`audio-fix` collects before/after loudness and noise-floor statistics by
+default. Use `--no-stats` when those measurements are not needed; `--stats`
+remains available as an explicit spelling of the default.
 
 ## One command for one video
 
@@ -206,7 +210,7 @@ work/talk01/
 └── report/
     ├── stats.json
     ├── vad.json
-    ├── noise_floor.json        # written by audio-fix --stats
+    ├── noise_floor.json        # written by audio-fix unless --no-stats
     ├── boundaries/             # one waveform PNG per boundary
     └── boundary_digest.mp4
 ```

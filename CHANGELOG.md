@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `audio-fix` now reads the JSON report from loudnorm's second pass and warns
+  when the filter falls back from the requested `linear` normalization to
+  `dynamic`. The output is still produced — dynamic normalization is a valid
+  loudnorm result — but the change in gain behavior is no longer silent.
+
+- `render` now verifies the encoded output's true peak against the profile's
+  `target TP` before publishing it. An output above the limit is rejected and
+  the previous `out/output.mp4` remains in place, just as it does for a failed
+  loudness or length check.
+
 - A correction applied between two `prep` runs no longer misses the output.
   `correct --apply-patch` rewrites `transcript.json` without running a pipeline
   stage, so nothing landed in the invocation's ran-set and no `profile.json`
@@ -30,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   twice, doubling the work list the `correct-transcript` skill reads.
 
 ### Changed
+
+- `audio-fix` now collects before/after loudness and noise-floor statistics by
+  default. Use `--no-stats` when only the processed audio is needed; `--stats`
+  remains available as an explicit spelling of the default. `report` also warns
+  when the source needs more than 12 dB of gain to reach its loudness target, so
+  an unusually quiet recording is visible before later processing raises its
+  noise floor as well.
 
 - `--verify-asr` no longer fails the run on a missing hunk made only of
   interjections. A 「はい」 spoken into the pause before a clause abuts the next

@@ -46,6 +46,9 @@ vidprep init ./work/talk01 --source ~/Movies/VID_20260507_144024.mp4
 This writes `vidprep.json` (the manifest: source specs, hash, stage records)
 and `profile.json` (the processing parameters, copied from the packaged
 defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
+`audio-fix` collects before/after loudness and noise-floor statistics by
+default. Use `--no-stats` when only the processed audio is needed; `--stats`
+remains available as an explicit spelling of the default.
 
 !!! note
 
@@ -188,7 +191,7 @@ The fades do not overlap, so no boundary changes a length.
 
     The output is measured before it replaces anything: its length must match
     the cut list to within one frame, its two streams must agree to within
-    50ms, and its loudness must still be on target. A render that fails leaves
+    50ms, and its loudness and true peak must still be on target. A render that fails leaves
     the previous `out/output.mp4` in place.
 
 Subtitles are broken at BudouX phrase boundaries into at most `max_lines`

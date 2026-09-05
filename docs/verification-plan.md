@@ -53,6 +53,8 @@ status: approved
 **完了条件（機械）**
 - integrated loudness が **-14.0 ± 0.5 LUFS**、true peak **≤ -1.0 dBTP**（ffmpeg loudnorm 解析パスで検証）
 - 処理前後の音声尺の差 **≤ 1ms**
+- loudnorm pass 2 の `normalization_type` が `linear` でない場合は、処理を成功扱いのまま warning で明示する（dynamic fallback を見落とさない）
+- 素材から目標までの必要ゲインが **+12dB を超える**場合は、`report` が録音レベルの低さを warning で指摘する
 - **ノイズフロア（REQ-007、#33 で確定）**: denoise 直後・**loudnorm 前**の無音区間 RMS が、同じ無音区間で測った処理前の RMS より**低下**していること。判定は `report/stats.json` の `noise_floor.denoise.improved == true`（= `delta_db < 0`）。`audio-fix --stats` が測って `report/noise_floor.json` に記録し、`report` はそれを引用する
 
 ### 4.1 ノイズフロア指標の定義（#33）
@@ -86,6 +88,8 @@ before/after 比較では旧 run との diff に `noise_floor.source.*` の消�
 
 **効果測定**: LUFS / TP / LRA の前後比較表と上記フロア比較（stats.json）。ゴールデンの期待値: -22.24 → -14 LUFS。
 
+LRA の既定値 11.0 は素材によっては実測値を拘束しない。話し声のように LRA が目標未満でも、I と TP の同時達成ができなければ linear は成立せず、pass 2 の `normalization_type` を確認する。
+
 **目視・試聴チェックリスト（tomada 最終判定）**
 
 機械側の合否（上記 -9.09dB）が**発話品質の実感と一致するか**の最終確認は、以下の試聴をもって tomada が行う（#33 の 3 つ目のチェック項目のうち人手側。未消化）。
@@ -96,7 +100,7 @@ before/after 比較では旧 run との diff に `noise_floor.source.*` の消�
 
 **検証手順**
 ```
-vidprep audio-fix --stats          # 実行 + 前後統計（noise_floor.json も書かれる）
+vidprep audio-fix                  # 実行 + 前後統計（noise_floor.json も書かれる）
 vidprep report --json              # stats.json の noise_floor.denoise で REQ-007 を判定
 ffmpeg -i audio/processed.wav -af loudnorm=I=-14:TP=-1:print_format=json -f null -
                                    # 独立系統での再測定（自己申告とのクロスチェック）
@@ -183,6 +187,7 @@ vidprep detect                     # 再実行 → status 保持を確認
 - 尺の整合: `|出力尺 − (原尺 − approved カット総尺)|` **≤ 1 フレーム（40ms @25fps）**
 - A/V 同期: 出力の音声ストリーム尺と映像ストリーム尺の差 **≤ 50ms**
 - ラウドネス維持: 出力の integrated loudness が **-14.0 ± 0.5 LUFS**（audio-fix の効果がカットで壊れていないこと）
+- True peak 維持: 出力の true peak が profile の target TP 以下（既定 **-1.0 dBTP**）
 - **再文字起こし照合（§8.1）の境界欠落フラグ 0 件**（v1 は **gate** 運用。フラグ 1 件で exit 3。#11 の導入時は advisory で、#32 の実測を経て昇格した — 経緯と昇格条件は §8.1 の結論を参照）
 - SRT 写像整合（§9 の F と共通）: 写像で除外されたセグメントが report の警告と一致
 

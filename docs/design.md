@@ -270,12 +270,13 @@ f(t) = t - removed(t)                       # カット内の t は f(bi) に写
 
 ### 5.1 audio-fix
 
-チェーン: `denoise（DeepFilterNet、無ければ afftdn にフォールバック）→ highpass 80Hz → loudnorm 2 パス（linear モード）`。出力は `audio/processed.wav`（PCM 16bit、ソースのサンプルレート維持）。DeepFilterNet の `deepfilternet_atten_lim_db` は原音との混合を残すための抑制上限で、既定値は 12dB とする。
+チェーン: `denoise（DeepFilterNet、無ければ afftdn にフォールバック）→ highpass 80Hz → loudnorm 2 パス（pass 2 は linear モードを要求）`。出力は `audio/processed.wav`（PCM 16bit、ソースのサンプルレート維持）。DeepFilterNet の `deepfilternet_atten_lim_db` は原音との混合を残すための抑制上限で、既定値は 12dB とする。
 
-- loudnorm は 1 パス目で measured 値を取得し、2 パス目に `measured_*` を渡す linear モードで実行する（dynamic モードのポンピング回避）
+- loudnorm は 1 パス目で measured 値を取得し、2 パス目に `measured_*` を渡して linear モードを要求する（dynamic モードのポンピング回避）。I / TP / LRA の組み合わせを一定ゲインで満たせない素材では loudnorm が `dynamic` を返すため、audio-fix は処理を継続しつつ warning で明示する
 - 尺を変えてはならない（完了条件: 尺差 ≤ 1ms。verification-plan.md §4）
-- `--stats` で処理前後の LUFS / TP / LRA / 無音区間 RMS を JSON 出力
-- `--stats` 時は denoise 直後（loudnorm 前）の無音区間 RMS を処理前と比較し、`report/noise_floor.json` に記録する。この測定点はチェーン実行中にしか存在せず後から再現できないため、`report` は自分で測らずこのファイルを引用して REQ-007 を判定する（verification-plan.md §4.1）
+- audio-fix は処理前後の LUFS / TP / LRA / 無音区間 RMS を既定で JSON 出力し、`--no-stats` で省略できる（`--stats` も指定可能）
+- stats 有効時は denoise 直後（loudnorm 前）の無音区間 RMS を処理前と比較し、`report/noise_floor.json` に記録する。この測定点はチェーン実行中にしか存在せず後から再現できないため、`report` は自分で測らずこのファイルを引用して REQ-007 を判定する（verification-plan.md §4.1）
+- LRA の既定目標 11.0 は話し声素材では実測 LRA より十分大きく、正規化を拘束しない場合がある。その場合も linear の成立可否は LRA だけで判断せず、pass 2 の `normalization_type` と TP を確認する
 
 ### 5.2 transcribe
 
@@ -349,6 +350,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 - `transcript.txt`: 同じ写像済みエントリを `[MM:SS] 本文`（1 時間以降は `[H:MM:SS]`）の段落に組んだプレーンテキスト。vidprep は話題境界を判定できないため、段落の区切りはデータに既にある信号だけで決める機械的な規則: 累積幅が `MIN_PARAGRAPH_WIDTH`（全角 100 字）未満では区切らず、以降は文末記号（`。．！？!?`）かエントリ間の間が `PARAGRAPH_PAUSE`（0.6 秒）以上あれば区切り、`MAX_PARAGRAPH_WIDTH`（全角 300 字）に達したら信号の有無に関わらず区切る。しきい値は `_subtitles.py` の名前付き定数で、`profile.json` には出さない — render が params_sha256 に含めるのは `render` / `subtitle` セクションで、そこに段落しきい値を足すとテキストの折り返し調整だけで動画の全再エンコードが走ってしまうため
 - `--preview`: telops.json + styles.json から ASS を組み、libass 焼き込みの preview.mp4 を出す
 - render は開始前に cuts.json の不変条件と、transcript / cuts の元になった素材ハッシュの一致を検証する
+- render は出力を公開する前に尺、A/V 同期、integrated loudness に加えて true peak が profile の上限以下であることも検証する
 - `--verify-asr`: レンダリング後に出力を再 ASR し、カット境界での語の欠落を照合する（仕様は verification-plan.md §8.1）
 
 ### 5.6 report
@@ -356,6 +358,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 レビューゲートと検証の道具。`vidprep report` で以下を再生成する:
 
 - `report/stats.json`: 原尺 / カット後尺 / 削減率 / reason 別カット数と秒数 / LUFS 前後 / ノイズフロア（`denoise` = REQ-007 判定、`output` = 完成音声の参考値）/ 字幕警告一覧（写像時の除外・min_display 未満・max_cps 超過）
+- report は source の integrated loudness から target までの必要ゲインが +12dB を超える場合、録音レベルが低いことを warning で指摘する
 - `report/boundaries/*.png`: 各カット境界前後 ±2s の波形 PNG（`showwavespic`）
 - `report/boundary_digest.mp4`: **全カット境界の前後 ±2s だけを連結した確認用動画**（境界位置に無音の 0.5s 黒フレームを挟む）。カットが 30 箇所あっても数分で全境界を試聴でき、レビューゲートの主力になる
 - `--cuts`: カット候補ごとに「削除される transcript テキスト + 前後の文脈」を表示（人間 / スキルが status を判断する材料）

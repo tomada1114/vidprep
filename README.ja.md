@@ -52,7 +52,7 @@ Silero の発話区間検出を置き、すべてのタイムスタンプを原�
   後で字幕として出てくる。セグメントが検出済み発話と噛み合わない文字起こしは拒否される
 - **動画と字幕は同じカット計画から生成される。** 両者がずれることが原理的に起きない
 - **出力は何かを置き換える前に測定される。** 尺はカットリストと 1 フレーム以内、2 つの
-  ストリームは 50 ms 以内で一致し、ラウドネスは目標値に乗っていなければならない。失敗した
+  ストリームは 50 ms 以内で一致し、ラウドネスと true peak は目標値以内でなければならない。失敗した
   render は既存の `out/output.mp4` をそのまま残す
 - **`render --verify-asr` は完成したファイルを読み返す。** `out/output.mp4` を
   `transcript.json` が記録したのと同じバックエンド・モデル・検出器で再度文字起こしし
@@ -99,7 +99,7 @@ uv tool install --from . vidprep
 vidprep doctor          # まず外部ツールを検査する
 vidprep init ./work/talk01 --source ~/Movies/talk01.mp4
 
-vidprep audio-fix --stats   # ノイズ抑制 → ハイパス 80 Hz → loudnorm、前後の数値つき
+vidprep audio-fix           # ノイズ抑制 → ハイパス 80 Hz → loudnorm、前後の数値つき
 vidprep transcribe          # Silero VAD → ASR → transcript.json（原尺タイムスタンプ）
 vidprep correct --dry-run   # 誤変換辞書の置換 diff を確認する（書き換えなし）
 vidprep detect              # 無音 + フィラーのカット候補 → cuts.json
@@ -117,6 +117,9 @@ vidprep report              # stats.json + 境界波形 PNG + boundary_digest.mp
 すべてのサブコマンドが `--project/-p`、`--json`、`--dry-run` を受け付ける。`detect` は
 何度でも再実行してよい。既に判断済みの候補は区間だけが更新され、`status` と `note` は
 保持され、識別子が再利用されることはない。
+
+`audio-fix` は既定で処理前後のラウドネスとノイズフロアを測定する。測定が不要なときは
+`--no-stats` で省略でき、`--stats` は既定の動作を明示する指定としても使える。
 
 ## 動画 1 本を 1 コマンドで
 
@@ -194,7 +197,7 @@ work/talk01/
 └── report/
     ├── stats.json
     ├── vad.json
-    ├── noise_floor.json        # audio-fix --stats で生成される
+    ├── noise_floor.json        # audio-fix で生成（--no-stats 時を除く）
     ├── boundaries/             # 境界ごとに波形 PNG が 1 枚
     └── boundary_digest.mp4
 ```

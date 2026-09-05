@@ -23,7 +23,7 @@ install for the ones that are missing.
 
 ```bash
 vidprep init ./work/talk01 --source ~/Movies/talk01.mp4
-vidprep audio-fix --stats
+vidprep audio-fix
 vidprep transcribe
 vidprep detect
 vidprep report --cuts   # decide the status of each candidate in cuts.json
