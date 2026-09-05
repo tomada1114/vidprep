@@ -361,7 +361,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 - `transcript.txt`: 同じ写像済みエントリを `[MM:SS] 本文`（1 時間以降は `[H:MM:SS]`）の段落に組んだプレーンテキスト。vidprep は話題境界を判定できないため、段落の区切りはデータに既にある信号だけで決める機械的な規則: 累積幅が `MIN_PARAGRAPH_WIDTH`（全角 100 字）未満では区切らず、以降は文末記号（`。．！？!?`）かエントリ間の間が `PARAGRAPH_PAUSE`（0.6 秒）以上あれば区切り、`MAX_PARAGRAPH_WIDTH`（全角 300 字）に達したら信号の有無に関わらず区切る。しきい値は `_subtitles.py` の名前付き定数で、`profile.json` には出さない — render が params_sha256 に含めるのは `render` / `subtitle` セクションで、そこに段落しきい値を足すとテキストの折り返し調整だけで動画の全再エンコードが走ってしまうため
 - `--preview`: telops.json + styles.json から ASS を組み、libass 焼き込みの preview.mp4 を出す
 - render は開始前に cuts.json の不変条件と、transcript / cuts の元になった素材ハッシュの一致を検証する
-- render は出力を公開する前に尺、A/V 同期、integrated loudness に加えて true peak が profile の上限以下であることも検証する
+- render は出力を公開する前に尺、A/V 同期、integrated loudness に加えて true peak も検証する。true peak は AAC 320kbps に再エンコードした完成音声を測り、`profile.audio.loudnorm.tp` はエンコード前 PCM の目標として 0.5dB の有限な AAC エンコーダ許容幅を加えた上限（既定 -0.5 dBTP）と比較する。上限を超えた出力は拒否する（verification-plan.md §8）
 - `--verify-asr`: レンダリング後に出力を再 ASR し、カット境界での語の欠落を照合する（仕様は verification-plan.md §8.1）
 
 ### 5.6 report

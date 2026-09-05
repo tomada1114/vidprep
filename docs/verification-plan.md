@@ -200,9 +200,17 @@ vidprep detect                     # 再実行 → status 保持を確認
 - 尺の整合: `|出力尺 − (原尺 − approved カット総尺)|` **≤ 1 フレーム（40ms @25fps）**
 - A/V 同期: 出力の音声ストリーム尺と映像ストリーム尺の差 **≤ 50ms**
 - ラウドネス維持: 出力の integrated loudness が **-14.0 ± 0.5 LUFS**（audio-fix の効果がカットで壊れていないこと）
-- True peak 維持: 出力の true peak が profile の target TP 以下（既定 **-1.0 dBTP**）
+- True peak 維持: AAC 320kbps に再エンコードしてから測った出力の true peak が、profile の target TP に **0.5dB の AAC エンコーダ許容幅**を足した上限以下（既定 target **-1.0 dBTP** → 出力上限 **-0.5 dBTP**）。`audio/processed.wav` の PCM 目標と AAC デコード後の測定値を同じ上限で比較しない
 - **再文字起こし照合（§8.1）の境界欠落フラグ 0 件**（v1 は **gate** 運用。フラグ 1 件で exit 3。#11 の導入時は advisory で、#32 の実測を経て昇格した — 経緯と昇格条件は §8.1 の結論を参照）
 - SRT 写像整合（§9 の F と共通）: 写像で除外されたセグメントが report の警告と一致
+
+True peak の比較対象は完成した `output.mp4` の AAC 音声を loudnorm で
+デコード測定した値である。AAC 320kbps は PCM の true peak をそのまま保存せず、
+素材によって小さな intersample peak の上振れを生むため、profile の `tp` を
+PCM 側の目標として扱い、render では 0.5dB の有限なエンコーダ許容幅を加える。
+許容幅は「lossy なら無制限に許す」という意味ではなく、上記の実効上限を超えた
+出力は従来どおり公開前に拒否する。LUFS は同じく完成 AAC を測るが、既存の
+**±0.5 LUFS** 許容幅でコーデック後の軽微な変動を吸収する。
 
 **完了条件（目視・試聴）**
 - `report/boundary_digest.mp4`（全境界 ±2 秒の連結動画）を通しで試聴し、全境界について: クリック音なし / 語頭・語尾の欠けなし / 「間」が不自然に詰まっていないか

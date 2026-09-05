@@ -13,6 +13,12 @@ subtitle timed by it — wrong by an amount that grows with the number of cuts.
 ``afade`` changes no length at all, which is why the output length can be
 checked against arithmetic afterwards.
 
+The audio is measured after it has gone through the AAC encoder. Native AAC at
+the fixed 320kbps render setting can introduce a small intersample-peak rise
+even when the PCM produced by ``audio-fix`` meets its true-peak target. The
+render check therefore allows a bounded AAC encoding margin rather than
+comparing the decoded output to the PCM target as if no codec were involved.
+
 The one thing here that does change a length is the closing fade to black
 (:class:`Closing`), and it changes it by a number the stage states in advance,
 so the check survives.
@@ -66,7 +72,12 @@ MS_PER_SECOND = 1000.0
 #: Tolerances of verification-plan.md §8. The length may be off by one frame,
 #: which is the smallest unit the container can express.
 MAX_AV_DELTA_MS = 50.0
+#: Applied to the decoded AAC measurement, so it also absorbs small codec
+#: variation in integrated loudness.
 LOUDNESS_TOLERANCE_LUFS = 0.5
+#: Native AAC at the fixed render bitrate can raise decoded true peak slightly.
+#: Keep this finite so the output check remains a useful upper bound.
+AAC_TRUE_PEAK_TOLERANCE_DBTP = 0.5
 DELTA_DECIMALS = 3
 LUFS_DECIMALS = 2
 
@@ -428,8 +439,9 @@ def _verify(result: RenderResult, frame_ms: float) -> None:
         InvariantViolationError: If the length drifted by more than a frame,
             the two streams disagree by more than
             :data:`MAX_AV_DELTA_MS`, loudness normalisation did not survive the
-            cuts, or the true peak exceeds its target. The work is discarded
-            rather than published.
+            cuts, or the decoded AAC true peak exceeds its target plus the
+            bounded encoder margin. The work is discarded rather than
+            published.
     """
     problems: list[str] = []
     if round(result.delta_ms, DELTA_DECIMALS) > round(frame_ms, DELTA_DECIMALS):
@@ -451,12 +463,15 @@ def _verify(result: RenderResult, frame_ms: float) -> None:
             f"target of {result.target_lufs:.1f} "
             f"(off by {drift:.2f} > {LOUDNESS_TOLERANCE_LUFS:g})"
         )
+    true_peak_limit = result.target_tp + AAC_TRUE_PEAK_TOLERANCE_DBTP
     if round(result.true_peak_dbtp, LUFS_DECIMALS) > round(
-        result.target_tp, LUFS_DECIMALS
+        true_peak_limit, LUFS_DECIMALS
     ):
         problems.append(
             f"the output true peak is {result.true_peak_dbtp:.2f} dBTP against "
-            f"a maximum of {result.target_tp:.1f} dBTP"
+            f"an AAC-aware maximum of {true_peak_limit:.1f} dBTP "
+            f"(profile target {result.target_tp:.1f} + "
+            f"{AAC_TRUE_PEAK_TOLERANCE_DBTP:g} dB encoder allowance)"
         )
     if problems:
         msg = f"{'; '.join(problems)}; {result.output.name} was left untouched"

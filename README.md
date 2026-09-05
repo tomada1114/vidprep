@@ -61,8 +61,10 @@ The checks are the point, so they are worth stating before the install steps.
   drift apart.
 - **The output is measured before it replaces anything.** Its length must match
   the cut list to within one frame, its streams must agree to within 50 ms and
-  its loudness and true peak must still be on target. A failed render leaves
-  the previous `out/output.mp4` in place.
+  its loudness and decoded AAC true peak must stay within their configured
+  limits (the default AAC peak limit is the profile's -1.0 dBTP target plus a
+  bounded 0.5 dB encoder allowance). A failed render leaves the previous
+  `out/output.mp4` in place.
 - **`render --verify-asr` reads the finished file back.** It transcribes
   `out/output.mp4` a second time with the same backend, model and detector — so
   both passes make the same mistakes and those mistakes cancel out — and reports

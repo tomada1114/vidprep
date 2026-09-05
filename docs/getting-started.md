@@ -210,8 +210,10 @@ The fades do not overlap, so no boundary changes a length.
 
     The output is measured before it replaces anything: its length must match
     the cut list to within one frame, its two streams must agree to within
-    50ms, and its loudness and true peak must still be on target. A render that fails leaves
-    the previous `out/output.mp4` in place.
+    50ms, and its loudness and decoded AAC true peak must stay within their
+    configured limits. For the default AAC render, the peak limit is the
+    profile's -1.0 dBTP target plus a bounded 0.5 dB encoder allowance. A
+    render that fails leaves the previous `out/output.mp4` in place.
 
 Subtitles are broken at BudouX phrase boundaries into at most `max_lines`
 lines of `max_chars_per_line` full-width characters. Nothing is truncated:

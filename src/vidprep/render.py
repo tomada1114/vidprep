@@ -576,8 +576,8 @@ def run_render(
         SchemaInvalidError: If ``cuts.json`` or ``transcript.json`` is invalid.
         TelopInvalidError: If a telop names a segment or a preset that is not
             there.
-        InvariantViolationError: If the output fails the length, synchronisation
-            or loudness checks of verification-plan.md §8.
+        InvariantViolationError: If the output fails the length, synchronisation,
+            loudness or AAC true-peak checks of verification-plan.md §8.
         AsrFailedError: If the second pass could not be compared at all.
     """
     # Repeated for the sake of the library caller: the CLI has verified the

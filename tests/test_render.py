@@ -521,10 +521,36 @@ class TestOutputVerification:
 
         assert result.to_dict()["loudness"]["true_peak_dbtp"] == -1.0
 
-    def test_true_peak_above_the_profile_limit_fails(self, tools, loaded):
-        tools.report["input_tp"] = "-0.99"
+    @pytest.mark.parametrize(
+        ("target_tp", "output_tp"),
+        [
+            pytest.param(-1.0, -0.84, id="profile-minus-one"),
+            pytest.param(-2.0, -1.76, id="profile-minus-two"),
+        ],
+    )
+    def test_a_normal_aac_peak_rise_passes_without_cuts(
+        self, tools, prepared, target_tp, output_tp
+    ):
+        """Regression for verification-plan.md §8's AAC-only replacement path."""
+        write_cuts(prepared, ())
+        loaded = project_module.load_project(prepared)
+        loaded.profile.audio.loudnorm.tp = target_tp
+        tools.report["input_tp"] = str(output_tp)
 
-        with pytest.raises(InvariantViolationError, match=r"-0\.99 dBTP"):
+        result = render_module.run_render(loaded)
+
+        assert result.rendered.true_peak_dbtp == output_tp
+        assert result.removed_duration == pytest.approx(0.0)
+        assert tools.keeps() == [(0.0, DURATION)]
+
+    def test_true_peak_above_the_aac_aware_limit_fails(self, tools, prepared):
+        write_cuts(prepared, ())
+        loaded = project_module.load_project(prepared)
+        tools.report["input_tp"] = "-0.49"
+
+        with pytest.raises(
+            InvariantViolationError, match=r"-0\.49 dBTP.*maximum of -0\.5 dBTP"
+        ):
             render_module.run_render(loaded)
 
     def test_a_rejected_output_never_replaces_the_previous_one(self, tools, loaded):
