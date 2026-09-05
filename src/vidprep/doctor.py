@@ -26,8 +26,9 @@ if TYPE_CHECKING:
 #: External commands are probed, not used for work, so they must answer fast.
 COMMAND_TIMEOUT_SECONDS = 5.0
 
-#: Checks the pipeline cannot run without (design.md §5.7, REQ-020).
-REQUIRED_CHECKS = ("ffmpeg", "ffprobe", "auto_editor", "asr", "vad", "sudachipy")
+#: Checks the default pipeline cannot run without (design.md §5.7, REQ-020).
+#: auto-editor and DeepFilterNet are opt-in profile features.
+REQUIRED_CHECKS = ("ffmpeg", "ffprobe", "asr", "vad", "sudachipy")
 
 #: `--export v3` became an explicit export name in auto-editor 28.0.0.
 MIN_AUTO_EDITOR_MAJOR = 28
@@ -47,7 +48,6 @@ VAD_MODEL_GLOB = "ggml-silero-*.bin"
 
 #: DeepFilterNet has shipped under both spellings; either one satisfies it.
 DEEPFILTERNET_BINARIES = ("deep-filter", "deepFilter")
-DEEPFILTERNET_FALLBACK = "afftdn"
 DEEPFILTERNET_VERSION_PREFIX = "deep_filter "
 
 #: SudachiPy dictionary flavours, from the smallest useful one upwards.
@@ -200,6 +200,7 @@ def check_auto_editor() -> Check:
     thing a read-only check can ask for — decides instead.
     """
     check = _check_version("auto-editor", "--version", "auto-editor ")
+    check["optional"] = True
     if not check["ok"]:
         return check
     version = check["version"]
@@ -312,7 +313,7 @@ def check_vad() -> Check:
 
 
 def check_deepfilternet() -> Check:
-    """Check DeepFilterNet, which audio-fix can do without (REQ-021).
+    """Check DeepFilterNet, which audio-fix can leave disabled (REQ-021).
 
     The version is read as well as the path, because ``audio-fix`` records it
     as the provenance of the denoising it applied.
@@ -325,10 +326,11 @@ def check_deepfilternet() -> Check:
         return {
             "ok": False,
             "optional": True,
-            "fallback": DEEPFILTERNET_FALLBACK,
             "error": f"none of {', '.join(DEEPFILTERNET_BINARIES)} found in PATH",
         }
     banner = _run_command([path, "--version"])
+    if not banner.ok:
+        return {"ok": False, "optional": True, "path": path, "error": banner.error}
     version = _find_version(banner.output, DEEPFILTERNET_VERSION_PREFIX)
     return {"ok": True, "optional": True, "path": path, "version": version}
 
@@ -401,7 +403,10 @@ _SATISFIED: dict[str, Callable[[Check], str]] = {
 _REMEDIES = {
     "ffmpeg": "install an ffmpeg built with libass, e.g. `brew install ffmpeg`",
     "ffprobe": "install ffmpeg, e.g. `brew install ffmpeg`",
-    "auto_editor": "`uv tool install auto-editor`",
+    "auto_editor": (
+        "optional: install it with `uv tool install auto-editor` before setting "
+        "silence.enabled=true"
+    ),
     "asr": (
         "`brew install whisper-cpp` plus a ggml model in "
         f"{DEFAULT_WHISPER_MODEL_DIR} (or ${WHISPER_MODEL_DIR_ENV}), "
@@ -413,8 +418,9 @@ _REMEDIES = {
         f"{DEFAULT_WHISPER_MODEL_DIR} (or ${WHISPER_MODEL_DIR_ENV})"
     ),
     "deepfilternet": (
-        f"optional: install DeepFilterNet, or accept the {DEEPFILTERNET_FALLBACK} "
-        "fallback in audio-fix"
+        "optional: install DeepFilterNet with `uv tool install deepfilternet` "
+        "(or put the official `deep-filter` binary on PATH) before selecting "
+        "audio.denoise=deepfilternet"
     ),
     # Naming the interpreter is the whole point: a bare `uv pip install` lands
     # the dictionary in whatever environment happens to be active, which is not

@@ -118,7 +118,7 @@ VAD_SAMPLE: dict[str, Any] = {
 PROFILE_SAMPLE: dict[str, Any] = {
     "version": "1",
     "audio": {
-        "denoise": "deepfilternet",
+        "denoise": "none",
         "deepfilternet_atten_lim_db": 12.0,
         "highpass_hz": 80,
         "loudnorm": {"i": -14.0, "tp": -1.0, "lra": 11.0},
@@ -131,6 +131,7 @@ PROFILE_SAMPLE: dict[str, Any] = {
     },
     "correct": {"dictionary_path": None},
     "silence": {
+        "enabled": False,
         "threshold": "4%",
         "min_duration": 0.6,
         "pad_pre": 0.3,
@@ -138,7 +139,11 @@ PROFILE_SAMPLE: dict[str, Any] = {
         "min_cut_duration": 0.4,
         "tail_pad": 2.0,
     },
-    "filler": {"enable_weak": False, "require_adjacent_silence": 0.2},
+    "filler": {
+        "enabled": False,
+        "enable_weak": False,
+        "require_adjacent_silence": 0.2,
+    },
     "render": {
         "crf": 18,
         "preset": "slow",
@@ -193,6 +198,14 @@ class TestDesignSamples:
 
     def test_profile_defaults_match_the_design_table(self):
         assert Profile().model_dump(mode="json") == PROFILE_SAMPLE
+
+    def test_legacy_denoising_profile_value_remains_valid(self):
+        payload = {
+            **PROFILE_SAMPLE,
+            "audio": {**PROFILE_SAMPLE["audio"], "denoise": "deepfilternet"},
+        }
+
+        assert Profile.model_validate(payload).audio.denoise == "deepfilternet"
 
     def test_a_profile_without_a_correct_section_still_loads(self):
         payload = {

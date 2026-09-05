@@ -1,12 +1,12 @@
-"""The ``audio-fix`` stage: denoise, high-pass, loudness normalisation.
+"""The ``audio-fix`` stage: high-pass, loudness normalisation and opt-in denoise.
 
-The chain is ``denoise -> highpass 80Hz -> loudnorm`` in two passes, requesting
-linear mode so the gain applied is constant and the recording does not pump
-(design.md §5.1). If the targets cannot be met with constant gain, loudnorm
-reports a dynamic fallback and the stage warns instead of hiding it. Everything
-downstream — ASR and render alike — reads the ``audio/processed.wav`` this
-produces, so the stage guarantees two things: the source material is only ever
-read, and the length does not change.
+The chain is ``denoise (when selected) -> highpass 80Hz -> loudnorm`` in two
+passes, requesting linear mode so the gain applied is constant and the
+recording does not pump (design.md §5.1). If the targets cannot be met with
+constant gain, loudnorm reports a dynamic fallback and the stage warns instead
+of hiding it. Everything downstream — ASR and render alike — reads the
+``audio/processed.wav`` this produces, so the stage guarantees two things: the
+source material is only ever read, and the length does not change.
 
 Length invariance needs help from the chain rather than luck, because two of
 its steps quietly move the end of the recording: DeepFilterNet compensates its
@@ -16,12 +16,12 @@ timestamps and padding back to the source length undoes both without shifting
 the timeline the transcript will be built on; the result is then re-probed, so
 the guarantee is verified rather than assumed.
 
-A stats-enabled run writes a second, much smaller thing:
-``report/noise_floor.json``, the noise floor before and after denoising. It is
-written here rather than measured by ``report`` because the audio it describes
-— denoised, not yet normalised — exists only while this stage is running, and
-that is the only point of the chain where the effect of denoising can be seen
-at all (#33).
+A stats-enabled run with denoising selected writes a second, much smaller
+thing: ``report/noise_floor.json``, the noise floor before and after denoising.
+It is written here rather than measured by ``report`` because the audio it
+describes — denoised, not yet normalised — exists only while this stage is
+running, and that is the only point of the chain where the effect of denoising
+can be seen at all (#33). With ``denoise=none``, stats measure loudness only.
 """
 
 from __future__ import annotations
@@ -54,7 +54,8 @@ NOISE_FLOOR_NAME = Path("report") / "noise_floor.json"
 
 DEEPFILTERNET = "deepfilternet"
 AFFTDN = "afftdn"
-DENOISERS = (DEEPFILTERNET, AFFTDN)
+NONE = "none"
+DENOISERS = (NONE, DEEPFILTERNET, AFFTDN)
 
 #: PCM 16 bit, at the source's own sample rate and channel count (design.md §5.1).
 SAMPLE_CODEC = "pcm_s16le"
@@ -137,7 +138,7 @@ class Chain:
     """The filter chain to apply, resolved against the installed tools.
 
     Attributes:
-        denoise: The denoiser that will actually run, after any fallback.
+        denoise: The denoiser that will actually run, or ``none``.
         denoiser_path: Absolute path of the DeepFilterNet binary, when used.
         denoiser_version: Version of that binary, recorded as provenance.
         deepfilternet_atten_lim_db: Maximum DeepFilterNet attenuation in dB.
@@ -168,8 +169,10 @@ class Chain:
         remove noise has run, and the makeup gain that would lift the floor
         back up has not (#33). With DeepFilterNet the denoising already
         happened in its own process, so only the high-pass is left to apply.
+        With ``none`` selected, the high-pass is the only cleanup filter and
+        no denoise measurement is published.
         """
-        stages = [] if self.uses_deepfilternet else [AFFTDN]
+        stages = [] if self.denoise in {NONE, DEEPFILTERNET} else [AFFTDN]
         stages.append(f"highpass=f={self.highpass_hz}")
         return stages
 
@@ -599,7 +602,7 @@ def noise_floor(
 
 def _compare(
     chain: Chain, stages: Stages, seconds: float
-) -> tuple[Measurement, Measurement, NoiseFloorReport, list[str]]:
+) -> tuple[Measurement, Measurement, NoiseFloorReport | None, list[str]]:
     """Measure the audio before and after the chain over the same silence.
 
     The loudness comparison spans the whole chain, source against finished
@@ -612,21 +615,25 @@ def _compare(
         The two measurements, the floor comparison, and any warning about what
         could not be measured.
     """
-    intervals = detect_silence(stages.extracted, seconds)
-    warnings = []
-    if not intervals:
-        warnings.append(
-            f"no silence of {SILENCE_MIN_SECONDS:g}s at {SILENCE_NOISE} was found; "
-            "the noise floor could not be measured"
-        )
+    warnings: list[str] = []
+    intervals: list[tuple[float, float]] = []
+    if chain.denoise != NONE:
+        intervals = detect_silence(stages.extracted, seconds)
+        if not intervals:
+            warnings.append(
+                f"no silence of {SILENCE_MIN_SECONDS:g}s at {SILENCE_NOISE} was found; "
+                "the noise floor could not be measured"
+            )
     before = measure(stages.extracted, chain.loudnorm, intervals)
     after = measure(stages.rendered, chain.loudnorm, intervals)
-    denoised = noise_floor(stages.denoised, intervals, chain.cleanup_filters())
-    floor = NoiseFloorReport(
-        silence_sec=sum(end - start for start, end in floor_intervals(intervals)),
-        before_rms_db=before.noise_floor_rms_db,
-        after_rms_db=denoised,
-    )
+    floor = None
+    if chain.denoise != NONE:
+        denoised = noise_floor(stages.denoised, intervals, chain.cleanup_filters())
+        floor = NoiseFloorReport(
+            silence_sec=sum(end - start for start, end in floor_intervals(intervals)),
+            before_rms_db=before.noise_floor_rms_db,
+            after_rms_db=denoised,
+        )
     return before, after, floor, warnings
 
 
@@ -634,11 +641,11 @@ def resolve_chain(loaded: Project) -> tuple[Chain, list[str]]:
     """Decide which chain this machine can run for *loaded*.
 
     Returns:
-        The chain and the warnings the user should see, which is how the
-        DeepFilterNet fallback announces itself.
+        The chain and any warnings the user should see.
 
     Raises:
-        UsageError: If ``profile.json`` names a denoiser vidprep does not have.
+        UsageError: If ``profile.json`` names an unknown denoiser, or selects
+            DeepFilterNet when it is not installed.
     """
     settings = loaded.profile.audio
     if settings.denoise not in DENOISERS:
@@ -648,17 +655,20 @@ def resolve_chain(loaded: Project) -> tuple[Chain, list[str]]:
         )
         raise UsageError(msg)
 
-    warnings = []
+    warnings: list[str] = []
     denoise = settings.denoise
     path = version = None
     if denoise == DEEPFILTERNET:
         check = doctor.check_deepfilternet()
-        if check["ok"]:
-            path = str(check["path"])
-            version = check["version"]
-        else:
-            warnings.append(f"{check['error']}; falling back to {AFFTDN}")
-            denoise = AFFTDN
+        if not check["ok"]:
+            msg = (
+                "audio.denoise=deepfilternet is enabled but DeepFilterNet is "
+                f"not usable: {check.get('error')}; install it with "
+                "`uv tool install deepfilternet` or put `deep-filter` on PATH"
+            )
+            raise UsageError(msg)
+        path = str(check["path"])
+        version = check["version"]
     stream = loaded.manifest.source.audio
     chain = Chain(
         denoise=denoise,
@@ -694,16 +704,19 @@ def plan(loaded: Project, *, with_stats: bool = False) -> dict[str, Any]:
         str(loaded.root / project_module.MANIFEST_NAME),
     ]
     if with_stats:
-        commands.append(silence_command(extracted))
+        if chain.denoise != NONE:
+            commands.append(silence_command(extracted))
         for path in (extracted, rendered):
             commands.append(chain.measure_command(path))
-            commands.append(noise_floor_command(path, INTERVALS_PLACEHOLDER))
-        commands.append(
-            noise_floor_command(
-                denoised, INTERVALS_PLACEHOLDER, chain.cleanup_filters()
+            if chain.denoise != NONE:
+                commands.append(noise_floor_command(path, INTERVALS_PLACEHOLDER))
+        if chain.denoise != NONE:
+            commands.append(
+                noise_floor_command(
+                    denoised, INTERVALS_PLACEHOLDER, chain.cleanup_filters()
+                )
             )
-        )
-        writes.append(str(loaded.root / NOISE_FLOOR_NAME))
+            writes.append(str(loaded.root / NOISE_FLOOR_NAME))
     return {
         "action": "audio-fix",
         "project": str(loaded.root),
@@ -807,8 +820,8 @@ def run_audio_fix(loaded: Project, *, with_stats: bool = False) -> Result:
 
     Args:
         loaded: The project to process; its source material is only read.
-        with_stats: Also measure loudness across the chain and the noise floor
-            before and after denoising, recording the latter in
+        with_stats: Also measure loudness across the chain. If denoising is
+            enabled, measure its before/after noise floor and record it in
             :data:`NOISE_FLOOR_NAME` for ``report`` to quote (REQ-007).
 
     Returns:

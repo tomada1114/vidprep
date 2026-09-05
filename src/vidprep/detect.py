@@ -1,8 +1,9 @@
 """The ``detect`` stage: silence, filler words, and a merge that keeps reviews.
 
-Three things meet here (design.md §5.4). auto-editor decides where the material
-is quiet (:mod:`vidprep._autoeditor`); the transcript and the speech regions
-behind it decide where a filler word can be cut out (:mod:`vidprep._fillers`);
+Three things meet here (design.md §5.4). When enabled, auto-editor decides
+where the material is quiet (:mod:`vidprep._autoeditor`); when enabled, the
+transcript and the speech regions behind it decide where a filler word can be
+cut out (:mod:`vidprep._fillers`);
 and the merge rules in this module decide what happens to the candidates a
 human already judged. The third is the one that matters most: detection is
 meant to be re-run after every parameter change, and a re-run that threw away
@@ -335,7 +336,7 @@ def segments_over_silence(
 class Result:
     """What one ``detect`` run found, merged and verified."""
 
-    auto_editor_version: str
+    auto_editor_version: str | None
     silence_detected: int
     silence_dropped: int
     silence_seconds: float
@@ -347,6 +348,8 @@ class Result:
     max_speech_overlap: float | None
     flagged_segments: tuple[str, ...]
     warnings: tuple[str, ...]
+    silence_enabled: bool = False
+    filler_enabled: bool = False
 
     @property
     def silence_cuts(self) -> int:
@@ -363,13 +366,13 @@ class Result:
                 "after_padding": self.silence_cuts,
                 "dropped_by_min_cut_duration": self.silence_dropped,
                 "total_sec": round(self.silence_seconds, 3),
-                "status": "approved",
+                "status": "approved" if self.silence_enabled else "disabled",
             },
             "filler": {
                 "candidates": self.filler_detected,
                 "in_sentence_notes": self.in_sentence,
                 "total_sec": round(self.filler_seconds, 3),
-                "status": "proposed",
+                "status": "proposed" if self.filler_enabled else "disabled",
                 "weak_enabled": self.weak_enabled,
             },
             "merged": {
@@ -397,15 +400,21 @@ class Result:
         """Render the result for a human."""
         merged = self.merged
         lines = [f"⚠ {warning}" for warning in self.warnings]
-        lines.append(
-            f"✔ silence: {self.silence_cuts} cuts, {self.silence_seconds:.1f}s "
-            f"(approved; {self.silence_dropped} dropped under min_cut_duration)"
-        )
-        lines.append(
-            f"✔ filler: {self.filler_detected} candidates, "
-            f"{self.filler_seconds:.1f}s "
-            f"(proposed; {self.in_sentence} mid-sentence fillers left alone)"
-        )
+        if self.silence_enabled:
+            lines.append(
+                f"✔ silence: {self.silence_cuts} cuts, {self.silence_seconds:.1f}s "
+                f"(approved; {self.silence_dropped} dropped under min_cut_duration)"
+            )
+        else:
+            lines.append("· silence: disabled (set silence.enabled=true to enable)")
+        if self.filler_enabled:
+            lines.append(
+                f"✔ filler: {self.filler_detected} candidates, "
+                f"{self.filler_seconds:.1f}s "
+                f"(proposed; {self.in_sentence} mid-sentence fillers left alone)"
+            )
+        else:
+            lines.append("· filler: disabled (set filler.enabled=true to enable)")
         lines.append(
             f"✔ merged: {merged.matched} matched, {merged.kept_unmatched} kept, "
             f"{merged.dropped_proposed} withdrawn, {merged.added} new "
@@ -453,11 +462,15 @@ def _auto_editor() -> tuple[str, str]:
 
 def plan(loaded: Project) -> dict[str, Any]:
     """Return what :func:`run_detect` would run and write, without doing it."""
-    audio = _audio_path(loaded)
+    commands: list[list[str]] = []
+    if loaded.profile.silence.enabled:
+        audio = _audio_path(loaded)
+        _auto_editor()
+        commands.append(_autoeditor.command(audio, loaded.profile.silence))
     return {
         "action": "detect",
         "project": str(loaded.root),
-        "commands": [_autoeditor.command(audio, loaded.profile.silence)],
+        "commands": commands,
         "writes": [
             str(loaded.root / CUTS_NAME),
             str(loaded.root / project_module.MANIFEST_NAME),
@@ -485,8 +498,9 @@ def _load_speech(loaded: Project) -> tuple[_fillers.Speech | None, list[str]]:
     ]
     if missing:
         return None, [
-            f"{', '.join(missing)} not found — detecting silence only; run "
-            "`vidprep transcribe` for filler candidates"
+            f"{', '.join(missing)} not found — speech-dependent checks are "
+            "skipped; run `vidprep transcribe` for filler candidates and "
+            "silence safety checks"
         ]
     transcript = project_module.load_artifact(transcript_path, Transcript, duration)
     vad = project_module.load_artifact(vad_path, VadReport, duration)
@@ -564,15 +578,23 @@ def run_detect(loaded: Project) -> Result:
         What was detected and merged, once it has passed verification.
 
     Raises:
-        UsageError: If ``audio-fix`` has not run, or auto-editor is unusable.
+        UsageError: If silence detection is enabled but ``audio-fix`` has not
+            run or auto-editor is unusable.
         TimelineSchemaError: If auto-editor exported a timeline shape vidprep
             does not know (exit ``2``).
         InvariantViolationError: If a silence cut would remove speech; nothing
             is written in that case.
     """
-    auto_editor = _auto_editor()
-    version = auto_editor[1]
-    cuttable, detected, dropped = _silence_candidates(loaded, auto_editor)
+    silence_enabled = loaded.profile.silence.enabled
+    filler_enabled = loaded.profile.filler.enabled
+    auto_editor: tuple[str, str] | None = None
+    version: str | None = None
+    cuttable: list[Span] = []
+    detected = dropped = 0
+    if silence_enabled:
+        auto_editor = _auto_editor()
+        version = auto_editor[1]
+        cuttable, detected, dropped = _silence_candidates(loaded, auto_editor)
     candidates: list[Candidate] = [
         Candidate(
             start=span.start,
@@ -583,10 +605,13 @@ def run_detect(loaded: Project) -> Result:
         )
         for span in cuttable
     ]
-    speech, warnings = _load_speech(loaded)
+    speech: _fillers.Speech | None = None
+    warnings: list[str] = []
+    if silence_enabled or filler_enabled:
+        speech, warnings = _load_speech(loaded)
     fillers: list[Candidate] = []
     in_sentence = 0
-    if speech is not None:
+    if filler_enabled and speech is not None:
         fillers, in_sentence = _fillers.candidates(
             speech, loaded.profile, _fillers.load_dictionary(loaded.root), cuttable
         )
@@ -598,7 +623,8 @@ def run_detect(loaded: Project) -> Result:
         segments_over_silence(merged.cuts, speech, spoken) if speech is not None else []
     )
     _publish(loaded, merged.cuts)
-    project_module.record_stage(loaded, STAGE, {"auto_editor": version})
+    tool_versions = {} if version is None else {"auto_editor": version}
+    project_module.record_stage(loaded, STAGE, tool_versions)
     return Result(
         auto_editor_version=version,
         silence_detected=detected,
@@ -616,4 +642,6 @@ def run_detect(loaded: Project) -> Result:
         max_speech_overlap=overlap,
         flagged_segments=tuple(flagged),
         warnings=tuple(warnings),
+        silence_enabled=silence_enabled,
+        filler_enabled=filler_enabled,
     )

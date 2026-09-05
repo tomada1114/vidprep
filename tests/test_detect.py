@@ -120,7 +120,11 @@ def auto_editor(monkeypatch: pytest.MonkeyPatch) -> FakeAutoEditor:
 
 @pytest.fixture
 def detectable(project_dir: Path) -> Path:
-    """A project with the processed audio detection needs."""
+    """A legacy-style test project with both detectors explicitly enabled."""
+    loaded = project_module.load_project(project_dir)
+    loaded.profile.silence.enabled = True
+    loaded.profile.filler.enabled = True
+    project_module.write_json(project_dir / project_module.PROFILE_NAME, loaded.profile)
     audio = project_dir / "audio"
     audio.mkdir(parents=True, exist_ok=True)
     (audio / "processed.wav").write_bytes(b"pretend this is PCM")
@@ -177,6 +181,25 @@ def read_cuts(root: Path) -> Cuts:
 def run(root: Path) -> detect_module.Result:
     """Run detection on the project at *root*."""
     return detect_module.run_detect(project_module.load_project(root))
+
+
+class TestDefaults:
+    def test_disabled_detectors_do_not_probe_or_run_optional_tools(
+        self, project_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def unexpected_probe() -> dict[str, object]:
+            pytest.fail("auto-editor was probed while silence detection was disabled")
+
+        monkeypatch.setattr(doctor_module, "check_auto_editor", unexpected_probe)
+
+        result = run(project_dir)
+
+        assert result.auto_editor_version is None
+        assert result.silence_enabled is False
+        assert result.filler_enabled is False
+        assert result.to_dict()["silence"]["status"] == "disabled"
+        assert result.to_dict()["filler"]["status"] == "disabled"
+        assert result.merged.cuts == ()
 
 
 def cut(identifier: str, start: float, end: float, **fields: Any) -> Cut:
@@ -834,6 +857,11 @@ class TestFailures:
     """What detection refuses to start on."""
 
     def test_missing_processed_audio_asks_for_audio_fix(self, auto_editor, project_dir):
+        loaded = project_module.load_project(project_dir)
+        loaded.profile.silence.enabled = True
+        project_module.write_json(
+            project_dir / project_module.PROFILE_NAME, loaded.profile
+        )
         with pytest.raises(UsageError, match="audio-fix"):
             run(project_dir)
 
@@ -900,6 +928,11 @@ class TestCommandLine:
     def test_a_project_without_processed_audio_exits_one(
         self, auto_editor, project_dir, run_cli
     ):
+        loaded = project_module.load_project(project_dir)
+        loaded.profile.silence.enabled = True
+        project_module.write_json(
+            project_dir / project_module.PROFILE_NAME, loaded.profile
+        )
         result = run_cli("detect", "-p", str(project_dir))
         assert result.exit_code == EXIT_USAGE
 

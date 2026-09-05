@@ -103,6 +103,18 @@ class TestLoad:
 
         assert project.load_project().root == project_dir
 
+    def test_an_older_profile_keeps_its_cutting_features_enabled(self, project_dir):
+        path = project_dir / project.PROFILE_NAME
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["silence"].pop("enabled")
+        payload["filler"].pop("enabled")
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        loaded = project.load_project(project_dir)
+
+        assert loaded.profile.silence.enabled is True
+        assert loaded.profile.filler.enabled is True
+
 
 class TestVerifySource:
     """REQ-012: the material is re-hashed before every stage."""

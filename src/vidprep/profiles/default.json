@@ -1,7 +1,7 @@
 {
   "version": "1",
   "audio": {
-    "denoise": "deepfilternet",
+    "denoise": "none",
     "deepfilternet_atten_lim_db": 12.0,
     "highpass_hz": 80,
     "loudnorm": {
@@ -17,6 +17,7 @@
     "vad": "silero-v5"
   },
   "silence": {
+    "enabled": false,
     "threshold": "4%",
     "min_duration": 0.6,
     "pad_pre": 0.3,
@@ -25,6 +26,7 @@
     "tail_pad": 2.0
   },
   "filler": {
+    "enabled": false,
     "enable_weak": false,
     "require_adjacent_silence": 0.2
   },

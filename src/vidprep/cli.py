@@ -62,7 +62,10 @@ StatsOption = Annotated[
     bool,
     typer.Option(
         "--stats/--no-stats",
-        help="Measure loudness and noise floor before and after (default: on).",
+        help=(
+            "Measure loudness before and after, and the denoise floor when "
+            "denoising is enabled (default: on)."
+        ),
     ),
 ]
 PatchOption = Annotated[
@@ -115,7 +118,7 @@ KeepFillersOption = Annotated[
     bool,
     typer.Option(
         "--keep-fillers",
-        help="Leave the filler candidates proposed; cut only the silences.",
+        help="Leave enabled filler candidates proposed instead of approving them.",
     ),
 ]
 PrepVerifyAsrOption = Annotated[
@@ -279,7 +282,7 @@ def audio_fix(
     dry_run: DryRunOption = False,
     stats: StatsOption = True,
 ) -> None:
-    """Denoise, high-pass and loudness-normalise the audio, with stats by default."""
+    """High-pass and loudness-normalise audio, with opt-in denoising."""
     options = CommonOptions(project, json_output, dry_run)
 
     def action() -> Output:
@@ -325,7 +328,7 @@ def detect(
     json_output: JsonOption = False,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Detect silence and filler words as cut candidates.
+    """Detect enabled silence and filler features as cut candidates.
 
     Re-running is the point: the parameters in profile.json are meant to be
     tuned and detection repeated, so a candidate somebody already approved,
@@ -486,7 +489,7 @@ def prep(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
     json_output: JsonOption = False,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Run the whole pipeline over one file, from audio repair to the report.
+    """Run the whole pipeline over one file, from audio normalisation to report.
 
     A composite command (design.md §6): it runs `audio-fix`, `transcribe`,
     `correct` (the dictionary pass), `detect`, `render` and `report`, in that
@@ -503,11 +506,11 @@ def prep(  # noqa: PLR0913 — one parameter per CLI flag is typer's contract
     `--yes` skips the pause for an unattended run.
 
     `detect` leaves filler candidates for a human to review; this command
-    approves them on the reviewer's behalf so long as `filler.enable_weak` is
-    off — the tier a candidate came from is not recorded in `cuts.json`, so
-    with the weak tier enabled there is no way to approve the strong ones
-    alone and the whole approval is declined instead. `--keep-fillers` leaves
-    every proposal alone, cutting only the silences.
+    approves them on the reviewer's behalf when `filler.enabled` is on and
+    `filler.enable_weak` is off — the tier a candidate came from is not
+    recorded in `cuts.json`, so with the weak tier enabled there is no way to
+    approve the strong ones alone and the whole approval is declined instead.
+    `--keep-fillers` leaves every enabled proposal alone.
 
     The finished video and its subtitles are copied beside `video` as
     `<name>.edited.mp4` and `<name>.srt`; the project lands beside them as

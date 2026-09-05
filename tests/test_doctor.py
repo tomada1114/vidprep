@@ -225,6 +225,7 @@ class TestAutoEditor:
         check = doctor.check_auto_editor()
 
         assert check["ok"] is True
+        assert check["optional"] is True
         assert check["export_v3"] is True
         assert check["version"] == "29.3.1"
 
@@ -428,12 +429,12 @@ class TestVad:
 
 
 class TestDeepFilterNet:
-    def test_a_missing_deepfilternet_records_the_fallback(self, bin_dir):
+    def test_a_missing_deepfilternet_is_optional(self, bin_dir):
         check = doctor.check_deepfilternet()
 
         assert check["ok"] is False
         assert check["optional"] is True
-        assert check["fallback"] == "afftdn"
+        assert "deep-filter" in check["error"]
 
     def test_an_installed_deepfilternet_is_reported_with_its_path(self, bin_dir):
         write_tool(bin_dir, "deep-filter", "exit 0")
@@ -502,7 +503,7 @@ class TestReport:
 
         assert report.status == "warn"
         assert report.missing == ()
-        assert report.checks["deepfilternet"]["fallback"] == "afftdn"
+        assert report.checks["deepfilternet"]["optional"] is True
 
     def test_a_missing_required_dependency_makes_the_report_ng(self, healthy_env):
         (healthy_env / "ffprobe").unlink()
@@ -556,9 +557,9 @@ class TestSummaryLines:
 
         lines = doctor.summary_lines(doctor.diagnose())
 
-        assert "✖ auto_editor: auto-editor not found in PATH → " in lines[2]
+        assert "⚠ auto_editor: auto-editor not found in PATH → " in lines[2]
         assert "uv tool install auto-editor" in lines[2]
-        assert lines[-1] == "✖ missing required dependencies: auto_editor"
+        assert lines[-1] == "✔ sudachipy: core dictionary OK"
 
     def test_a_working_mlx_whisper_is_named(self, healthy_env, monkeypatch):
         monkeypatch.setattr(
@@ -619,7 +620,7 @@ class TestCli:
         payload = json.loads(result.stdout)
         assert result.exit_code == 0
         assert payload["status"] == "warn"
-        assert payload["checks"]["deepfilternet"]["fallback"] == "afftdn"
+        assert payload["checks"]["deepfilternet"]["optional"] is True
 
     def test_doctor_runs_outside_a_project(self, run_cli, healthy_env, tmp_path):
         result = run_cli("doctor", "-p", str(tmp_path))

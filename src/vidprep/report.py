@@ -196,8 +196,9 @@ def _read(loaded: Project) -> Inputs:
     floor = None
     floor_path = loaded.root / audio_module.NOISE_FLOOR_NAME
     if floor_path.is_file():
-        floor = project_module.load_artifact(floor_path, NoiseFloorReport, duration)
-    else:
+        if loaded.profile.audio.denoise != audio_module.NONE:
+            floor = project_module.load_artifact(floor_path, NoiseFloorReport, duration)
+    elif loaded.profile.audio.denoise != audio_module.NONE:
         warnings.append(
             f"{audio_module.NOISE_FLOOR_NAME} not found; run "
             "`vidprep audio-fix --stats` for the denoising comparison"

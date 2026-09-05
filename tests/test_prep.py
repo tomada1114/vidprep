@@ -339,8 +339,18 @@ class TestEditsBetweenRunsReachTheOutput:
 
 class TestFillerApproval:
     @pytest.fixture
-    def detected(self, monkeypatch: pytest.MonkeyPatch, stages: list[str]) -> Cuts:
-        """A ``detect`` that proposes one silence cut and two filler cuts."""
+    def detected(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        stages: list[str],
+        video: Path,
+    ) -> Cuts:
+        """A detector with filler approval explicitly enabled."""
+        project = project_module.init_project(prep.project_for(video), video)
+        project.profile.filler.enabled = True
+        project_module.write_json(
+            project.root / project_module.PROFILE_NAME, project.profile
+        )
         document = make_cuts(
             ("c0001", 1.0, 3.0, "silence", "approved"),
             ("c0002", 5.0, 5.4, "filler", "proposed"),
@@ -355,6 +365,22 @@ class TestFillerApproval:
 
         monkeypatch.setattr(detect, "run_detect", _run)
         return document
+
+    def test_filler_candidates_stay_proposed_by_default(
+        self,
+        run: Callable[..., CliResult],
+        video: Path,
+        detected: Cuts,
+    ) -> None:
+        project = prep.project_for(video)
+        loaded = project_module.load_project(project)
+        loaded.profile.filler.enabled = False
+        project_module.write_json(project / project_module.PROFILE_NAME, loaded.profile)
+
+        run(video, "--yes")
+
+        statuses = {cut.id: cut.status for cut in cuts_of(project).cuts}
+        assert statuses["c0002"] == "proposed"
 
     def test_a_proposed_filler_cut_is_approved(
         self, run: Callable[..., CliResult], video: Path, detected: Cuts

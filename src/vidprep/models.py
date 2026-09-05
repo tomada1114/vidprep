@@ -428,9 +428,15 @@ class Loudnorm(_Strict):
 
 
 class AudioProfile(_Strict):
-    """Parameters of the ``audio-fix`` chain."""
+    """Parameters of the ``audio-fix`` chain.
 
-    denoise: str = "deepfilternet"
+    ``denoise`` is ``"none"`` by default so audio-fix only applies the
+    high-pass and the required loudness normalisation unless a denoiser is
+    explicitly selected.  ``deepfilternet`` remains a valid value for
+    projects created before this default changed.
+    """
+
+    denoise: str = "none"
     deepfilternet_atten_lim_db: float = Field(default=12.0, ge=0.0, le=100.0)
     highpass_hz: int = Field(default=80, ge=0)
     loudnorm: Loudnorm = Field(default_factory=Loudnorm)
@@ -466,6 +472,10 @@ class CorrectProfile(_Strict):
 class SilenceProfile(_Strict):
     """Silence detection and padding parameters.
 
+    Detection is opt-in because it changes the material that render applies.
+    The remaining fields stay in the profile while disabled so an existing
+    project can enable the detector without having to rebuild its profile.
+
     ``tail_pad`` replaces ``pad_pre``/``pad_post`` on the one silence that
     reaches the end of the material: there is no next word to protect there,
     so the cut runs to the very end and leaves ``tail_pad`` seconds of the
@@ -473,6 +483,7 @@ class SilenceProfile(_Strict):
     ``render.fade_out`` fades over, so the two are meant to match.
     """
 
+    enabled: bool = False
     threshold: str = "4%"
     min_duration: Seconds = 0.6
     pad_pre: Seconds = 0.3
@@ -482,8 +493,14 @@ class SilenceProfile(_Strict):
 
 
 class FillerProfile(_Strict):
-    """Filler-word detection parameters."""
+    """Filler-word detection and automatic-cut parameters.
 
+    ``enabled`` is separate from ``enable_weak``: the former opts into filler
+    candidates at all, while the latter opts into the less reliable dictionary
+    tier once filler processing is already enabled.
+    """
+
+    enabled: bool = False
     enable_weak: bool = False
     require_adjacent_silence: Seconds = 0.2
 

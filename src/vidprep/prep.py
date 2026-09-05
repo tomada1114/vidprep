@@ -6,7 +6,7 @@ copies what comes out next to the source material, so the recording and the
 thing that gets uploaded sit in the same folder::
 
     talk01.mp4            the source; read and hashed, never written
-    talk01.edited.mp4     silence and filler cut, denoised, -14 LUFS, faded out
+    talk01.edited.mp4     approved cuts applied, -14 LUFS, faded out
     talk01.srt            subtitles on the cut timeline
     talk01.txt            the same transcript as timestamped, paragraphed prose
     talk01.vidprep/       the project: every intermediate JSON, kept for re-runs
@@ -25,14 +25,14 @@ again continues from the transcript that was left behind — the pause happens
 only on the run that produced the transcript, so it never asks twice. ``--yes``
 skips it for an unattended run.
 
-``detect`` approves its own ``silence`` candidates and leaves ``filler`` ones
-for a human. This command approves the filler cuts too, because it exists for
-something publishable without a review pass — but only while
-``filler.enable_weak`` is off. The weak tier ("まあ", "なんか", "こう") is
-ordinary Japanese, and the tier a candidate came from is not recorded in
-``cuts.json``, so with the weak tier enabled there is no way to approve the
-strong ones alone and the whole approval is declined instead. ``--keep-fillers``
-turns it off outright, leaving only the silences cut.
+``detect`` leaves every kind of candidate alone unless its corresponding
+profile switch is enabled. This command approves enabled filler candidates
+too, because it exists for something publishable without a review pass — but
+only while ``filler.enable_weak`` is off. The weak tier ("まあ", "なんか",
+"こう") is ordinary Japanese, and the tier a candidate came from is not
+recorded in ``cuts.json``, so with the weak tier enabled there is no way to
+approve the strong ones alone and the whole approval is declined instead.
+``--keep-fillers`` turns approval off for an enabled filler detector.
 """
 
 from __future__ import annotations
@@ -265,6 +265,8 @@ def _approve_fillers(project: Path, ran: set[str], log: Callable[[str], None]) -
     inside the render.
     """
     loaded = _prepare(project)
+    if not loaded.profile.filler.enabled:
+        return
     if loaded.profile.filler.enable_weak:
         log(
             "⚠  filler cuts left as proposed: filler.enable_weak is on and "

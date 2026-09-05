@@ -208,7 +208,15 @@ def prepared(project_dir: Path) -> Path:
 
 @pytest.fixture
 def loaded(prepared: Path) -> Project:
-    """The prepared project, loaded."""
+    """The prepared project with denoising explicitly enabled."""
+    project = project_module.load_project(prepared)
+    project.profile.audio.denoise = audio.DEEPFILTERNET
+    return project
+
+
+@pytest.fixture
+def default_loaded(prepared: Path) -> Project:
+    """The prepared project with the packaged no-denoise default."""
     return project_module.load_project(prepared)
 
 
@@ -287,6 +295,15 @@ class TestWindows:
 
 
 class TestStats:
+    def test_default_profile_does_not_warn_about_missing_denoise_measurement(
+        self, fake_tools, default_loaded
+    ):
+        result = report.run_report(default_loaded)
+
+        assert result.stats["noise_floor"]["denoise"] is None
+        assert result.stats["noise_floor"]["output"] is not None
+        assert not any("audio-fix --stats" in warning for warning in result.warnings)
+
     def test_the_durations_and_the_reduction_ratio_are_reported(
         self, fake_tools, loaded
     ):

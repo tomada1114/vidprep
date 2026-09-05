@@ -33,7 +33,8 @@ check: fmt lint test
 
 # Run the whole pipeline over the golden sample and archive the result
 # (verification-plan.md §11). Local only: it needs the material, ffmpeg,
-# whisper.cpp and auto-editor, and costs two ASR passes plus a re-encode.
+# whisper.cpp and any profile-enabled optional tools, and costs two ASR passes
+# plus a re-encode.
 golden *ARGS:
     uv run python scripts/golden_run.py {{ARGS}}
 

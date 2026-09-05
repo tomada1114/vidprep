@@ -189,7 +189,6 @@ def without_deepfilternet(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: {
             "ok": False,
             "optional": True,
-            "fallback": audio.AFFTDN,
             "error": "none of deep-filter, deepFilter found in PATH",
         },
     )
@@ -197,7 +196,15 @@ def without_deepfilternet(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def loaded(project_dir: Path) -> Project:
-    """The initialised project, loaded the way a stage receives it."""
+    """A legacy project that explicitly opts into DeepFilterNet."""
+    project = project_module.load_project(project_dir)
+    project.profile.audio.denoise = audio.DEEPFILTERNET
+    return project
+
+
+@pytest.fixture
+def default_loaded(project_dir: Path) -> Project:
+    """The initialised project with the packaged default profile unchanged."""
     return project_module.load_project(project_dir)
 
 
@@ -221,14 +228,20 @@ class TestChainOrder:
         for filters in fake_filters(plan):
             assert filters.index("highpass=f=80") < filters.index("loudnorm=")
 
-    def test_fallback_inserts_afftdn_at_the_head_of_the_chain(
+    def test_missing_deepfilternet_is_a_usage_error(
         self, tools, without_deepfilternet, loaded
     ):
-        plan = audio.plan(loaded)
+        with pytest.raises(
+            UsageError, match=r"audio\.denoise=deepfilternet is enabled"
+        ):
+            audio.plan(loaded)
 
-        filters = fake_filters(plan)[0]
-        assert filters.index("afftdn") < filters.index("highpass=f=80")
-        assert filters.index("highpass=f=80") < filters.index("loudnorm=")
+    def test_default_chain_does_not_denoise(self, tools, default_loaded):
+        plan = audio.plan(default_loaded)
+
+        assert plan["denoise_used"] == audio.NONE
+        assert len(plan["commands"]) == 4
+        assert all("afftdn" not in filters for filters in fake_filters(plan))
 
     def test_first_pass_only_measures(self, tools, loaded):
         analysis = audio.plan(loaded)["commands"][2]
@@ -318,13 +331,11 @@ class TestPlan:
 
         assert str(project_dir / "report" / "noise_floor.json") in plan["writes"]
 
-    def test_fallback_is_announced_in_the_plan(
+    def test_missing_deepfilternet_is_named_in_the_plan_error(
         self, tools, without_deepfilternet, loaded
     ):
-        plan = audio.plan(loaded)
-
-        assert plan["denoise_used"] == audio.AFFTDN
-        assert "falling back to afftdn" in plan["warnings"][0]
+        with pytest.raises(UsageError, match="install it with"):
+            audio.plan(loaded)
 
 
 class TestRun:
@@ -393,23 +404,23 @@ class TestRun:
         assert len(record["params_sha256"]) == 64
         assert record["tool_versions"] == {"ffmpeg": "7.1.1", "deepfilternet": "0.5.6"}
 
-    def test_the_fallback_records_no_denoiser_version(
+    def test_missing_deepfilternet_stops_before_writing(
         self, tools, without_deepfilternet, loaded, project_dir
     ):
-        result = audio.run_audio_fix(loaded)
+        with pytest.raises(
+            UsageError, match=r"audio\.denoise=deepfilternet is enabled"
+        ):
+            audio.run_audio_fix(loaded)
 
         manifest = json.loads((project_dir / "vidprep.json").read_text())
-        assert result.denoise_used == audio.AFFTDN
-        assert manifest["stages"]["audio_fix"]["tool_versions"] == {"ffmpeg": "7.1.1"}
+        assert manifest["stages"] == {}
+        assert not (project_dir / audio.OUTPUT_NAME).exists()
 
-    def test_the_fallback_warns_and_still_succeeds(
+    def test_missing_deepfilternet_is_not_silently_replaced(
         self, tools, without_deepfilternet, loaded
     ):
-        result = audio.run_audio_fix(loaded)
-
-        assert result.denoise_used == audio.AFFTDN
-        assert "falling back to afftdn" in result.warnings[0]
-        assert result.to_dict()["denoise_used"] == audio.AFFTDN
+        with pytest.raises(UsageError, match="install it with"):
+            audio.run_audio_fix(loaded)
 
     def test_a_denoiser_that_writes_nothing_is_reported(self, tools, loaded):
         tools.denoiser_writes = False
@@ -580,14 +591,13 @@ class TestStats:
         )
         filters = command[command.index("-af") + 1]
         assert Path(command[command.index("-i") + 1]).parent.name == audio.DENOISED_DIR
-        assert filters.startswith(
-            f"highpass=f=80,{audio.FLOOR_FRAME},aselect="
-        )  # no denoiser: DFN ran
+        assert filters.startswith(f"highpass=f=80,{audio.FLOOR_FRAME},aselect=")
         assert "loudnorm" not in filters
 
     def test_the_in_band_denoiser_is_applied_before_the_floor_is_read(
-        self, tools, without_deepfilternet, loaded
+        self, tools, loaded
     ):
+        loaded.profile.audio.denoise = audio.AFFTDN
         audio.run_audio_fix(loaded, with_stats=True)
 
         filters = next(
@@ -727,6 +737,18 @@ class TestStats:
         assert "after" not in payload
         assert "noise_floor" not in payload
 
+    def test_default_stats_measure_loudness_without_running_denoise_checks(
+        self, tools, default_loaded, project_dir
+    ):
+        result = audio.run_audio_fix(default_loaded, with_stats=True)
+
+        assert result.denoise_used == audio.NONE
+        assert result.before is not None
+        assert result.before.noise_floor_rms_db is None
+        assert result.noise_floor is None
+        assert all("silencedetect" not in filters for filters in tools.ffmpeg_filters)
+        assert not (project_dir / audio.NOISE_FLOOR_NAME).exists()
+
 
 class TestCli:
     def test_stats_are_enabled_by_default(self, tools, run_cli, project_dir):
@@ -735,7 +757,9 @@ class TestCli:
         assert result.exit_code == EXIT_OK
         payload = json.loads(result.stdout)
         assert "before" in payload
-        assert (project_dir / audio.NOISE_FLOOR_NAME).is_file()
+        assert payload["denoise_used"] == audio.NONE
+        assert "noise_floor" not in payload
+        assert not (project_dir / audio.NOISE_FLOOR_NAME).exists()
 
     def test_stats_can_be_disabled_explicitly(self, tools, run_cli, project_dir):
         result = run_cli("audio-fix", "-p", str(project_dir), "--no-stats", "--json")
@@ -750,7 +774,7 @@ class TestCli:
 
         assert result.exit_code == EXIT_OK
         payload = json.loads(result.stdout)
-        assert payload["denoise_used"] == audio.DEEPFILTERNET
+        assert payload["denoise_used"] == audio.NONE
         assert payload["output"] == "audio/processed.wav"
         assert payload["duration"]["delta_ms"] == 0.0
         assert payload["before"]["integrated_lufs"] == -22.24
@@ -772,16 +796,26 @@ class TestCli:
         assert "linear=true" in result.stdout
         assert not (project_dir / "audio").exists()
 
-    def test_the_fallback_warns_on_stderr_in_json_mode(
+    def test_missing_opt_in_deepfilternet_is_a_usage_error_in_json_mode(
         self, tools, without_deepfilternet, run_cli, project_dir
     ):
+        loaded = project_module.load_project(project_dir)
+        loaded.profile.audio.denoise = audio.DEEPFILTERNET
+        project_module.write_json(
+            project_dir / project_module.PROFILE_NAME, loaded.profile
+        )
+
         result = run_cli("audio-fix", "-p", str(project_dir), "--json")
 
-        assert result.exit_code == EXIT_OK
-        assert "falling back to afftdn" in result.stderr
-        assert json.loads(result.stdout)["denoise_used"] == audio.AFFTDN
+        assert result.exit_code == EXIT_USAGE
+        assert "audio.denoise=deepfilternet is enabled" in result.stdout
 
     def test_an_unreadable_analysis_exits_two(self, tools, run_cli, project_dir):
+        loaded = project_module.load_project(project_dir)
+        loaded.profile.audio.denoise = audio.DEEPFILTERNET
+        project_module.write_json(
+            project_dir / project_module.PROFILE_NAME, loaded.profile
+        )
         tools.reports[audio.DENOISED_DIR] = {}
 
         result = run_cli("audio-fix", "-p", str(project_dir))

@@ -289,6 +289,15 @@ def load_project(directory: Path | None = None) -> Project:
         raise UsageError(msg)
     manifest = load_artifact(manifest_path, Manifest)
     profile = load_artifact(profile_path, Profile)
+    raw_profile = json.loads(profile_path.read_bytes())
+    if isinstance(raw_profile, dict):
+        # ``init`` writes the new switches explicitly.  A profile created by
+        # an older vidprep has no such keys, and must retain its old behavior
+        # rather than silently turning its cuts off after an upgrade.
+        for section_name in ("silence", "filler"):
+            section = raw_profile.get(section_name, {})
+            if isinstance(section, dict) and "enabled" not in section:
+                getattr(profile, section_name).enabled = True
     return Project(root=root, manifest=manifest, profile=profile)
 
 
