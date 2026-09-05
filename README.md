@@ -22,15 +22,16 @@ instead of guessing.
 | Render | `vidprep render` | `out/output.mp4`, `out/subtitles.srt`, `out/transcript.txt` |
 | Report | `vidprep report` | `report/stats.json`, waveforms, cut digest |
 
-`audio-fix` denoises with DeepFilterNet — or ffmpeg's `afftdn` when it is not
-installed — then applies a high-pass at 80 Hz and a two-pass `loudnorm` to
--14 LUFS with a true peak of -1.0 dBTP. `transcribe` puts Silero voice
-activity detection in front of whisper.cpp and timestamps everything in
-original-timeline seconds. `correct` fixes known ASR misconversions with a
-bundled dictionary — swap in your own with `--dict <path>` or
-`correct.dictionary_path` in `profile.json`, e.g. to share one dictionary
-across several projects. `detect` takes the silences from auto-editor and the
-filler words from the transcript. `render` applies only what you approved.
+`audio-fix` applies a high-pass at 80 Hz and a two-pass `loudnorm` to -14 LUFS
+with a true peak of -1.0 dBTP. Denoising is opt-in: set
+`audio.denoise` to `deepfilternet` or `afftdn` when you want it. `transcribe`
+puts Silero voice activity detection in front of whisper.cpp and timestamps
+everything in original-timeline seconds. `correct` fixes known ASR
+misconversions with a bundled dictionary — swap in your own with `--dict
+<path>` or `correct.dictionary_path` in `profile.json`, e.g. to share one
+dictionary across several projects. `detect` runs silence detection only when
+`silence.enabled` is true and filler detection only when `filler.enabled` is
+true; both are off in a new project. `render` applies only what you approved.
 
 The video does not stop dead when the talking does. `detect` leaves
 `silence.tail_pad` seconds of the recording behind the last word instead of
@@ -41,9 +42,10 @@ has no tail to fade, so the render holds its last frame for the missing part
 and darkens from there rather than cutting to black; it says so when it does.
 Set `render.fade_out` to `0` to end the video the moment the material does.
 
-For a more natural voice, `profile.json` defaults DeepFilterNet's attenuation
-limit to 12 dB; lower it to leave more of the original voice and background
-ambience, or raise it when stronger denoising is more important.
+For a more natural voice, opt into DeepFilterNet and use its
+`deepfilternet_atten_lim_db` setting. Lower it to leave more of the original
+voice and background ambience, or raise it when stronger denoising is more
+important.
 
 ## What it refuses to do
 
@@ -75,14 +77,16 @@ them and prints what to install for the ones that are missing.
 | Tool | Needed for | Notes |
 |---|---|---|
 | ffmpeg / ffprobe | every stage | must be built with libass for `render --preview` |
-| auto-editor | `detect` | `uv tool install auto-editor`; needs `--export v3` |
+| auto-editor | `detect` when `silence.enabled=true` | optional; `uv tool install auto-editor`; needs `--export v3` |
 | whisper.cpp or mlx-whisper | `transcribe` | plus a ggml model in `~/.cache/whisper.cpp` |
 | Silero VAD weights | `transcribe` | `ggml-silero-v5.1.2.bin`, same directory |
 | SudachiPy dictionary | `correct` | `uv pip install sudachidict_core` |
-| DeepFilterNet | `audio-fix` | optional — falls back to ffmpeg's `afftdn` |
+| DeepFilterNet | `audio-fix` when `audio.denoise=deepfilternet` | optional; install with `uv tool install deepfilternet` or put the official `deep-filter` binary on `PATH` |
 
-`doctor` exits `3` when a required tool is missing and `0` when only
-DeepFilterNet is absent.
+`doctor` exits `3` when a required tool is missing. Missing auto-editor and
+DeepFilterNet are warnings, so it exits `0` when only those optional tools are
+absent. Selecting an unavailable optional tool makes the corresponding stage
+stop with an actionable error.
 
 ## Installation
 
@@ -107,10 +111,10 @@ uv tool install --from . vidprep
 vidprep doctor          # check the external tools first
 vidprep init ./work/talk01 --source ~/Movies/talk01.mp4
 
-vidprep audio-fix          # denoise -> high-pass 80 Hz -> loudnorm, with stats
+vidprep audio-fix          # high-pass 80 Hz -> loudnorm, with stats
 vidprep transcribe          # Silero VAD -> ASR -> transcript.json (original timeline)
 vidprep correct --dry-run   # the misconversion dictionary's diff, nothing written
-vidprep detect              # silence + filler candidates -> cuts.json
+vidprep detect              # optional silence/filler candidates -> cuts.json
 
 vidprep report --cuts       # what each candidate deletes, with the transcript around it
 # edit the `status` of each candidate in cuts.json: approved / rejected
@@ -126,9 +130,16 @@ Every subcommand takes `--project/-p`, `--json` and `--dry-run`. `detect` can be
 re-run as often as you like: it updates the intervals of candidates you already
 judged, keeps their status and notes, and never reuses an identifier.
 
-`audio-fix` collects before/after loudness and noise-floor statistics by
-default. Use `--no-stats` when those measurements are not needed; `--stats`
-remains available as an explicit spelling of the default.
+`audio-fix` collects before/after loudness statistics by default. It also
+measures the denoise noise floor when `audio.denoise` is enabled. Use
+`--no-stats` when those measurements are not needed; `--stats` remains
+available as an explicit spelling of the default.
+
+The packaged profile is deliberately conservative. After `init`, opt into the
+extra processing by setting `audio.denoise`, `silence.enabled` and/or
+`filler.enabled` in `profile.json`; keep the other fields when editing the
+file. DeepFilterNet is needed only for `audio.denoise=deepfilternet`, and
+auto-editor only for `silence.enabled=true`.
 
 ## One command for one video
 
@@ -144,7 +155,7 @@ vidprep prep ~/Movies/talk01.mp4
 ```
 ~/Movies/
 ├── talk01.mp4          the source; read and hashed, never written
-├── talk01.edited.mp4   silence and filler cut, denoised, -14 LUFS, faded out
+├── talk01.edited.mp4   approved cuts, -14 LUFS, faded out
 ├── talk01.srt          subtitles on the cut timeline
 ├── talk01.txt          the same transcript as timestamped, paragraphed prose
 └── talk01.vidprep/     the project, kept so the next run is cheap
@@ -162,12 +173,14 @@ the `correct-transcript` skill, which writes `patch.json` and applies it through
 `vidprep correct --apply-patch`. Running the same command again continues from
 the transcript that left behind; `--yes` skips the pause for an unattended run.
 
-`detect` approves its own silence candidates and leaves the filler ones for a
-human, and `vidprep prep` approves those too, because it was asked for
-something publishable without a review pass — but only while
-`filler.enable_weak` is off, since the tier a candidate came from is not
-recorded in `cuts.json` and there is then no way to approve the strong ones
-alone. `--keep-fillers` turns that off and cuts only the silences;
+New projects leave both `silence.enabled` and `filler.enabled` off, so `prep`
+does not cut the material unless those profile switches are enabled. When
+fillers are enabled, `detect` leaves them proposed for review and `prep`
+approves them too when `filler.enable_weak` is off, because it was asked for
+something publishable without a review pass. The candidate tier is not
+recorded in `cuts.json`, so with the weak tier enabled the approval is
+declined rather than guessed at. `--keep-fillers` leaves every enabled filler
+proposal alone;
 `--no-verify-asr` drops the second ASR pass over the finished render, which is
 the slowest thing in the run.
 
@@ -210,7 +223,7 @@ work/talk01/
 └── report/
     ├── stats.json
     ├── vad.json
-    ├── noise_floor.json        # written by audio-fix unless --no-stats
+    ├── noise_floor.json        # written by stats when denoising is enabled
     ├── boundaries/             # one waveform PNG per boundary
     └── boundary_digest.mp4
 ```
@@ -222,8 +235,9 @@ just golden        # the whole pipeline over the fixed sample, archived under fi
 just golden-diff   # what changed between the two most recent runs
 ```
 
-Both are local-only: they need the material, ffmpeg, whisper.cpp and
-auto-editor, so they are not part of `just check`. `tests/fault_injection/` is
+Both are local-only: they need the material, ffmpeg, whisper.cpp and the
+profile-enabled optional tools, so they are not part of `just check`.
+`tests/fault_injection/` is
 the other half — deliberately broken inputs, each asserting that the check meant
 to catch it does.
 

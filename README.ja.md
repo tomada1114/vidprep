@@ -21,14 +21,15 @@
 | カット適用 | `vidprep render` | `out/output.mp4`、`out/subtitles.srt`、`out/transcript.txt` |
 | レポート | `vidprep report` | `report/stats.json`、境界波形、カットダイジェスト |
 
-`audio-fix` は DeepFilterNet（未インストールなら ffmpeg の `afftdn`）でノイズ抑制し、
-80 Hz のハイパスを通し、`loudnorm` の 2 パスで -14 LUFS / true peak -1.0 dBTP に
-合わせる。`transcribe` は whisper.cpp の前に
-Silero の発話区間検出を置き、すべてのタイムスタンプを原尺の秒で記録する。`correct` は
-同梱の辞書で ASR の既知の誤変換を直す。複数プロジェクトで辞書を共有したい場合などは
-`--dict <path>` か `profile.json` の `correct.dictionary_path` で差し替えられる。
-`detect` は auto-editor が見つけた無音と、文字起こしから見つけたフィラー語を候補にする。
-`render` は承認したものだけを適用する。
+`audio-fix` は 80 Hz のハイパスを通し、`loudnorm` の 2 パスで -14 LUFS / true peak
+-1.0 dBTP に合わせる。ノイズ抑制はオプトインで、必要なときだけ `profile.json` の
+`audio.denoise` を `deepfilternet` または `afftdn` にする。`transcribe` は whisper.cpp
+の前に Silero の発話区間検出を置き、すべてのタイムスタンプを原尺の秒で記録する。
+`correct` は同梱の辞書で ASR の既知の誤変換を直す。複数プロジェクトで辞書を共有したい
+場合などは `--dict <path>` か `profile.json` の `correct.dictionary_path` で差し替えられる。
+`detect` は `silence.enabled` が true のときだけ無音を、`filler.enabled` が true のとき
+だけフィラー語を候補にする。新規プロジェクトでは両方ともオフである。`render` は承認
+したものだけを適用する。
 
 話が終わった瞬間に動画も終わる、という切れ方はしない。`detect` は最後の語の後ろに
 `silence.tail_pad` 秒ぶんの素材を残す（末尾に `pad_post` を効かせると素材末尾の
@@ -38,9 +39,9 @@ Silero の発話区間検出を置き、すべてのタイムスタンプを原�
 そこから暗くしていく（いきなり真っ黒に切り替わらないようにするため）。保持したときは
 その旨を報告する。`render.fade_out` を `0` にすると素材が終わった瞬間に動画も終わる。
 
-声の自然さを優先するため、DeepFilterNet の抑制上限は既定で 12 dB としている。
-原音や部屋の響きをさらに残したい場合は `profile.json` の
-`audio.deepfilternet_atten_lim_db` を下げ、ノイズ除去を強めたい場合は上げる。
+声の自然さを優先して DeepFilterNet を使う場合は、`profile.json` の
+`audio.deepfilternet_atten_lim_db` で抑制上限を調整する。値を下げると原音や部屋の響き
+が残り、上げるとノイズ抑制が強くなる。
 
 ## このツールが「やらない」こと
 
@@ -68,13 +69,15 @@ Python 3.12 以降と、いくつかの外部ツール。`vidprep doctor` がす
 | ツール | 用途 | 備考 |
 |---|---|---|
 | ffmpeg / ffprobe | 全段 | `render --preview` には libass 付きビルドが必要 |
-| auto-editor | `detect` | `uv tool install auto-editor`。`--export v3` が必要 |
+| auto-editor | `silence.enabled=true` の `detect` | 任意。`uv tool install auto-editor`。`--export v3` が必要 |
 | whisper.cpp または mlx-whisper | `transcribe` | `~/.cache/whisper.cpp` に ggml モデルを配置 |
 | Silero VAD の重み | `transcribe` | `ggml-silero-v5.1.2.bin`、同じディレクトリ |
 | SudachiPy 辞書 | `correct` | `uv pip install sudachidict_core` |
-| DeepFilterNet | `audio-fix` | 任意。無ければ ffmpeg の `afftdn` にフォールバック |
+| DeepFilterNet | `audio.denoise=deepfilternet` の `audio-fix` | 任意。`uv tool install deepfilternet` または公式の `deep-filter` を `PATH` に置く |
 
-`doctor` は必須ツールが欠けていれば exit 3、DeepFilterNet だけが無い場合は exit 0 を返す。
+`doctor` は必須ツールが欠けていれば exit 3 を返す。auto-editor と DeepFilterNet は
+任意なので、これらだけが無い場合は警告を出して exit 0 になる。profile で任意機能を
+有効にしたのにツールが無ければ、該当ステージが何を入れればよいか分かるエラーで止まる。
 
 ## インストール
 
@@ -99,10 +102,10 @@ uv tool install --from . vidprep
 vidprep doctor          # まず外部ツールを検査する
 vidprep init ./work/talk01 --source ~/Movies/talk01.mp4
 
-vidprep audio-fix           # ノイズ抑制 → ハイパス 80 Hz → loudnorm、前後の数値つき
+vidprep audio-fix           # ハイパス 80 Hz → loudnorm、前後の数値つき
 vidprep transcribe          # Silero VAD → ASR → transcript.json（原尺タイムスタンプ）
 vidprep correct --dry-run   # 誤変換辞書の置換 diff を確認する（書き換えなし）
-vidprep detect              # 無音 + フィラーのカット候補 → cuts.json
+vidprep detect              # 有効化した無音/フィラーの候補 → cuts.json
 
 vidprep report --cuts       # 候補ごとに「消える発話 + 前後の文脈」を表示
 # cuts.json の各候補の `status` を編集する: approved / rejected
@@ -118,8 +121,14 @@ vidprep report              # stats.json + 境界波形 PNG + boundary_digest.mp
 何度でも再実行してよい。既に判断済みの候補は区間だけが更新され、`status` と `note` は
 保持され、識別子が再利用されることはない。
 
-`audio-fix` は既定で処理前後のラウドネスとノイズフロアを測定する。測定が不要なときは
-`--no-stats` で省略でき、`--stats` は既定の動作を明示する指定としても使える。
+`audio-fix` は既定で処理前後のラウドネスを測定する。`audio.denoise` が有効なときだけ
+ノイズフロアも測定する。測定が不要なときは `--no-stats` で省略でき、`--stats` は既定
+の動作を明示する指定としても使える。
+
+同梱の profile は保守的な既定値になっている。`init` の後で必要な処理だけを使うには、
+`profile.json` の `audio.denoise`、`silence.enabled`、`filler.enabled` を設定する。編集時は
+他のフィールドを残すこと。`audio.denoise=deepfilternet` のときだけ DeepFilterNet が、
+`silence.enabled=true` のときだけ auto-editor が必要になる。
 
 ## 動画 1 本を 1 コマンドで
 
@@ -135,7 +144,7 @@ vidprep prep ~/Movies/talk01.mp4
 ```
 ~/Movies/
 ├── talk01.mp4          素材。読み取りとハッシュのみ、書き換えはしない
-├── talk01.edited.mp4   無音とフィラーを削り、ノイズを抑え、-14 LUFS、末尾フェードつき
+├── talk01.edited.mp4   承認したカットを適用、-14 LUFS、末尾フェードつき
 ├── talk01.srt          カット後のタイムラインに乗った字幕
 ├── talk01.txt          同じ文字起こしをタイムスタンプつき段落のプレーンテキストで
 └── talk01.vidprep/     プロジェクト。次回の実行を安くするために残る
@@ -152,11 +161,12 @@ vidprep prep ~/Movies/talk01.mp4
 もう一度実行すれば、そのスキルが残した文字起こしから続きが始まる。無人実行なら `--yes`
 で停止を飛ばせる。
 
-`detect` は自分が出した無音候補だけを承認し、フィラー候補は人間に残す。`vidprep prep`
-はそのフィラーも承認する。レビューを挟まずに公開できるものを作れ、と指示されているから
-だ。ただし `filler.enable_weak` が off の間だけで、候補がどの階層から来たかは
-`cuts.json` に記録されないため、weak 階層が有効なときは強い階層だけを選んで承認する術
-がなく、承認そのものを見送る。`--keep-fillers` でこれを止めれば無音だけが削られる。
+新規プロジェクトでは `silence.enabled` と `filler.enabled` がともに off なので、これらを
+profile で有効にしない限り `prep` は素材をカットしない。フィラーを有効にした場合、
+`detect` は候補を提案として残し、`filler.enable_weak` が off のときだけ `prep` が承認する。
+これはレビューなしで公開可能なものを作る指定だからである。候補がどの階層から来たかは
+`cuts.json` に記録されないため、weak 階層が有効なときは推測で承認せず、承認そのものを
+見送る。`--keep-fillers` は有効なフィラー候補をすべて提案のままにする。
 `--no-verify-asr` は完成した動画に対する 2 回目の ASR を省く。実行時間の大半はそこに
 ある。
 
@@ -197,7 +207,7 @@ work/talk01/
 └── report/
     ├── stats.json
     ├── vad.json
-    ├── noise_floor.json        # audio-fix で生成（--no-stats 時を除く）
+    ├── noise_floor.json        # denoise 有効時の stats で生成
     ├── boundaries/             # 境界ごとに波形 PNG が 1 枚
     └── boundary_digest.mp4
 ```
@@ -209,8 +219,8 @@ just golden        # ゴールデンサンプルで全段を通し fixtures/runs
 just golden-diff   # 直近 2 回のランの差分を見る
 ```
 
-どちらもローカル専用で、素材・ffmpeg・whisper.cpp・auto-editor を必要とするため
-`just check` には含まれない。もう半分が `tests/fault_injection/` で、意図的に壊した入力を
+どちらもローカル専用で、素材・ffmpeg・whisper.cpp・profile で有効にした任意ツールを必要
+とするため `just check` には含まれない。もう半分が `tests/fault_injection/` で、意図的に壊した入力を
 並べ、それを捕まえるはずのチェックが実際に捕まえることを検証している。
 
 ## 開発

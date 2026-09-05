@@ -20,11 +20,12 @@ design-input.md の未決事項 7 件と、本設計セッションで追加し�
 | 5 | CLI フレームワーク | **typer** | 型ヒントから CLI 生成、mypy strict 構成と親和 |
 | 6 | SRT 写像の端数処理 | 分割せず**クリップ**方式。§4 に仕様化 | 表示中の 1 文を分割すると読み時間が壊れる |
 | 7 | プロジェクト構造 | **1 動画 = 1 作業ディレクトリ、場所は任意**。`vidprep init` で作成、各コマンドは cwd または `--project` で指定 | ツールが置き場所を強制しない。§3.1 参照 |
-| 8 | カット候補の初期ステータス | 無音 = `approved`、フィラー = `proposed` | 無音検出は誤爆が少ない。レビューの注意をフィラーに集中させる |
+| 8 | カット候補の初期ステータス | 検出を有効化した場合、無音 = `approved`、フィラー = `proposed` | 無音検出は誤爆が少ない。レビューの注意をフィラーに集中させる。両検出は既定オフ |
 | 9 | 境界のぶつ切り対策 | クロスフェード（重なり）ではなく**境界フェード in/out（既定 10ms、尺不変）** | acrossfade は境界ごとに尺が縮み、原尺→カット後の写像関数が壊れる。クリック防止目的はフェードで足りる。design-input の「マイクロクロスフェード 20〜50ms」からの変更点 |
 | 9b | 動画の終わり方 | 末尾無音は**素材の最後まで**カットし、最後の発話の後に `silence.tail_pad` 秒（既定 2.0）を残す。その残り全体に `render.fade_out` 秒（既定 2.0）の**暗転**をかける。素材が足りないときは最終フレームを保持（`tpad=stop_mode=clone`）して不足分を作る | 末尾に `pad_post` を効かせると素材末尾の 0.3 秒だけが飛び地として残り、ハードカットで終わる。フェードは「最後の発話より後」からしか始めない（発話中に画が暗くなるのを避ける）ため、フェード長 = 残す余白長を既定とする。黒フレーム挿入ではなく最終フレーム保持にするのは、一瞬で真っ黒に切り替わらないようにするため |
 | 10 | スキーマ実装 | **pydantic v2** | 中間 JSON が設計の核でありバリデーションが本質的。mypy strict とも親和 |
 | 11 | 検証素材 | `fixtures/raw/VID_20260507_144024.mp4`（ゴールデンサンプル、git 管理外） | verification-plan.md §2 参照 |
+| 12 | 既定の自動加工 | **denoise / 無音カット / フィラーカットは既定オフ。highpass + loudnorm は既定オン** | 素材に対する変更を明示的なオプトインに限定する。既存 profile は互換扱いにする |
 
 ## 2. アーキテクチャ
 
@@ -33,11 +34,12 @@ design-input.md の未決事項 7 件と、本設計セッションで追加し�
 ```
 原尺素材 (mp4)  ※プロジェクトからは絶対パス + sha256 で参照
  │
- ├─ [audio-fix]   denoise → highpass → 2パス loudnorm → audio/processed.wav
+ ├─ [audio-fix]   denoise（任意）→ highpass → 2パス loudnorm → audio/processed.wav
  │                 ↓ 以降の ASR・render はすべて処理済み音声を使う
  ├─ [transcribe]  Silero VAD → ASR → transcript.json（原尺タイムスタンプ）
  │                 └─ [correct] 辞書置換 →（スキル経由 LLM 校正 → 機械検証つき適用）
- ├─ [detect]      auto-editor（無音）+ transcript ベースのフィラー検出 → cuts.json
+ ├─ [detect]      （profile で有効化時）auto-editor（無音）+
+ │                transcript ベースのフィラー検出 → cuts.json
  │                 └─ ★レビューゲート: report で境界ダイジェスト・波形を確認し
  │                    人間 / agent skill が cuts.json の status を編集
  └─ [render]      approved のカットのみ適用
@@ -80,7 +82,7 @@ src/vidprep/
 |---|---|---|
 | Python（本体） | typer, pydantic, pysubs2, budoux, sudachipy | CLI / スキーマ / 字幕生成 / 行分割 / 読み正規化 |
 | Python（dev） | jiwer | CER 計測（検証用） |
-| 外部バイナリ | ffmpeg（libass 入り。`ffmpeg-full` 等）, ffprobe, auto-editor, whisper.cpp（または mlx-whisper）, DeepFilterNet（任意） | doctor が検査する |
+| 外部バイナリ | ffmpeg（libass 入り。`ffmpeg-full` 等）, ffprobe, whisper.cpp（または mlx-whisper）, auto-editor（`silence.enabled` 時のみ）, DeepFilterNet（`audio.denoise=deepfilternet` 時のみ） | doctor が検査する。後二者は任意チェック |
 
 ## 3. プロジェクトとデータ設計
 
@@ -201,15 +203,16 @@ src/vidprep/
 ```json
 {
   "version": "1",
-  "audio": {"denoise": "deepfilternet", "deepfilternet_atten_lim_db": 12.0,
+  "audio": {"denoise": "none", "deepfilternet_atten_lim_db": 12.0,
             "highpass_hz": 80,
             "loudnorm": {"i": -14.0, "tp": -1.0, "lra": 11.0}},
   "asr": {"backend": "whisper.cpp", "model": "large-v3-turbo",
           "language": "ja", "vad": "silero-v5"},
-  "silence": {"threshold": "4%", "min_duration": 0.6,
+  "silence": {"enabled": false, "threshold": "4%", "min_duration": 0.6,
               "pad_pre": 0.3, "pad_post": 0.3, "min_cut_duration": 0.4,
               "tail_pad": 2.0},
-  "filler": {"enable_weak": false, "require_adjacent_silence": 0.2},
+  "filler": {"enabled": false, "enable_weak": false,
+             "require_adjacent_silence": 0.2},
   "render": {"crf": 18, "preset": "slow", "boundary_fade": 0.010,
              "fade_out": 2.0, "verify_asr_mode": "gate"},
   "subtitle": {"max_chars_per_line": 20, "max_lines": 2,
@@ -217,6 +220,13 @@ src/vidprep/
 }
 ```
 
+- `audio.denoise` は `none`（既定）、`deepfilternet`、`afftdn` のいずれか。`none` でも
+  `highpass` と `loudnorm` 2 パス（I=-14 / TP=-1 / LRA=11）は実行する。DeepFilterNet は
+  `deepfilternet` を選んだときだけ必要で、無い場合は `afftdn` にフォールバックせずエラーにする
+- `silence.enabled` は無音候補検出、`filler.enabled` はフィラー候補検出のオプトインスイッチ。
+  新規 profile では両方 `false` なので、detect / prep は既定では素材をカットしない。旧 profile
+  にこのキーが無い場合は後方互換のため `true` として読み込む（`vidprep init` が生成する明示的な
+  `false` は優先される）
 - `asr.vad` は値が 1 つしかない（`silero-v5`）。VAD はスキップ不可なので、profile でも CLI でも無効化できないことをスキーマで保証する（§5.2）
 - `render.verify_asr_mode` は `render --verify-asr`（再文字起こし照合）の扱い。`gate`（既定）は境界欠落フラグ 1 件でも exit 3。`advisory` は同じフラグを警告として報告し exit code を変えない。#11 の導入時は `advisory` が既定で、#32 の再現性実測（同一 render に 3 回照合してフラグ 0 件・報告値全一致、誤検知 通算 0/364 境界）を経て `gate` へ昇格した（verification-plan.md §8.1）
 - `pad_pre/pad_post` は「発話側に残す余白」。カット区間を両端からこの分だけ縮める。保守的（長め）から始め、ゴールデンサンプルでの試聴で詰める（verification-plan.md §7）
@@ -270,12 +280,12 @@ f(t) = t - removed(t)                       # カット内の t は f(bi) に写
 
 ### 5.1 audio-fix
 
-チェーン: `denoise（DeepFilterNet、無ければ afftdn にフォールバック）→ highpass 80Hz → loudnorm 2 パス（pass 2 は linear モードを要求）`。出力は `audio/processed.wav`（PCM 16bit、ソースのサンプルレート維持）。DeepFilterNet の `deepfilternet_atten_lim_db` は原音との混合を残すための抑制上限で、既定値は 12dB とする。
+チェーン: `denoise（profile で選択したときだけ）→ highpass 80Hz → loudnorm 2 パス（pass 2 は linear モードを要求）`。denoise の既定値は `none` であり、highpass と loudnorm は常に実行する。`deepfilternet` を選んだときだけ DeepFilterNet を外部プロセスとして呼び、未インストールなら `afftdn` にフォールバックせず、インストール方法を示す UsageError にする。出力は `audio/processed.wav`（PCM 16bit、ソースのサンプルレート維持）。DeepFilterNet の `deepfilternet_atten_lim_db` は原音との混合を残すための抑制上限で、既定値は 12dB とする。
 
 - loudnorm は 1 パス目で measured 値を取得し、2 パス目に `measured_*` を渡して linear モードを要求する（dynamic モードのポンピング回避）。I / TP / LRA の組み合わせを一定ゲインで満たせない素材では loudnorm が `dynamic` を返すため、audio-fix は処理を継続しつつ warning で明示する
 - 尺を変えてはならない（完了条件: 尺差 ≤ 1ms。verification-plan.md §4）
-- audio-fix は処理前後の LUFS / TP / LRA / 無音区間 RMS を既定で JSON 出力し、`--no-stats` で省略できる（`--stats` も指定可能）
-- stats 有効時は denoise 直後（loudnorm 前）の無音区間 RMS を処理前と比較し、`report/noise_floor.json` に記録する。この測定点はチェーン実行中にしか存在せず後から再現できないため、`report` は自分で測らずこのファイルを引用して REQ-007 を判定する（verification-plan.md §4.1）
+- audio-fix は処理前後の LUFS / TP / LRA を既定で JSON 出力し、`--no-stats` で省略できる（`--stats` も指定可能）。`audio.denoise` が `none` のときはノイズフロア測定を行わず、`noise_floor` も出力しない
+- denoise が有効で stats も有効なときだけ、denoise 直後（loudnorm 前）の無音区間 RMS を処理前と比較し、`report/noise_floor.json` に記録する。この測定点はチェーン実行中にしか存在せず後から再現できないため、`report` は自分で測らずこのファイルを引用して REQ-007 を判定する（verification-plan.md §4.1）。denoise 無効時の `report` は古い noise_floor ファイルを判定に使わない
 - LRA の既定目標 11.0 は話し声素材では実測 LRA より十分大きく、正規化を拘束しない場合がある。その場合も linear の成立可否は LRA だけで判断せず、pass 2 の `normalization_type` と TP を確認する
 
 ### 5.2 transcribe
@@ -304,14 +314,15 @@ LLM 校正そのもの（プロンプト・文脈判断）は agent skill の仕
 
 ### 5.4 detect
 
-- 無音: `auto-editor --export v3` の JSON タイムラインを keep/cut リストへ変換（変換層は auto-editor のバージョンを記録し、v3 スキーマ変化を検知したらエラーにする）。パディング適用後 `min_cut_duration` 未満の区間は捨てる
-- フィラー: transcript.json のセグメントに対し辞書照合で検出する。**候補化するのは次のどちらかのみ**:
+- `silence.enabled` が `false` なら auto-editor を呼ばず、無音候補を作らない。`true` のときだけ `auto-editor --export v3` の JSON タイムラインを keep/cut リストへ変換する（変換層は auto-editor のバージョンを記録し、v3 スキーマ変化を検知したらエラーにする）。パディング適用後 `min_cut_duration` 未満の区間は捨てる
+- `filler.enabled` が `false` なら transcript を走査せず、フィラー候補を作らない。`true` のときだけ transcript.json のセグメントに対し辞書照合で検出する。**候補化するのは次のどちらかのみ**:
   - (a) セグメント全体がフィラー語のみ（例: 「えーと」だけのセグメント）→ セグメント区間 + 隣接無音を一体のカット候補にする
   - (b) セグメントの先頭/末尾がフィラー語で、`require_adjacent_silence` 秒以上の無音に隣接 → VAD 境界を使ってフィラー部分を切り出す
   - 文中フィラーは検出のみ（`note` に記録、カット候補にしない）
 - フィラー辞書（profile とは別にリポジトリ同梱、プロジェクトで追記可）:
-  - strong（既定で候補化）: えー、えーと、えっと、あのー、そのー、うーん
-  - weak（`enable_weak: true` のときのみ候補化）: まあ、なんか、こう
+- strong（フィラー検出を有効にした場合の既定）: えー、えーと、えっと、あのー、そのー、うーん
+- weak（`enable_weak: true` のときのみ候補化）: まあ、なんか、こう
+- フィラーも既定オフにする。`prep` は enabled なフィラー候補を自動承認するため、既定でオンにするとレビューなしに素材が変わる。`filler.enabled` を明示した利用者には従来どおり候補化と `prep` の承認を提供し、`filler.enable_weak` がオンのときは strong だけを選別できないため承認を見送る
 - 末尾に届く無音は例外扱い: `[gap.start + tail_pad, 素材尺]` をカットする。`pad_post` を効かせると素材末尾の `pad_post` 秒が飛び地として残り、除去区間をまたいでクリックと画の飛びになる
 - 出力は §3.4 のマージ規則で既存 cuts.json に統合する
 
@@ -357,7 +368,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 
 レビューゲートと検証の道具。`vidprep report` で以下を再生成する:
 
-- `report/stats.json`: 原尺 / カット後尺 / 削減率 / reason 別カット数と秒数 / LUFS 前後 / ノイズフロア（`denoise` = REQ-007 判定、`output` = 完成音声の参考値）/ 字幕警告一覧（写像時の除外・min_display 未満・max_cps 超過）
+- `report/stats.json`: 原尺 / カット後尺 / 削減率 / reason 別カット数と秒数 / LUFS 前後 / ノイズフロア（denoise 有効時のみ。`denoise` = REQ-007 判定、`output` = 完成音声の参考値）/ 字幕警告一覧（写像時の除外・min_display 未満・max_cps 超過）
 - report は source の integrated loudness から target までの必要ゲインが +12dB を超える場合、録音レベルが低いことを warning で指摘する
 - `report/boundaries/*.png`: 各カット境界前後 ±2s の波形 PNG（`showwavespic`）
 - `report/boundary_digest.mp4`: **全カット境界の前後 ±2s だけを連結した確認用動画**（境界位置に無音の 0.5s 黒フレームを挟む）。カットが 30 箇所あっても数分で全境界を試聴でき、レビューゲートの主力になる
@@ -365,7 +376,7 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
 
 ### 5.7 doctor
 
-検査対象: ffmpeg（`subtitles` フィルタ = libass の有無も確認）、ffprobe、auto-editor、ASR バックエンド（whisper.cpp バイナリ + モデルファイル / mlx-whisper import）、Silero VAD の重み（`ggml-silero-*.bin`。§5.2 の VAD は両バックエンドで必須なので必須項目扱い。モデルファイルとしては ASR 側の候補から除外する）、DeepFilterNet（任意扱い）、SudachiPy 辞書。結果を JSON 出力し、必須が欠けていれば exit 3。
+検査対象: ffmpeg（`subtitles` フィルタ = libass の有無も確認）、ffprobe、ASR バックエンド（whisper.cpp バイナリ + モデルファイル / mlx-whisper import）、Silero VAD の重み（`ggml-silero-*.bin`。§5.2 の VAD は両バックエンドで必須なので必須項目扱い。モデルファイルとしては ASR 側の候補から除外する）、SudachiPy 辞書、auto-editor、DeepFilterNet。auto-editor と DeepFilterNet はそれぞれ `silence.enabled` / `audio.denoise=deepfilternet` のオプトイン機能なので任意チェックとし、無くても doctor は警告付き exit 0 とする。結果を JSON 出力し、必須が欠けていれば exit 3。profile で機能を有効にした実行時にだけ、そのステージが不足を UsageError として報告する。
 
 ## 6. CLI 仕様
 
@@ -379,9 +390,9 @@ v1 実装は `ReencodeRenderer`: keep 区間を `trim` + `concat` フィルタ�
   （素材の隣）になる点だけ他のサブコマンドと異なる。レンダーが終わった実行では
   `render` が出した `output.mp4` / `subtitles.srt` / `transcript.txt`（§5.5）を
   素材の隣に `<video>.edited.mp4` / `<video>.srt` / `<video>.txt` としてコピーする
-- `prep` はユーザーに代わって 2 つの判断を下す: 文字起こし直後に 1 度だけ停止
+- `prep` は新規 profile では denoise / 無音カット / フィラーカットを行わず、`audio-fix` の highpass + loudnorm だけを実行する。`silence.enabled` / `filler.enabled` を有効にした場合は、ユーザーに代わって 2 つの判断を下す: 文字起こし直後に 1 度だけ停止
   して `correct-transcript` スキルでの校正を促す（`--yes` で省略可）ことと、
-  `detect` が人間向けに残したフィラー候補を `filler.enable_weak` が off の間
+  `detect` が人間向けに残した enabled なフィラー候補を `filler.enable_weak` が off の間
   だけ承認する（`--keep-fillers` で無効化可）こと。どちらも実行上の既定値で
   あり、CLI 本体が AI 依存になるわけではない（§7 の原則はそのまま）
 

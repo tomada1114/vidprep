@@ -41,6 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- New projects now leave denoising, silence detection and filler detection off
+  unless `profile.json` opts into them. `audio-fix` still applies the 80 Hz
+  high-pass and two-pass loudnorm by default. Auto-editor and DeepFilterNet are
+  optional doctor checks; selecting one while it is unavailable now stops with
+  an actionable error instead of silently changing the requested processing.
+  Profiles created before these switches existed retain their old cutting
+  behavior when loaded.
+
 - `audio-fix` now collects before/after loudness and noise-floor statistics by
   default. Use `--no-stats` when only the processed audio is needed; `--stats`
   remains available as an explicit spelling of the default. `report` also warns

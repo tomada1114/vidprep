@@ -22,18 +22,19 @@ uv tool install --from . vidprep
 
 Start by checking the machine. `vidprep doctor` inspects the external tools the
 pipeline shells out to — ffmpeg (including whether it was built with libass),
-ffprobe, auto-editor, an ASR backend, the Silero VAD weights that backend runs,
-DeepFilterNet and a SudachiPy dictionary — and tells you what to install for the
-ones that are missing.
+ffprobe, an ASR backend, the Silero VAD weights that backend runs, SudachiPy,
+and the optional auto-editor and DeepFilterNet tools — and tells you what to
+install for the ones that are missing.
 
 ```bash
 vidprep doctor          # readable report
 vidprep doctor --json   # the same report as JSON on stdout
 ```
 
-It exits `3` when a required dependency is missing, and `0` when only the
-optional DeepFilterNet is absent — `audio-fix` falls back to ffmpeg's `afftdn`
-in that case.
+It exits `3` when a required dependency is missing. Missing auto-editor and
+DeepFilterNet are warnings, so it exits `0` when only those optional tools are
+absent. The default profile does not use either one; selecting an unavailable
+optional feature makes its stage stop with an actionable error.
 
 Then create a working directory for one video. The material is referenced by
 absolute path and sha256 — it is never modified, and only copied into the
@@ -46,9 +47,24 @@ vidprep init ./work/talk01 --source ~/Movies/VID_20260507_144024.mp4
 This writes `vidprep.json` (the manifest: source specs, hash, stage records)
 and `profile.json` (the processing parameters, copied from the packaged
 defaults). Every subcommand accepts `--project/-p`, `--json` and `--dry-run`.
-`audio-fix` collects before/after loudness and noise-floor statistics by
-default. Use `--no-stats` when only the processed audio is needed; `--stats`
-remains available as an explicit spelling of the default.
+`audio-fix` collects before/after loudness statistics by default. It measures
+the denoise noise floor only when `audio.denoise` is enabled. Use `--no-stats`
+when only the processed audio is needed; `--stats` remains available as an
+explicit spelling of the default.
+
+The packaged profile is deliberately conservative. To opt into the extra
+processing, edit `profile.json` after `init`:
+
+```json
+{
+  "audio": {"denoise": "deepfilternet"},
+  "silence": {"enabled": true},
+  "filler": {"enabled": true}
+}
+```
+
+Keep the other profile fields when editing an existing file. DeepFilterNet is
+needed only for the first setting; auto-editor is needed only for the second.
 
 !!! note
 
@@ -68,7 +84,7 @@ vidprep prep ~/Movies/talk01.mp4
 ```
 ~/Movies/
 ├── talk01.mp4          the source; read and hashed, never written
-├── talk01.edited.mp4   silence and filler cut, denoised, -14 LUFS, faded out
+├── talk01.edited.mp4   approved cuts, -14 LUFS, faded out
 ├── talk01.srt          subtitles on the cut timeline
 ├── talk01.txt          the same transcript as timestamped, paragraphed prose
 └── talk01.vidprep/     the project, kept so the next run is cheap
@@ -103,12 +119,14 @@ vidprep prep ~/Movies/talk01.mp4 # continues: detect, render, report, deliver
     command again re-does exactly what the change reaches, and nothing before
     it.
 
-`detect` approves its own silence candidates and leaves the filler ones for a
-human. `vidprep prep` approves those too, because it was asked for something
-publishable without a review pass — but only while `filler.enable_weak` is off.
-The weak tier (「まあ」「なんか」「こう」) is ordinary Japanese, and `cuts.json`
-does not record which tier a candidate came from, so with the weak tier enabled
-the approval is declined rather than guessed at.
+New projects leave both `silence.enabled` and `filler.enabled` off, so `prep`
+does not cut the material unless those profile switches are enabled. When
+fillers are enabled, `detect` leaves them proposed for review and `prep`
+approves them too when `filler.enable_weak` is off. The weak tier
+(「まあ」「なんか」「こう」) is ordinary Japanese, and `cuts.json` does not
+record which tier a candidate came from, so with the weak tier enabled the
+approval is declined rather than guessed at. `--keep-fillers` leaves every
+enabled filler proposal alone.
 
 ## Transcribing
 
@@ -121,9 +139,9 @@ vidprep transcribe          # whisper.cpp by default; see profile.json's `asr`
 vidprep transcribe --json   # segment count, speech duration, realtime factor
 ```
 
-Detection has no off switch: without it whisper invents sentences in the
-silences, and those come back as subtitles later. A transcript whose segments
-do not line up with the detected speech is refused rather than written. A
+VAD itself has no off switch: without it whisper invents sentences in the
+silences, and those come back as subtitles later. Cut detection is separate and
+opt-in. A transcript whose segments do not line up with the detected speech is refused rather than written. A
 segment that merely starts a moment early — whisper.cpp times its boundaries on
 the concatenated regions, so one placed between two of them comes back stranded
 in the original pause — is moved onto the speech it covers and reported as a
@@ -153,12 +171,13 @@ dictionary, and which dictionary ran is named in the diff summary and in
 
 ## Detecting cuts
 
-`detect` writes `cuts.json`: the silences auto-editor found, padded and
-proposed as `approved`, plus the filler words the transcript and the speech
-regions justify cutting, proposed as `proposed`.
+When enabled in `profile.json`, `detect` writes `cuts.json`: the silences
+auto-editor found, padded and proposed as `approved`, plus the filler words the
+transcript and speech regions justify cutting, proposed as `proposed`. Both
+features are disabled in a new project.
 
 ```bash
-vidprep detect              # silence + filler candidates
+vidprep detect              # enabled silence/filler candidates
 vidprep detect --json       # counts and seconds per reason, and what merged
 ```
 
@@ -260,9 +279,10 @@ just golden --skip correct   # the same run without one stage, to attribute a
                              # number to it; not a baseline, and says so
 ```
 
-Both are local-only: they need the material, ffmpeg, whisper.cpp and
-auto-editor. `tests/fault_injection/` is the other half — six deliberately
-broken inputs, each asserting that the check meant to catch it does.
+Both are local-only: they need the material, ffmpeg, whisper.cpp and any
+optional tools enabled by the profile. `tests/fault_injection/` is the other
+half — six deliberately broken inputs, each asserting that the check meant to
+catch it does.
 
 ## What's Next?
 

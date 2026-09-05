@@ -1,7 +1,7 @@
 # vidprep
 
-A CLI pipeline that prepares recorded talks for YouTube: silence cutting,
-Japanese transcription, subtitle generation and Filmora handoff.
+A CLI pipeline that prepares recorded talks for YouTube: optional silence
+cutting, Japanese transcription, subtitle generation and Filmora handoff.
 
 ## Installation
 
@@ -17,7 +17,8 @@ uv run vidprep doctor
 
 `doctor` reports the external tools the stages shell out to — ffmpeg,
 auto-editor, an ASR backend and the Silero VAD weights among them — and what to
-install for the ones that are missing.
+install for the ones that are missing. Auto-editor and DeepFilterNet are only
+needed when their profile features are enabled.
 
 ## Quick Example
 
@@ -25,7 +26,7 @@ install for the ones that are missing.
 vidprep init ./work/talk01 --source ~/Movies/talk01.mp4
 vidprep audio-fix
 vidprep transcribe
-vidprep detect
+vidprep detect              # enable silence/filler detection in profile.json first
 vidprep report --cuts   # decide the status of each candidate in cuts.json
 vidprep render          # out/output.mp4 + out/subtitles.srt + out/transcript.txt
 ```

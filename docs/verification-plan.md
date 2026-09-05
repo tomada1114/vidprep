@@ -55,7 +55,8 @@ status: approved
 - 処理前後の音声尺の差 **≤ 1ms**
 - loudnorm pass 2 の `normalization_type` が `linear` でない場合は、処理を成功扱いのまま warning で明示する（dynamic fallback を見落とさない）
 - 素材から目標までの必要ゲインが **+12dB を超える**場合は、`report` が録音レベルの低さを warning で指摘する
-- **ノイズフロア（REQ-007、#33 で確定）**: denoise 直後・**loudnorm 前**の無音区間 RMS が、同じ無音区間で測った処理前の RMS より**低下**していること。判定は `report/stats.json` の `noise_floor.denoise.improved == true`（= `delta_db < 0`）。`audio-fix --stats` が測って `report/noise_floor.json` に記録し、`report` はそれを引用する
+- **ノイズフロア（REQ-007、#33 で確定）**: `audio.denoise` を有効にした場合は、denoise 直後・**loudnorm 前**の無音区間 RMS が、同じ無音区間で測った処理前の RMS より**低下**していること。判定は `report/stats.json` の `noise_floor.denoise.improved == true`（= `delta_db < 0`）。`audio-fix --stats` が測って `report/noise_floor.json` に記録し、`report` はそれを引用する。`audio.denoise=none` の既定経路ではこの測定を行わず、`noise_floor.denoise` は `null`、欠測 warning も出さない
+- 新規 profile の既定経路は DeepFilterNet / `afftdn` / auto-editor を呼ばずに完走し、highpass と loudnorm のみを適用する
 
 ### 4.1 ノイズフロア指標の定義（#33）
 
@@ -100,7 +101,12 @@ LRA の既定値 11.0 は素材によっては実測値を拘束しない。話�
 
 **検証手順**
 ```
-vidprep audio-fix                  # 実行 + 前後統計（noise_floor.json も書かれる）
+vidprep audio-fix                  # 既定: highpass + loudnorm、前後統計
+vidprep report --json              # 既定: denoise の noise_floor warning は出ない
+
+# denoise の効果を測る opt-in 経路
+jq '.audio.denoise = "deepfilternet"' profile.json > profile.tmp && mv profile.tmp profile.json
+vidprep audio-fix --stats          # denoise 直後を含む noise_floor.json を書く
 vidprep report --json              # stats.json の noise_floor.denoise で REQ-007 を判定
 ffmpeg -i audio/processed.wav -af loudnorm=I=-14:TP=-1:print_format=json -f null -
                                    # 独立系統での再測定（自己申告とのクロスチェック）
@@ -150,6 +156,9 @@ uv run python scripts/cer.py ...   # 3 点測定
 ## 7. 機能別検証: D. カット候補検出（detect）
 
 **完了条件（機械）**
+- 新規 profile の `silence.enabled=false` / `filler.enabled=false` では、auto-editor を呼ばず、transcript/VAD を要求せず、空の候補を正常に `cuts.json` へ書く
+- `silence.enabled=true` のときだけ auto-editor が必要で、無い場合は doctor の warning と detect の明示的な UsageError の両方で分かる
+- `filler.enabled=true` のときだけ transcript/VAD を読み、候補を作る。`prep` の自動承認もこのスイッチが有効な場合だけ行う
 - cuts.json がスキーマ検証を通る（区間妥当・approved 非重複）
 - **発話衝突 0 件**: `reason: silence` の各カット区間と transcript 発話セグメントの重なりの合計が **1 カットあたり ≤ 0.2 秒**（パディングの食い込み許容分）。これは ASR とのクロスチェックであり最重要の安全網
 - パディング遵守: 各カットの前後に profile の `pad_pre` / `pad_post` が確保されている（検出器出力との差分で機械確認）
@@ -161,7 +170,7 @@ uv run python scripts/cer.py ...   # 3 点測定
 
 **効果測定**: 候補数と削減見込み秒数の reason 別内訳。ゴールデンの期待値: 無音 132.8 秒（-40dB/0.5s 基準）に対しパディング適用後でどれだけ候補化されるか。
 
-**実測（2026-08-04、auto-editor 29.3.1 / 既定 profile）**
+**実測（2026-08-04、auto-editor 29.3.1 / `silence.enabled=true` の opt-in profile）**
 
 | 項目 | 実測値 |
 |---|---|
@@ -176,7 +185,11 @@ uv run python scripts/cer.py ...   # 3 点測定
 
 **検証手順**
 ```
+# 既定経路: 外部の無音検出器を呼ばずに完走
 vidprep detect
+
+# 無音カットを使う場合は profile で明示
+jq '.silence.enabled = true | .filler.enabled = true' profile.json > profile.tmp && mv profile.tmp profile.json
 vidprep report --cuts              # 候補ごとの文脈表示 → フィラー審査
 vidprep detect                     # 再実行 → status 保持を確認
 ```
@@ -336,14 +349,14 @@ just golden --skip correct   # 1 段だけ外した計測ラン（#32 の CER �
 - 保存内容は `stats.json`（`report/stats.json` のコピー）、`warnings.json`（全段の警告）、`summary.json`（各段の `--json` 結果・所要秒・停止段）。同日 2 回目は `<date>-02` になり、上書きしない
 - 段は**サブプロセスではなくライブラリ関数として**順に呼ぶ。失敗は例外のまま受け取れるので理由が欠けない。失敗した段でランは止まる（下流は上流の出力を読むため）が、**アーカイブは必ず書く** —「どこで何が理由で止まったか」こそ求められている出力だから
 - diff の対象は stats.json の全数値（**警告リストは長さで比較**する。「max_cps 警告が 11 → 14」はこれで出る）＋ そのランの `render` が報告した `verify_asr` セクション。名前に warning / flag / error を含むパスが増えたときだけ ⚠ を付ける
-- 素材・ffmpeg・whisper.cpp・auto-editor が要るため **CI では動かさない**（`just check` にも入れない）。ローカル運用のまま
+- 素材・ffmpeg・whisper.cpp・profile で有効化した任意ツールが要るため **CI では動かさない**（`just check` にも入れない）。ローカル運用のまま
 - `--skip <段>`（#32）は、ある数値をパイプライン全体ではなく**その 1 段に帰属させる**ための計測手段。外した段の出力は前のランのものが残り、下流はそれを読む。基準ランと取り違えないよう、外した段名は `summary.json` の `skipped` に残り、実行時にも `skipped: correct — not a baseline run` と出る
 
 **初回実行の記録（2026-08-04）**: `[2/6] transcribe` で停止。`1 segments start outside every detected speech region (s0022@222.390)` — 既知バグ #24 で、ハーネスがこれをそのまま記録して exit 2 を返すことを確認した（audio-fix は -22.24 → -14.04 LUFS で成功）。
 
 **#24 修正後の記録（2026-08-04）**: `[3/6] correct` まで通過し、`[4/6] detect` で停止。transcribe は 46 発話区間 / 36 セグメント / 0.11x で成功し、s0022 は警告付きで区間先頭へ寄せられた（`222.390 → 223.270`、§5 の「区間外開始 0 件」は維持）。停止理由は #24 とは別件で、auto-editor 29.3.1 の `--export v3` が JSON として読めない出力を返すこと（`timeline_schema: Invalid JSON: expected value at line 1 column 3`）。変換層の更新が要る。
 
-**#30 修正後の記録（2026-08-04、`fixtures/runs/2026-08-04-03/`）**: **6 段すべて完走**（exit 0）。REQ-020（全段の通し実行）と REQ-021（stats.json / warnings.json のアーカイブ）が実測で埋まった。
+**#30 修正後の記録（2026-08-04、`fixtures/runs/2026-08-04-03/`）**: **6 段すべて完走**（exit 0）。この記録は `audio.denoise=deepfilternet` と `silence.enabled=true` を設定した opt-in profile の実測であり、新規 profile の既定経路ではない。REQ-020（全段の通し実行）と REQ-021（stats.json / warnings.json のアーカイブ）が実測で埋まった。
 
 | 段 | 結果 | 所要 |
 |---|---|---|
@@ -379,12 +392,12 @@ just golden --skip correct   # 1 段だけ外した計測ラン（#32 の CER �
 ### 12.1 環境構築チェックリスト
 
 - [x] `brew install ffmpeg-full` 等で **libass 入り ffmpeg** を導入（`ffmpeg -filters | grep subtitles` で確認）
-- [x] auto-editor 導入（`uv tool install auto-editor`）、`--export v3` の動作確認
+- [x] auto-editor の opt-in 経路を導入（`uv tool install auto-editor`）、`--export v3` の動作確認
 - [x] whisper.cpp をビルド（Metal + CoreML 有効）+ 候補モデルの ggml を取得
 - [x] `uv add mlx-whisper --group asr` 等で mlx-whisper 導入（比較用）
-- [x] DeepFilterNet CLI 導入（失敗したら afftdn フォールバックで先へ進む）
+- [x] DeepFilterNet CLI の opt-in 経路を導入（`audio.denoise=deepfilternet` で未導入なら明示エラー。既定経路は導入不要）
 - [x] jiwer を dev グループに追加
-- [x] 完了判定: `vidprep doctor` が全項目 `ok`（exit 0）を返す
+- [x] 完了判定: 必須項目が `ok`（exit 0）。opt-in の実測時は auto-editor / DeepFilterNet も導入済みにする
 
 ### 12.1.1 構築記録（2026-08-03、Apple M2 / macOS 26）
 
