@@ -79,6 +79,12 @@ packages = ["src/vidprep"]
 target-version = "py312"
 line-length = 88
 src = ["src", "tests", "scripts"]
+# Vendored agent-skill scripts (copied verbatim from hintjump's shipping-issues
+# skill) are not this project's source and are not edited to satisfy its rules.
+# force-exclude: pre-commit passes explicit filenames, which `exclude` alone
+# does not filter.
+exclude = [".claude/skills/*/scripts"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = [
