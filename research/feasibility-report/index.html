@@ -1,0 +1,965 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="CLI pipeline for semi-automated YouTube video preprocessing: silence cutting, Japanese transcription, subtitle generation, and Filmora handoff.">
+      
+      
+      
+        <link rel="canonical" href="https://tomada1114.github.io/vidprep/research/feasibility-report/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Feasibility report - vidprep</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#youtube-cli-2026-08-03" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="vidprep" class="md-header__button md-logo" aria-label="vidprep" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            vidprep
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Feasibility report
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tomada1114/vidprep" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tomada1114/vidprep
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="vidprep" class="md-nav__button md-logo" aria-label="vidprep" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    vidprep
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tomada1114/vidprep" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tomada1114/vidprep
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. 結論サマリ
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 機能ごとの実現可能性
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-filmora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Filmora 取り込みの制約と劣化ポイント
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Filmora 取り込みの制約と劣化ポイント">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        実機で確認できた事実（確度：高）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        劣化ポイントの整理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        未確認（要実機検証）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 推奨する技術構成と言語
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 推奨する技術構成と言語">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rust-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rust の判定：割に合わない。Python を推奨
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自作 / 既存の切り分け
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. パイプラインの処理順序
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 段階的ステップ案
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 未確認事項・確認推奨
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 調査間で食い違いがあった点
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 主要参考URL
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!-- 出典: Claude Code Dynamic Workflow（6領域並列調査 + Opus統合、2026-08-03）。
+     主要な主張（FilmoraのInfo.plist、.wfpのZIP+JSON構造、tlBegin/tlEnd、file://の非標準URI）は
+     実機（Filmora 14.10.5 / ~/Movies配下の実プロジェクト）で追検証済み。
+     ただし .wfp 直接生成は不採用に決定したため、該当セクションは背景資料として読むこと。 -->
+
+<h1 id="youtube-cli-2026-08-03">YouTube 下処理 CLI 自動化 — 統合調査レポート（2026-08-03 時点）<a class="headerlink" href="#youtube-cli-2026-08-03" title="Permanent link">&para;</a></h1>
+<h2 id="0">0. 結論サマリ<a class="headerlink" href="#0" title="Permanent link">&para;</a></h2>
+<ul>
+<li>5機能すべて技術的には到達可能。ただし<strong>出口（Filmora への渡し方）が設計を規定する</strong>。実機の <code>Info.plist</code> を直接確認した結果、Filmora は <strong>FCPXML / Premiere XML / EDL / AAF / OTIO を一切インポートできない</strong>（拡張子登録なし）。「カット案 XML を渡す」構想は成立しない。</li>
+<li>代わりに <strong><code>.wfp</code> プロジェクトファイルの直接生成</strong>が有望。実機の <code>.wfp</code> は<strong>無圧縮 ZIP + 素の JSON</strong>で、カットは <code>tlBegin/tlEnd/inPoint/outPoint</code> の4整数（単位は <strong>100ns tick、1秒 = 1e7</strong>）。署名・チェックサム防御なし。ただし非公式のため<strong>「生成した .wfp が実際に開くか」の30分スパイクが最優先タスク</strong>。</li>
+<li>字幕は <strong>SRT のみ</strong>（ASS/VTT/SSA 非対応）。SRT なら Filmora 上で文字・タイムコード・スタイルを編集でき、SRT 再エクスポートも可能。<strong>AI に字幕を直させる用途と完全に噛み合う</strong>ので、これを主経路にする。</li>
+<li>言語は<strong>率直に言って Python 推奨</strong>。Rust の速度優位はこの構成ではほぼ出ない（後述）。</li>
+<li>設計思想は一貫して「<strong>原尺タイムラインを唯一の正本とし、中間 JSON を経由する。SRT/ASS/mp4/.wfp はすべてレンダリング結果</strong>」。</li>
+</ul>
+<hr />
+<h2 id="1">1. 機能ごとの実現可能性<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>機能</th>
+<th>判定</th>
+<th>主な手段</th>
+<th>根拠・注記</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>無音カット</td>
+<td><strong>できる</strong></td>
+<td><code>auto-editor</code>（v31.4.2 / 2026-07-31、★4.7k、Unlicense）</td>
+<td>dB/%閾値、前後非対称マージン、<code>--export v3</code> で JSON 出力→編集→再レンダリングの2段階が公式サポート。2025年に Python→Nim 全面書き換えで高速化済み</td>
+</tr>
+<tr>
+<td>字幕生成（ローカル日本語 ASR）</td>
+<td><strong>できる</strong></td>
+<td><code>whisper.cpp</code>（Metal+CoreML、v1.9.1、★52.6k）または <code>mlx-whisper</code></td>
+<td>15分素材で数十秒〜5分。<strong>faster-whisper は Mac で GPU 不可</strong>（CTranslate2 に Metal なし）＝非推奨</td>
+</tr>
+<tr>
+<td>カスタム辞書</td>
+<td><strong>工夫すれば</strong></td>
+<td>読みベース置換 + LLM 校正の多段</td>
+<td><code>--prompt</code> は約224トークン上限かつ原則第1ウィンドウのみ＝辞書としては不十分。<strong>Mac ローカルで辞書を正面サポートする ASR は事実上存在しない</strong>。後処理で直すのが定石</td>
+</tr>
+<tr>
+<td>テロップ焼き込み</td>
+<td><strong>できる</strong></td>
+<td>ASS + libass（ffmpeg <code>subtitles</code> フィルタ）+ <code>pysubs2</code>（★436、2026-07-30 push）</td>
+<td>スタイル9方向配置・縁取り・背景ボックスすべて表現可。ただし焼き込むと Filmora で直せない</td>
+</tr>
+<tr>
+<td>トランジション</td>
+<td><strong>できる</strong></td>
+<td>ffmpeg <code>xfade</code>（56種、slide/wipe系あり）+ <code>acrossfade</code></td>
+<td>3クリップ以上は offset の累積計算が必要。全体再エンコード確定</td>
+</tr>
+<tr>
+<td>指定区間カット</td>
+<td><strong>できる</strong></td>
+<td>smart cut 方式（境界GOPのみ再エンコード + concat）を自作</td>
+<td><code>-c copy</code> はキーフレーム単位でズレる。参照実装 <code>skeskinen/smartcut</code>（MIT）は<strong>2026年2月に商用移行で開発停止</strong>、アルゴリズムを参考に自作が筋</td>
+</tr>
+<tr>
+<td>波形での目視検証</td>
+<td><strong>できる</strong></td>
+<td><code>ffmpeg showwavespic</code>（追加依存ゼロ）or BBC <code>audiowaveform</code>（v1.10.3）</td>
+<td>クリック音自動検出は Essentia <code>ClickDetector</code> があるが <strong>AGPLv3</strong>。振幅差分の簡易自作を推奨</td>
+</tr>
+<tr>
+<td>テキストベース区間カット（将来）</td>
+<td><strong>難しい（自作前提）</strong></td>
+<td>—</td>
+<td><code>videogrep</code> は実質メンテ停止（最終 push 2024-04）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-filmora">2. Filmora 取り込みの制約と劣化ポイント<a class="headerlink" href="#2-filmora" title="Permanent link">&para;</a></h2>
+<h3 id="_1">実機で確認できた事実（確度：高）<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>タイムライン交換形式</td>
+<td><strong>XML / FCPXML / EDL / AAF / OTIO は登録ゼロ</strong>。<code>Info.plist</code> の <code>CFBundleDocumentTypes</code> を直接確認</td>
+</tr>
+<tr>
+<td>字幕</td>
+<td><strong>SRT / LRC のみ</strong>。ASS・VTT・SSA 不可</td>
+</tr>
+<tr>
+<td>SRT の扱い</td>
+<td>取り込み後に本文・タイムコード・分割/結合・スタイル・位置を編集可、SRT 再エクスポート可</td>
+</tr>
+<tr>
+<td>取り込み時の再エンコード</td>
+<td><strong>起きない</strong>。プロキシは別ファイルで、書き出しは常に原素材を使う</td>
+</tr>
+<tr>
+<td><code>.wfp</code> の中身</td>
+<td>無圧縮 ZIP + JSON。時間単位は <strong>100ns tick</strong>（<code>speed.offset</code> 秒値と <code>inPoint</code> の照合、全体尺の一致、フレーム整列の3通りで裏取り）</td>
+</tr>
+<tr>
+<td>外部からの自動化</td>
+<td><strong>AppleScript 辞書なし・CLI なし</strong>。フックはゼロ</td>
+</tr>
+<tr>
+<td>クレジット</td>
+<td>Speech-to-Text は <strong>4クレジット/分</strong>（15分＝60）。<strong>Silence Detection は無料</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="_2">劣化ポイントの整理<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Filmora 側の取り込みで劣化しない</strong>ため、CLI 側は無劣化・stream copy 前提で設計してよい。</li>
+<li>劣化は <strong>CLI の再エンコード段</strong>でのみ発生する。カットは smart cut で境界のみに限定、焼き込みは CRF 18前後 / <code>-preset slow</code>。カットのみのパイプラインなら <strong>ProRes 中間化は不要</strong>（H.264 のまま渡すのが最速・最小）。色補正やフィルタを CLI で挟む場合のみ ProRes が効く。</li>
+<li><code>.wfp</code> は<strong>素材を内包せず絶対パス参照</strong>。素材の移動・リネームでリンク切れ（同梱するなら <code>.wfpbundle</code>）。</li>
+</ul>
+<h3 id="_3">未確認（要実機検証）<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>生成した <code>.wfp</code> を Filmora が開くか</strong>（壊れたファイルを黙って落とすのか破損扱いにするのかも不明）。</li>
+<li><strong>テキスト／字幕クリップの <code>.wfp</code> スキーマ</strong>。解析対象の5プロジェクトは映像・音声トラックのみで、テロップ入りサンプルが無かった。<strong>カット部分は確定、テロップ部分は未確定</strong>。</li>
+<li>連番クリップをタイムラインに並べる順序の保証（公式に明記なし）。</li>
+</ul>
+<hr />
+<h2 id="3">3. 推奨する技術構成と言語<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="rust-python">Rust の判定：<strong>割に合わない。Python を推奨</strong><a class="headerlink" href="#rust-python" title="Permanent link">&para;</a></h3>
+<p>理由は3点。①処理時間を支配するのは ffmpeg / whisper.cpp のネイティブ実行で、<strong>外部バイナリを呼んで JSON を受け渡す設計なら呼び出し側の言語は速度にほぼ効かない</strong>。②周辺ライブラリが Python に厚い（<code>pysubs2</code> は活発、BudouX は公式実装あり、SudachiPy、LLM SDK）。Rust 側は <code>ass-rs</code> が★6でパース寄り、<code>libass-rs</code> は<strong>2023年6月から3年更新なし</strong>、<code>whisper-rs</code> は <strong>GitHub 本体が 2025-07-30 にアーカイブ</strong>（開発は Codeberg 移行、crates.io 配布は継続）。③Rust ffmpeg バインディングは libav 開発ヘッダのリンクが必要でビルド複雑度が上がる。</p>
+<p>ただし<strong>重要な但し書き</strong>：<code>auto-editor</code> が 2025年に Python→Nim へ全面書き換えした理由は、<strong>フレーム/サンプル単位の解析ループを Python 自身で回していた</strong>こと。つまり「自前で信号処理ループを書く」実装だけは言語を問わず避けるべきで、無音検出は ffmpeg の <code>silencedetect</code>/<code>astats</code> か auto-editor に丸投げする。この方針を守る限り Python で問題ない。</p>
+<h3 id="_4">自作 / 既存の切り分け<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>レイヤー</th>
+<th>方針</th>
+<th>使うもの</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>無音検出・カット</td>
+<td>既存</td>
+<td>auto-editor（<code>--export v3</code>）</td>
+</tr>
+<tr>
+<td>文字起こし</td>
+<td>既存</td>
+<td>whisper.cpp CLI（サブプロセス）+ Silero VAD</td>
+</tr>
+<tr>
+<td>辞書・LLM 校正</td>
+<td><strong>自作</strong></td>
+<td>読み正規化（SudachiPy/pyopenjtalk）+ 編集距離 + Claude</td>
+</tr>
+<tr>
+<td>日本語行分割</td>
+<td>既存 + 自作</td>
+<td>BudouX で文節境界 → 文字数/秒数制約は自前</td>
+</tr>
+<tr>
+<td>SRT/ASS 生成</td>
+<td>既存</td>
+<td>pysubs2</td>
+</tr>
+<tr>
+<td>smart cut</td>
+<td><strong>自作</strong></td>
+<td>ffprobe + ffmpeg（smartcut のアルゴリズムを参考、コードは流用しない）</td>
+</tr>
+<tr>
+<td>中間 JSON スキーマ</td>
+<td><strong>自作（核心）</strong></td>
+<td>独自定義。auto-editor v3 は NLE 構造で keep/cut リストと設計思想が違うため変換層を挟む</td>
+</tr>
+<tr>
+<td><code>.wfp</code> 生成</td>
+<td><strong>自作（要スパイク）</strong></td>
+<td>ZIP(store) + JSON。参考実装のコードはコピー不可（ライセンス無し＝全権利留保）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4">4. パイプラインの処理順序<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<p><strong>推奨：原尺を正本とし、カットは「削除区間リスト（EDL）」として持ち、字幕タイムスタンプを写像する。</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>素材（原尺）
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a> ├─ VAD で発話区間検出（ASR と無音カットで共有）
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a> ├─ 原尺のまま ASR → transcript.json（timestamp は原尺）
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> │    ├─ 辞書ルール置換（決定的・冪等）
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a> │    ├─ LLM 校正（text のみ・差分適用・timestamp 不変を強制）
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a> │    └─ 行分割（BudouX + 文字数/秒数制約）
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a> ├─ 無音検出 → cuts.json（削除区間リスト）
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a> └─ 合成 → 出力
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>      ├─ カット済み mp4（smart cut）
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>      ├─ subtitles.srt（カット後タイムラインに写像）→ Filmora へ
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>      ├─ subtitles.ass + 焼き込み動画（確認用プレビュー）
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>      └─ project.wfp（スパイク成功後）
+</code></pre></div>
+<p>「先にカットしてから認識」は単純に見えるが、<strong>(a) カット境界で語頭・語尾が切れて認識が落ちる、(b) Filmora 側でカット位置を微修正した瞬間に字幕を作り直す羽目になる、(c) 原尺↔完成尺の対応が失われて後から検証できない</strong>、の3つの負債を抱える。</p>
+<p>中間 JSON は <code>{segments:[{id, start, end, text, words:[...], source, edits:[]}]}</code> のように<strong>編集履歴を持たせて再生成を冪等に</strong>する。LLM の返答は「id 集合の一致・件数一致」を機械検証してから適用する（timestamp の捏造を防ぐ）。</p>
+<hr />
+<h2 id="5">5. 段階的ステップ案<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>内容</th>
+<th>成果物</th>
+<th>検証方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>0</strong></td>
+<td><strong><code>.wfp</code> スパイク（最優先・30分）</strong></td>
+<td>実機 <code>.wfp</code> を展開→<code>tlEnd</code> を1箇所書き換え→再 ZIP→Filmora で開く</td>
+<td>開けばこの経路が全設計を変える。開かなければ以降は「mp4 + SRT」に確定</td>
+</tr>
+<tr>
+<td>1</td>
+<td>環境構築とベンチ</td>
+<td><code>brew install ffmpeg-full</code>（<strong>標準 <code>ffmpeg</code> に libass 無し</strong>）、auto-editor、whisper.cpp</td>
+<td>15分素材で ASR 時間・カット時間を実測</td>
+</tr>
+<tr>
+<td>2</td>
+<td>ASR → transcript.json</td>
+<td>正規スキーマ確定</td>
+<td>自分の素材で large-v3 と turbo を比較（他人のベンチは矛盾していて当てにならない）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>辞書置換 + SRT 出力</td>
+<td><code>subtitles.srt</code></td>
+<td>Filmora に取り込んで編集できるか実機確認。改行なし版と BudouX 改行版の両方を吐く</td>
+</tr>
+<tr>
+<td>4</td>
+<td>無音検出 → cuts.json → smart cut</td>
+<td>カット済み mp4 + 写像済み SRT</td>
+<td>波形 PNG でカット境界を目視、<code>acrossfade</code> 20〜50ms でぶつ切り対策</td>
+</tr>
+<tr>
+<td>5</td>
+<td>LLM 校正の組み込み</td>
+<td>Claude Code スキル化</td>
+<td>id/件数の機械検証を必ず通す</td>
+</tr>
+<tr>
+<td>6</td>
+<td>ASS テロップ + xfade</td>
+<td>焼き込みプレビュー</td>
+<td>offset 計算は単体テストを厚めに</td>
+</tr>
+</tbody>
+</table>
+<p>各ステップの CLI は「JSON を読んで JSON を書く」形に統一し、<code>--dry-run</code> と <code>--stats</code> を持たせる。これが Claude Code スキルからの呼び出し口になる。</p>
+<hr />
+<h2 id="6">6. 未確認事項・確認推奨<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong><code>.wfp</code> の生成互換性</strong>（最重要）。作る前に <strong>Filmora 14 か 15 かをバージョン固定</strong>すること。実機は 14.10.5、最新は 15.6.12（2026-07-01）。14.4↔15 で構造一致は確認できているが、Wondershare は無告知で変えうる。</li>
+<li><strong><code>filename</code> の URI 形式が非標準</strong>。実データは <code>file://Users/...</code>（スラッシュ2つ）。RFC 準拠で <code>file:///</code> と書くと読めない可能性が高い。<strong>実測値をそのまま真似ること</strong>。</li>
+<li><strong>単位の罠</strong>。唯一公開されている第三者パーサは 100ns tick を <code>_us</code>（マイクロ秒）と誤記している。参考にすると<strong>10倍ずれる</strong>。</li>
+<li><strong>テロップ入り <code>.wfp</code> の再解析</strong>。Filmora でテロップを1本入れて保存し、スキーマを取り直す必要がある。</li>
+<li><strong>CoreText の bold 非対応</strong>。macOS の libass は fontconfig 非依存で CoreText を使うため、<code>Bold: 1</code> が効かない事例あり。ウェイト違いのファミリー名直指定で回避（実機確認要）。</li>
+<li><strong>Whisper のハルシネーション</strong>。無音区間で「ご視聴ありがとうございました」等を生成する既知挙動。<strong>VAD 前段化が必須</strong>。また <code>tiny</code> より <code>base</code> の方が速いことがある（狭い復号器ほどループでトークンを浪費する）。</li>
+<li><strong>単語 timestamp の信頼性</strong>。whisper.cpp の word-level は experimental、日本語は漢字↔音素の対応が曖昧で強制アライメントが英語ほど効かない。<strong>1文字カラオケ用途には危うく、セグメント境界の精緻化までに留めるのが安全</strong>。</li>
+</ol>
+<hr />
+<h2 id="7">7. 調査間で食い違いがあった点<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>論点</th>
+<th>食い違い</th>
+<th>統合判断</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filmora の XML/EDL 対応</td>
+<td>一方は「公式ドキュメントに記載なし＝推定で非対応（確度中）」、他方は「<code>Info.plist</code> 実機確認で登録ゼロ（確度高）」</td>
+<td><strong>実機確認を採用。非対応で確定</strong></td>
+</tr>
+<tr>
+<td><code>whisper-rs</code> のメンテ状況</td>
+<td>「0.16.0（2026-03-12）で維持されている」vs「GitHub 本体は 2025-07-30 にアーカイブ」</td>
+<td><strong>両方正しい</strong>。crates.io 配布は継続、開発は Codeberg 移行。issue/PR ベースの運用は不可</td>
+</tr>
+<tr>
+<td>日本語 ASR のモデル優劣</td>
+<td>kotoba-whisper v2.0 は「large-v3 超え」（開発元）vs「WER 0.534 で最下位」（2026-02 第三者ベンチ、20サンプル）</td>
+<td><strong>真っ向から矛盾。他人のベンチを採用せず、自分の素材で実測すること</strong></td>
+</tr>
+<tr>
+<td>言語選択</td>
+<td>Rust 推しの材料は見つからず全報告が Python 優位</td>
+<td>一致。<strong>ただし「自前ループを書かない」が前提条件</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-url">8. 主要参考URL<a class="headerlink" href="#8-url" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://filmora.wondershare.com/mac-tech-spec.html">Filmora Mac 技術仕様</a> — 字幕は .srt/.lrc、ProRes 入出力</li>
+<li><a href="https://filmora.wondershare.com/filmora-ai-credits-rule.html">Filmora AI クレジット規定</a> — STT 4クレジット/分</li>
+<li><a href="https://filmora.wondershare.com/guide-mac/working-with-proxy.html">Filmora プロキシ編集</a> — 書き出しは原素材＝取り込み時に再エンコードなし</li>
+<li><a href="https://github.com/WyattBlue/auto-editor">auto-editor</a> / <a href="https://auto-editor.com/docs/v3">v3 timeline 仕様</a> / <a href="https://basswood.io/blog/nim-auto-editor-is-now-in-beta">Nim 書き換え経緯</a></li>
+<li><a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a> / <a href="https://github.com/SYSTRAN/faster-whisper/issues/515">faster-whisper の Metal 非対応 issue</a></li>
+<li><a href="https://github.com/jianfch/stable-ts">stable-ts（2026-05-30 アーカイブ）</a> — 字幕整形の定番が停止、自前実装前提に</li>
+<li><a href="https://github.com/tkarabela/pysubs2">pysubs2</a> / <a href="https://developers-jp.googleblog.com/2023/09/budoux-adobe.html">BudouX</a></li>
+<li><a href="https://raw.githubusercontent.com/Homebrew/homebrew-core/master/Formula/f/ffmpeg-full.rb">ffmpeg-full Homebrew formula</a> — 標準 <code>ffmpeg</code> に libass が無いことの根拠</li>
+<li><a href="https://ffmpeg.org/ffmpeg-filters.html#xfade">ffmpeg xfade / subtitles フィルタ</a></li>
+<li><a href="https://github.com/skeskinen/smartcut">skeskinen/smartcut</a> — smart cut アルゴリズム参照（2026-02 開発停止）</li>
+<li><a href="https://partnerhelp.netflixstudios.com/hc/en-us/articles/215767517-Japanese-Timed-Text-Style-Guide">Netflix 日本語字幕ガイド</a> — 13全角/行・4文字/秒</li>
+</ul>
+<hr />
+<p><strong>最後に一言</strong>：初期解として「<strong>無音カットは Filmora の Silence Detection（クレジット無料）に任せ、字幕だけ CLI で作って SRT を渡す</strong>」という折衷が最もコスパが良い。CLI 側の投資は「日本語 ASR + 辞書 + 中間 JSON」に集中させ、<code>.wfp</code> 生成はスパイクの結果次第で判断するのが安全な進め方。</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.tabs.link", "navigation.instant", "navigation.tracking", "navigation.top", "search.suggest", "search.highlight", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
