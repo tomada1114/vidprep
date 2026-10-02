@@ -751,6 +751,93 @@ def widen_padding(root: Path) -> None:
     path.write_text(json.dumps(profile), encoding="utf-8")
 
 
+class TestSpeechRegions:
+    """VAD lookups preserve exact endpoint and millisecond boundary rules."""
+
+    @pytest.mark.parametrize(
+        ("regions", "overlapping"),
+        [
+            pytest.param([], [], id="no-speech"),
+            pytest.param([(0.0, 5.0), (8.0, 10.0)], [], id="touching-only"),
+            pytest.param(
+                [(0.0, 6.0), (7.0, 10.0)],
+                [(0.0, 6.0), (7.0, 10.0)],
+                id="both-ends-overlap",
+            ),
+            pytest.param(
+                [(1.0, 3.0), (5.0, 8.0), (10.0, 12.0)],
+                [(5.0, 8.0)],
+                id="matching-endpoints",
+            ),
+            pytest.param([(1.0, 12.0)], [(1.0, 12.0)], id="inside-one-region"),
+        ],
+    )
+    def test_only_regions_with_positive_overlap_are_returned(
+        self, regions, overlapping
+    ):
+        segment = Segment(id="s0001", start=5.0, end=8.0, text="speech")
+        speech = _fillers.Speech(
+            (segment,), tuple(Span(start, end) for start, end in regions), 20.0
+        )
+
+        assert speech.regions_in(segment) == [
+            Span(start, end) for start, end in overlapping
+        ]
+
+    @pytest.mark.parametrize(
+        ("regions", "before", "after"),
+        [
+            pytest.param([], 5.0, 12.0, id="material-edges"),
+            pytest.param([(1.0, 3.0), (10.0, 12.0)], 2.0, 2.0, id="nearest-regions"),
+            pytest.param([(1.0, 5.0), (8.0, 10.0)], 0.0, 0.0, id="touching-regions"),
+            pytest.param(
+                [(1.0, 4.9996), (8.0004, 10.0)],
+                0.0004,
+                0.0004,
+                id="compare-in-milliseconds",
+            ),
+        ],
+    )
+    def test_the_nearest_regions_bound_adjacent_silence(self, regions, before, after):
+        segment = Segment(id="s0001", start=5.0, end=8.0, text="speech")
+        speech = _fillers.Speech(
+            (segment,), tuple(Span(start, end) for start, end in regions), 20.0
+        )
+
+        assert speech.quiet_before(0) == pytest.approx(before)
+        assert speech.quiet_after(0) == pytest.approx(after)
+
+    def test_neighbouring_segments_also_bound_adjacent_silence(self):
+        speech = _fillers.Speech(
+            (
+                Segment(id="s0001", start=4.0, end=6.0, text="before"),
+                Segment(id="s0002", start=7.0, end=8.0, text="speech"),
+                Segment(id="s0003", start=9.0, end=10.0, text="after"),
+            ),
+            (Span(0.0, 2.0), Span(11.0, 12.0)),
+            20.0,
+        )
+
+        assert speech.quiet_before(1) == 1.0
+        assert speech.quiet_after(1) == 1.0
+
+    def test_overlapping_segments_share_one_merged_speech_span(self):
+        speech = _fillers.Speech(
+            (
+                Segment(id="s0001", start=2.0, end=7.0, text="first"),
+                Segment(id="s0002", start=5.0, end=12.0, text="second"),
+            ),
+            (Span(0.0, 3.0), Span(5.0, 8.0), Span(10.0, 15.0)),
+            20.0,
+        )
+
+        assert speech.spoken_spans() == [
+            Span(2.0, 3.0),
+            Span(5.0, 8.0),
+            Span(10.0, 12.0),
+        ]
+
+
 class TestSpeechSafety:
     """The cross-check that makes unattended detection safe (REQ-041)."""
 
@@ -797,6 +884,36 @@ class TestSpeechSafety:
         result = run(detectable)
         assert result.max_speech_overlap is None
         assert result.to_dict()["speech"]["max_overlap_sec"] is None
+
+    @pytest.mark.parametrize(
+        ("start", "flagged"),
+        [
+            pytest.param(9.8, ["s0003"], id="exactly-two-hundred-milliseconds"),
+            pytest.param(9.799, ["s0001", "s0003"], id="one-millisecond-over"),
+        ],
+    )
+    def test_only_unspoken_time_over_the_limit_flags_a_segment(self, start, flagged):
+        speech = _fillers.Speech(
+            (
+                Segment(id="s0001", start=0.0, end=10.0, text="first"),
+                Segment(id="s0002", start=10.0, end=20.0, text="second"),
+                Segment(id="s0003", start=20.0, end=30.0, text="third"),
+            ),
+            (),
+            30.0,
+        )
+        cuts = [
+            Cut(id="c0001", start=25.0, end=26.0, reason="silence"),
+            Cut(id="c0002", start=start, end=10.1, reason="silence"),
+            Cut(id="c0003", start=5.0, end=6.0, reason="manual"),
+        ]
+
+        assert (
+            detect_module.segments_over_silence(
+                cuts, speech, [Span(0.0, 9.0), Span(10.0, 20.0)]
+            )
+            == flagged
+        )
 
 
 class TestInvariants:

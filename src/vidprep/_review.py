@@ -12,6 +12,8 @@ job, and ``report`` never writes ``cuts.json``.
 
 from __future__ import annotations
 
+import itertools
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -58,24 +60,33 @@ def _segment_dict(segment: Segment) -> dict[str, Any]:
     }
 
 
-def _is_removed(segment: Segment, cut: Cut) -> bool:
-    """Report whether *cut* swallows *segment* whole, as the mapping would."""
-    return to_ms(segment.start) >= to_ms(cut.start) and to_ms(segment.end) <= to_ms(
-        cut.end
-    )
+@dataclass(frozen=True, slots=True)
+class _Transcript:
+    """Endpoint indexes that also support overlapping transcript segments."""
+
+    segments: tuple[Segment, ...]
+    starts: tuple[int, ...]
+    furthest_ends: tuple[int, ...]
 
 
-def _context(cut: Cut, segments: Sequence[Segment]) -> Entry:
+def _context(cut: Cut, transcript: _Transcript) -> Entry:
     """Return *cut* with the segments it deletes and the ones that survive it."""
-    removed = tuple(segment for segment in segments if _is_removed(segment, cut))
-    kept = [segment for segment in segments if not _is_removed(segment, cut)]
-    before = [item for item in kept if to_ms(item.start) < to_ms(cut.start)]
-    after = [item for item in kept if to_ms(item.end) > to_ms(cut.end)]
+    start, end = to_ms(cut.start), to_ms(cut.end)
+    first = bisect_left(transcript.starts, start)
+    last = bisect_right(transcript.starts, end)
+    removed = tuple(
+        segment
+        for segment in transcript.segments[first:last]
+        if to_ms(segment.end) <= end
+    )
+    # Starts and prefix maxima are monotonic even when a segment surrounds
+    # several later ones. Context segments cannot be swallowed by this cut.
+    after = bisect_right(transcript.furthest_ends, end)
     return Entry(
         cut=cut,
         removed=removed,
-        before=before[-1] if before else None,
-        after=after[0] if after else None,
+        before=transcript.segments[first - 1] if first else None,
+        after=transcript.segments[after] if after < len(transcript.segments) else None,
     )
 
 
@@ -93,8 +104,13 @@ def review(cuts: Iterable[Cut], segments: Sequence[Segment] | None) -> list[Entr
     ordered = sorted(cuts, key=lambda cut: (cut.start, cut.end, cut.id))
     if segments is None:
         return [Entry(cut, None, None, None) for cut in ordered]
-    in_order = sorted(segments, key=lambda segment: (segment.start, segment.end))
-    return [_context(cut, in_order) for cut in ordered]
+    in_order = tuple(sorted(segments, key=lambda segment: (segment.start, segment.end)))
+    transcript = _Transcript(
+        in_order,
+        tuple(to_ms(segment.start) for segment in in_order),
+        tuple(itertools.accumulate((to_ms(segment.end) for segment in in_order), max)),
+    )
+    return [_context(cut, transcript) for cut in ordered]
 
 
 def to_dict(entries: Sequence[Entry]) -> dict[str, Any]:

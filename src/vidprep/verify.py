@@ -292,7 +292,7 @@ def run_verify_asr(subject: Subject) -> VerifyResult:
             "render could not be verified"
         )
         raise AsrFailedError(msg)
-    hunks = _retranscribe.missing_hunks(expected.text, actual)
+    hunks, cer = _retranscribe.compare(expected.text, actual)
     flags = _retranscribe.flag_boundaries(
         expected, hunks, subject.timeline, subject.approved
     )
@@ -306,7 +306,7 @@ def run_verify_asr(subject: Subject) -> VerifyResult:
         missing_hunks=len(hunks),
         flags=tuple(flags),
         boundaries=len(_retranscribe.boundaries(subject.approved)),
-        global_cer=_retranscribe.character_error_rate(expected.text, actual),
+        global_cer=cer,
         elapsed_seconds=elapsed,
     )
 

@@ -14,6 +14,7 @@ ordinary Japanese, so cutting them has to be asked for (``filler.enable_weak``).
 from __future__ import annotations
 
 import unicodedata
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, replace
 from functools import cache
 from importlib import resources
@@ -286,13 +287,11 @@ class Speech:
         """
         segment = self.segments[index]
         spoken = self.segments[index - 1].end if index > 0 else 0.0
-        ends = [
-            region.end
-            for region in self.regions
-            if to_ms(region.end) <= to_ms(segment.start)
-        ]
-        if ends:
-            spoken = max(spoken, ends[-1])
+        previous = bisect_right(
+            self.regions, to_ms(segment.start), key=lambda region: to_ms(region.end)
+        )
+        if previous:
+            spoken = max(spoken, self.regions[previous - 1].end)
         return max(0.0, segment.start - spoken)
 
     def quiet_after(self, index: int) -> float:
@@ -303,19 +302,20 @@ class Speech:
             if index + 1 < len(self.segments)
             else self.duration
         )
-        starts = [
-            region.start
-            for region in self.regions
-            if to_ms(region.start) >= to_ms(segment.end)
-        ]
-        if starts:
-            following = min(following, starts[0])
+        following_region = bisect_left(
+            self.regions, to_ms(segment.end), key=lambda region: to_ms(region.start)
+        )
+        if following_region < len(self.regions):
+            following = min(following, self.regions[following_region].start)
         return max(0.0, following - segment.end)
 
     def regions_in(self, segment: Segment) -> list[Span]:
         """Return the speech regions that overlap *segment*."""
-        span = Span(segment.start, segment.end)
-        return [region for region in self.regions if region.overlap(span) > 0]
+        # VAD regions are ordered and disjoint, so both endpoint tables are
+        # monotonic. Touching a segment's boundary is not an overlap.
+        first = bisect_right(self.regions, segment.start, key=lambda region: region.end)
+        last = bisect_left(self.regions, segment.end, key=lambda region: region.start)
+        return list(self.regions[first:last])
 
     def spoken_spans(self) -> list[Span]:
         """Return the parts of the transcript the VAD also heard as speech.
@@ -330,8 +330,7 @@ class Speech:
             span = Span(segment.start, segment.end)
             spoken += [
                 Span(max(span.start, region.start), min(span.end, region.end))
-                for region in self.regions
-                if region.overlap(span) > 0
+                for region in self.regions_in(segment)
             ]
         return merge_spans(spoken)
 

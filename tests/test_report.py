@@ -18,7 +18,7 @@ import pytest
 from vidprep import _boundaries, _ffmpeg, _review, audio, report
 from vidprep import project as project_module
 from vidprep.errors import EXIT_OK, FfmpegError
-from vidprep.models import Cut
+from vidprep.models import Cut, Segment
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -963,6 +963,47 @@ class TestReview:
 
     def test_a_project_without_candidates_says_there_is_nothing_to_review(self):
         assert _review.lines([]) == ["no cut candidates to review"]
+
+    @pytest.mark.parametrize(
+        ("start", "end", "removed", "before", "after"),
+        [
+            pytest.param(0.0, 1.0, [], None, "s0001", id="touching-start"),
+            pytest.param(2.0, 8.0, ["s0002", "s0003"], "s0001", "s0001", id="nested"),
+            pytest.param(4.0, 5.0, [], "s0002", "s0001", id="long-earlier-segment"),
+            pytest.param(9.0, 12.0, ["s0004"], "s0003", None, id="last-segment"),
+            pytest.param(10.0, 11.0, ["s0004"], "s0003", None, id="exact-cut-edges"),
+            pytest.param(
+                0.0, 12.0, ["s0001", "s0002", "s0003", "s0004"], None, None, id="all"
+            ),
+        ],
+    )
+    def test_overlapping_segments_keep_the_same_timeline_context(
+        self, start, end, removed, before, after
+    ):
+        segments = [
+            Segment(id="s0003", start=7.0, end=8.0, text="third"),
+            Segment(id="s0001", start=1.0, end=9.0, text="long first"),
+            Segment(id="s0004", start=10.0, end=11.0, text="fourth"),
+            Segment(id="s0002", start=3.0, end=4.0, text="second"),
+        ]
+
+        (entry,) = _review.review(
+            [Cut(id="c0001", start=start, end=end, reason="manual")], segments
+        )
+
+        assert entry.removed is not None
+        assert (
+            [segment.id for segment in entry.removed],
+            entry.before.id if entry.before else None,
+            entry.after.id if entry.after else None,
+        ) == (removed, before, after)
+
+    def test_an_empty_transcript_still_marks_the_context_as_checked(self):
+        (entry,) = _review.review(
+            [Cut(id="c0001", start=1.0, end=2.0, reason="silence")], []
+        )
+
+        assert (entry.removed, entry.before, entry.after) == ((), None, None)
 
 
 # --------------------------------------------------------------------------- #

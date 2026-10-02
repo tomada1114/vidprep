@@ -294,12 +294,13 @@ def plan_dictionary(
                 "(run `vidprep doctor`)",
             )
 
+    corrector = _dictionary.Corrector(entries, reader)
     now = datetime.now(tz=UTC).astimezone()
     segments: list[Segment] = []
     changes: list[SegmentChange] = []
     skipped: list[Skip] = []
     for segment in transcript.segments:
-        text, hits = _dictionary.correct_text(segment.text, entries, reader)
+        text, hits = corrector(segment.text)
         skipped += _pending(segment.id, hits)
         if text == segment.text:
             segments.append(segment)

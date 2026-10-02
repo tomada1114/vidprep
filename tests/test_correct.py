@@ -316,6 +316,61 @@ class TestSurfaceStage:
     def test_empty_text_changes_nothing(self):
         assert apply_dictionary("") == ""
 
+    def test_a_prepared_dictionary_keeps_each_segments_hits_separate(self):
+        corrector = _dictionary.Corrector(DICTIONARY, fake_reader)
+
+        first_text, first_hits = corrector("クロードコードの話")
+        second_text, second_hits = corrector("ビッドプレップ")
+        unchanged, no_hits = corrector("既に正しい文章")
+
+        assert (first_text, [hit.matched for hit in first_hits]) == (
+            "Claude Codeの話",
+            ["クロードコード"],
+        )
+        assert (second_text, [hit.matched for hit in second_hits]) == (
+            "vidprep",
+            ["ビッドプレップ"],
+        )
+        assert (unchanged, no_hits) == ("既に正しい文章", [])
+
+    def test_duplicate_spellings_and_readings_keep_the_first_entry(self):
+        dictionary = AsrDictionary(
+            version="1",
+            entries=[
+                _dictionary.DictionaryEntry(
+                    correct="first",
+                    misrecognized=["クロードコード"],
+                    yomi="クロードコード",
+                    confidence="always",
+                ),
+                _dictionary.DictionaryEntry(
+                    correct="second",
+                    misrecognized=["クロードコード"],
+                    yomi="くろーどこーど",
+                    confidence="always",
+                ),
+            ],
+        )
+
+        def reader(text: str) -> Sequence[ReadingToken]:
+            return [ReadingToken(0, len(text), text, "クロードコード")]
+
+        surface, surface_hits = _dictionary.correct_text("クロードコード", dictionary)
+        reading, reading_hits = _dictionary.correct_text(
+            "クロード・コード", dictionary, reader
+        )
+
+        assert (surface, [hit.correct for hit in surface_hits]) == ("first", ["first"])
+        assert (reading, [hit.correct for hit in reading_hits]) == ("first", ["first"])
+
+    def test_a_new_pass_uses_the_current_dictionary_entries(self):
+        dictionary = DICTIONARY.model_copy(deep=True)
+        assert apply_dictionary("クロードコード", dictionary) == "Claude Code"
+
+        dictionary.entries[0].correct = "Updated name"
+
+        assert apply_dictionary("クロードコード", dictionary) == "Updated name"
+
 
 class TestReadingStage:
     """REQ-004 / REQ-005: unseen spellings are caught by their reading."""

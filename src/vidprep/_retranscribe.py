@@ -16,7 +16,7 @@ runs through :func:`vidprep._text.normalize`.
 from __future__ import annotations
 
 import difflib
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -39,6 +39,8 @@ MIN_HUNK_CHARS = 2
 BOUNDARY_WINDOW = 2.0
 
 SECONDS_DECIMALS = 3
+
+type _Opcode = tuple[str, int, int, int, int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,9 +266,14 @@ def missing_hunks(expected: str, actual: str) -> list[MissingHunk]:
     which is the model noise this check is built to cancel out rather than
     report.
     """
+    return _missing_hunks(expected, _matcher(expected, actual).get_opcodes())
+
+
+def _missing_hunks(expected: str, opcodes: Sequence[_Opcode]) -> list[MissingHunk]:
+    """Read deletions from an alignment already computed for this comparison."""
     return [
         MissingHunk(text=expected[start:stop], index=start)
-        for tag, start, stop, _, _ in _matcher(expected, actual).get_opcodes()
+        for tag, start, stop, _, _ in opcodes
         if tag == "delete" and stop - start >= MIN_HUNK_CHARS
     ]
 
@@ -286,17 +293,36 @@ def character_error_rate(expected: str, actual: str) -> float:
     if not expected:
         msg = "the expected text is empty"
         raise ValueError(msg)
+    return _error_count(_matcher(expected, actual).get_opcodes()) / len(expected)
+
+
+def _error_count(opcodes: Sequence[_Opcode]) -> int:
+    """Count edits in the alignment shared with the missing-hunk report."""
     errors = 0
-    for tag, start, stop, other_start, other_stop in _matcher(
-        expected, actual
-    ).get_opcodes():
+    for tag, start, stop, other_start, other_stop in opcodes:
         if tag == "delete":
             errors += stop - start
         elif tag == "insert":
             errors += other_stop - other_start
         elif tag == "replace":
             errors += max(stop - start, other_stop - other_start)
-    return errors / len(expected)
+    return errors
+
+
+def compare(expected: str, actual: str) -> tuple[list[MissingHunk], float]:
+    """Return missing hunks and CER from a single character-level alignment.
+
+    Alignment can be quadratic for repetitive transcripts, so a verification
+    pass must reuse it for both measurements.
+
+    Raises:
+        ValueError: If the expectation is empty, leaving the rate undefined.
+    """
+    if not expected:
+        msg = "the expected text is empty"
+        raise ValueError(msg)
+    opcodes = _matcher(expected, actual).get_opcodes()
+    return _missing_hunks(expected, opcodes), _error_count(opcodes) / len(expected)
 
 
 def boundaries(approved: Sequence[Cut]) -> list[tuple[str, float]]:
@@ -366,15 +392,24 @@ def flag_boundaries(
     ``negligible`` rather than dropped, so the report still shows them and only
     the gate ignores them.
     """
-    edges = boundaries(approved)
+    edges: dict[float, tuple[int, str]] = {}
+    for order, (cut_id, position) in enumerate(boundaries(approved)):
+        # Shared boundaries retain the first cut in input order, as min() did.
+        edges.setdefault(position, (order, cut_id))
     if not edges or not expected.segments:
         return []
+    positions = sorted(edges)
     limit = to_ms(BOUNDARY_WINDOW)
     flags: list[BoundaryFlag] = []
     for hunk in hunks:
         _, cut_time = expected.locate(hunk.index)
         source = timeline.inverse(min(max(cut_time, 0.0), timeline.cut_duration))
-        cut_id, edge = min(edges, key=lambda item: abs(item[1] - source))
+        index = bisect_left(positions, source)
+        edge = min(
+            positions[max(0, index - 1) : index + 1],
+            key=lambda position: (abs(position - source), edges[position][0]),
+        )
+        _, cut_id = edges[edge]
         if to_ms(abs(edge - source)) <= limit:
             flags.append(
                 BoundaryFlag(cut_id, source, hunk.text, is_negligible(hunk.text))

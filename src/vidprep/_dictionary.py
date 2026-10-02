@@ -34,7 +34,7 @@ from .errors import SchemaInvalidError
 from .models import describe_validation_error
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
     from pathlib import Path
 
 #: Where the packaged dictionary lives inside the installed package.
@@ -228,6 +228,41 @@ class _SudachiReader:
         ]
 
 
+class Corrector:
+    """Prepare dictionary lookups once for all segments in a correction pass."""
+
+    __slots__ = ("_patterns", "_reader", "_readings")
+
+    def __init__(self, dictionary: AsrDictionary, reader: Reader | None = None) -> None:
+        """Index spellings by first character, preserving longest-match priority."""
+        self._patterns: dict[str, list[tuple[str, DictionaryEntry]]] = {}
+        for surface, entry in _surface_patterns(dictionary.entries):
+            self._patterns.setdefault(surface[0], []).append((surface, entry))
+        self._readings = (
+            {
+                normalise_reading(entry.yomi): entry
+                for entry in reversed(dictionary.entries)
+            }
+            if reader is not None
+            else {}
+        )
+        self._reader = reader
+
+    def __call__(self, text: str) -> tuple[str, list[Hit]]:
+        """Correct one segment without retaining its hits for the next segment."""
+        corrected, hits = _apply_surface(text, self._patterns)
+        if self._reader is not None:
+            corrected, reading_hits = _apply_readings(
+                corrected, self._readings, self._reader
+            )
+            hits += reading_hits
+        # A context match subsequently replaced by the reading stage no longer
+        # needs a decision from the user.
+        return corrected, [
+            hit for hit in hits if hit.applied or hit.matched in corrected
+        ]
+
+
 def correct_text(
     text: str,
     dictionary: AsrDictionary,
@@ -246,13 +281,7 @@ def correct_text(
         nothing — an already-correct spelling — are not reported, so applying
         the result again yields no hits at all.
     """
-    corrected, hits = _apply_surface(text, dictionary.entries)
-    if reader is not None:
-        corrected, reading_hits = _apply_readings(corrected, dictionary.entries, reader)
-        hits += reading_hits
-    # A ``context`` match the reading stage then replaced anyway is no longer
-    # something the user has to decide about, so it is not reported as pending.
-    return corrected, [hit for hit in hits if hit.applied or hit.matched in corrected]
+    return Corrector(dictionary, reader)(text)
 
 
 def _surface_patterns(
@@ -275,15 +304,14 @@ def _surface_patterns(
 
 
 def _apply_surface(
-    text: str, entries: Iterable[DictionaryEntry]
+    text: str, patterns: Mapping[str, Sequence[tuple[str, DictionaryEntry]]]
 ) -> tuple[str, list[Hit]]:
     """Replace literal misrecognitions, scanning left to right."""
-    patterns = _surface_patterns(entries)
     pieces: list[str] = []
     hits: list[Hit] = []
     index = 0
     while index < len(text):
-        for surface, entry in patterns:
+        for surface, entry in patterns.get(text[index], ()):
             if text.startswith(surface, index):
                 pieces.append(_take(entry, surface, "surface", hits))
                 index += len(surface)
@@ -311,11 +339,10 @@ def _take(entry: DictionaryEntry, matched: str, stage: Stage, hits: list[Hit]) -
 
 
 def _apply_readings(
-    text: str, entries: Sequence[DictionaryEntry], reader: Reader
+    text: str, readings: dict[str, DictionaryEntry], reader: Reader
 ) -> tuple[str, list[Hit]]:
     """Replace terms whose *reading* matches an entry, scanning left to right."""
     tokens = reader(text)
-    readings = {normalise_reading(entry.yomi): entry for entry in reversed(entries)}
     pieces: list[str] = []
     hits: list[Hit] = []
     cursor = 0

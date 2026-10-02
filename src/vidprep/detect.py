@@ -312,15 +312,19 @@ def segments_over_silence(
     (design.md §5.2).
     """
     silence_cuts = [Span(cut.start, cut.end) for cut in cuts if cut.reason == SILENCE]
+    if not silence_cuts:
+        return []
+    # A speech piece contributes the same removed duration to every segment
+    # it overlaps. Compute it once, instead of inside the segment/cut loop.
+    removed_speech = [
+        (piece, sum(cut.overlap(piece) for cut in silence_cuts)) for piece in spoken
+    ]
     flagged: list[str] = []
     for segment in speech.segments:
         span = Span(segment.start, segment.end)
         claimed = sum(cut.overlap(span) for cut in silence_cuts)
         real = sum(
-            cut.overlap(piece)
-            for cut in silence_cuts
-            for piece in spoken
-            if piece.overlap(span) > 0
+            removed for piece, removed in removed_speech if piece.overlap(span) > 0
         )
         if to_ms(claimed - real) > to_ms(MAX_SPEECH_OVERLAP):
             flagged.append(segment.id)

@@ -294,6 +294,40 @@ class TestCharacterErrorRate:
             _retranscribe.character_error_rate("", "あいうえお")
 
 
+class TestComparison:
+    """Both verification metrics describe the same character alignment."""
+
+    @pytest.mark.parametrize(
+        ("actual", "hunks", "cer"),
+        [
+            pytest.param("あいうえお", [], 0.0, id="identical"),
+            pytest.param("あいえお", [], 0.2, id="single-deletion"),
+            pytest.param("あいお", [MissingHunk("うえ", 2)], 0.4, id="missing-hunk"),
+            pytest.param("あいうかきえお", [], 0.4, id="insertion"),
+            pytest.param("あいかきくけお", [], 0.8, id="replacement"),
+            pytest.param("", [MissingHunk("あいうえお", 0)], 1.0, id="empty-actual"),
+        ],
+    )
+    def test_hunks_and_error_rate_agree_on_each_kind_of_edit(self, actual, hunks, cer):
+        found, rate = _retranscribe.compare("あいうえお", actual)
+
+        assert found == hunks
+        assert rate == pytest.approx(cer)
+
+    def test_frequent_characters_remain_in_the_alignment(self):
+        expected = "あ" * 210 + "いう" + "え" * 210
+        actual = "あ" * 210 + "え" * 210
+
+        hunks, rate = _retranscribe.compare(expected, actual)
+
+        assert hunks == [MissingHunk("いう", 210)]
+        assert rate == pytest.approx(2 / 422)
+
+    def test_an_empty_expectation_has_no_comparison_rate(self):
+        with pytest.raises(ValueError, match="the expected text is empty"):
+            _retranscribe.compare("", "あいうえお")
+
+
 class TestBoundaryWindow:
     """REQ-005: 2.00s from a boundary is flagged, 2.01s is not."""
 
@@ -330,6 +364,50 @@ class TestBoundaryWindow:
             )
             == []
         )
+
+    def test_equidistant_boundaries_keep_the_first_cut_in_input_order(self):
+        approved = [
+            Cut(id="c0002", start=12.0, end=13.0, reason="silence", status="approved"),
+            Cut(id="c0001", start=9.0, end=10.0, reason="silence", status="approved"),
+        ]
+        expected = ExpectedText(
+            (ExpectedSegment("s0001", "文字", 10.0, 11.0),), "文字", (0,)
+        )
+
+        (flag,) = _retranscribe.flag_boundaries(
+            expected,
+            [MissingHunk("かき", 0)],
+            Timeline([(9.0, 10.0), (12.0, 13.0)], 30.0),
+            approved,
+        )
+
+        assert (flag.cut_id, flag.src_time) == ("c0002", 11.0)
+
+    @pytest.mark.parametrize(
+        ("index", "cut_id", "source"),
+        [
+            pytest.param(0, "c0001", 0.0, id="before-first-boundary"),
+            pytest.param(26, "c0002", 30.0, id="after-last-boundary"),
+        ],
+    )
+    def test_the_nearest_outer_boundary_is_found(self, index, cut_id, source):
+        approved = [
+            Cut(id="c0001", start=1.0, end=3.0, reason="silence", status="approved"),
+            Cut(id="c0002", start=27.0, end=29.0, reason="silence", status="approved"),
+        ]
+        text = "あ" * 26
+        expected = ExpectedText(
+            (ExpectedSegment("s0001", text, 0.0, 26.0),), text, (0,)
+        )
+
+        (flag,) = _retranscribe.flag_boundaries(
+            expected,
+            [MissingHunk("かき", index)],
+            Timeline([(1.0, 3.0), (27.0, 29.0)], 30.0),
+            approved,
+        )
+
+        assert (flag.cut_id, flag.src_time) == (cut_id, source)
 
 
 class TestNegligibleHunks:
